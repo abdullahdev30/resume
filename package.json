@@ -3,11 +3,17 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+  "dev": "concurrently \"npm run dev:web\" \"npm run dev:backend\"",
+    "dev:web": "turbo run dev",
+
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+  "dev:backend": "cd apps/backend && venv\\Scripts\\python -m uvicorn main:app --reload --port 8000",
+
     "check-types": "turbo run check-types"
   },
+
+
   "devDependencies": {
     "prettier": "3.9.6",
     "turbo": "^2.10.13",
