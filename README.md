@@ -2,6 +2,143 @@
 
 This Turborepo starter is maintained by the Turborepo core team.
 
+## Backend Auth Setup
+
+The FastAPI backend uses Supabase Auth for account registration, email OTP
+verification, login, session refresh, logout, password recovery, and password
+changes. It does not create application user tables, write to `auth.users`, or
+generate custom password hashes, JWTs, refresh tokens, or email tokens.
+
+`POST /api/v1/auth/login` returns only the Supabase access and refresh tokens.
+It does not return the user id, email, or profile data:
+
+```json
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "token_type": "bearer",
+  "expires_in": 3600
+}
+```
+
+For authenticated requests, send:
+
+```http
+Authorization: Bearer <access_token>
+```
+
+`POST /api/v1/auth/refresh` accepts the refresh token in the request body,
+rotates the Supabase session, and returns a fresh token pair:
+
+```json
+{
+  "refresh_token": "..."
+}
+```
+
+Response:
+
+```json
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "token_type": "bearer",
+  "expires_in": 3600
+}
+```
+
+Required backend environment variables:
+
+```sh
+APP_NAME=Company API
+APP_ENV=development
+FRONTEND_URL=http://localhost:3000
+BACKEND_URL=http://localhost:8000
+SUPABASE_URL=...
+SUPABASE_PUBLISHABLE_KEY=...
+COOKIE_SECURE=false
+COOKIE_DOMAIN=
+COOKIE_SAMESITE=lax
+RATE_LIMIT_STORAGE_URI=memory://
+PROFILE_DATABASE_PATH=profile.sqlite3
+CERTIFICATE_UPLOAD_DIR=uploads/certificates
+```
+
+For production, set `COOKIE_SECURE=true`, use an explicit allowed frontend
+origin, and replace `RATE_LIMIT_STORAGE_URI=memory://` with shared storage that
+matches the deployment topology.
+
+Supabase Dashboard settings to configure manually:
+
+- Authentication -> Providers -> Email: enable Email provider, new user signup,
+  and Confirm Email.
+- Authentication -> Email Templates -> Confirm Signup: include the OTP token so
+  the frontend can ask the user to enter a code manually.
+- Authentication -> Email Templates -> Recovery: include the OTP token if the
+  password recovery UI uses manual OTP entry.
+- Authentication -> URL Configuration: add the local and production frontend
+  and backend URLs used by this project.
+
+Auth endpoints:
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/verify-email`
+- `POST /api/v1/auth/resend-verification`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `POST /api/v1/auth/forgot-password`
+- `POST /api/v1/auth/verify-recovery-otp`
+- `POST /api/v1/auth/change-password`
+
+Profile endpoints require `Authorization: Bearer <access_token>`.
+
+Onboarding/profile endpoints:
+
+- `GET /api/v1/profile`
+- `GET /api/v1/profile/onboarding/status`
+- `POST /api/v1/profile/onboarding/personal`
+- `POST /api/v1/profile/onboarding/education`
+- `POST /api/v1/profile/onboarding/experience`
+- `POST /api/v1/profile/onboarding/skills`
+- `POST /api/v1/profile/onboarding/certificates`
+- `PUT /api/v1/profile/personal`
+
+The personal step is required first and includes first name, last name, email,
+phone, address, and optional social links. Education, experience, skills,
+certificates, and projects can be skipped during onboarding and added later.
+
+Profile item CRUD endpoints:
+
+- `POST /api/v1/profile/social-links`
+- `PUT /api/v1/profile/social-links/{item_id}`
+- `DELETE /api/v1/profile/social-links/{item_id}`
+- `POST /api/v1/profile/education`
+- `PUT /api/v1/profile/education/{item_id}`
+- `DELETE /api/v1/profile/education/{item_id}`
+- `POST /api/v1/profile/experience`
+- `PUT /api/v1/profile/experience/{item_id}`
+- `DELETE /api/v1/profile/experience/{item_id}`
+- `POST /api/v1/profile/skills`
+- `PUT /api/v1/profile/skills/{item_id}`
+- `DELETE /api/v1/profile/skills/{item_id}`
+- `POST /api/v1/profile/certificates`
+- `POST /api/v1/profile/certificates/upload`
+- `PUT /api/v1/profile/certificates/{item_id}`
+- `DELETE /api/v1/profile/certificates/{item_id}`
+- `POST /api/v1/profile/projects`
+- `PUT /api/v1/profile/projects/{item_id}`
+- `DELETE /api/v1/profile/projects/{item_id}`
+
+Run backend checks from `apps/backend`:
+
+```sh
+venv\Scripts\python -m ruff check .
+venv\Scripts\python -m pytest
+venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+```
+
 ## Using this example
 
 Run the following command:
