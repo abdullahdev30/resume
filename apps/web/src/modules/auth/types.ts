@@ -1,8 +1,9 @@
 export interface User {
   id: string;
-  name: string;
+  name?: string | null;
   email: string;
-  number?: string;
+  number?: string | null;
+  email_verified?: boolean | null;
 }
 
 export interface LoginPayload {
@@ -42,8 +43,6 @@ export interface ChangePasswordPayload {
 }
 
 export interface AuthResponse {
-  access_token?: string;
-  refresh_token?: string;
   message?: string;
   user?: User;
 }

@@ -16,11 +16,10 @@ from app.modules.auth.schemas import (
     ForgotPasswordRequest,
     LoginRequest,
     MessageResponse,
-    RefreshSessionRequest,
     RegisterRequest,
     RegisterResponse,
     ResendVerificationRequest,
-    TokenResponse,
+    SessionResponse,
     UserResponse,
     VerifyEmailOtpRequest,
     VerifyEmailResponse,
@@ -49,22 +48,10 @@ def _set_session_cookies(response: Response, auth_result: AuthResult) -> None:
     )
 
 
-def _token_response(auth_result: AuthResult) -> TokenResponse:
-    if auth_result.tokens is None:
-        raise_http_error(
-            AuthApplicationError(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                code="invalid_session",
-                message="Invalid or expired session.",
-            )
-        )
-        raise RuntimeError("unreachable")
-
-    return TokenResponse(
-        access_token=auth_result.tokens.access_token,
-        refresh_token=auth_result.tokens.refresh_token,
-        token_type="bearer",
-        expires_in=auth_result.tokens.expires_in,
+def _session_response(message: str, auth_result: AuthResult) -> SessionResponse:
+    return SessionResponse(
+        message=message,
+        user=auth_result.user,
     )
 
 
@@ -128,17 +115,19 @@ def resend_verification(
 
 @router.post(
     "/login",
-    response_model=TokenResponse,
+    response_model=SessionResponse,
 )
 @limiter.limit("5/minute")
 def login(
     request: Request,
+    response: Response,
     payload: LoginRequest,
     auth_service: AuthService = AUTH_SERVICE_DEPENDENCY,
-) -> TokenResponse:
+) -> SessionResponse:
     try:
         auth_result = auth_service.login(payload)
-        return _token_response(auth_result)
+        _set_session_cookies(response, auth_result)
+        return _session_response("Login successful.", auth_result)
     except AuthApplicationError as exc:
         raise_http_error(exc)
 
@@ -155,16 +144,17 @@ def me(
 
 @router.post(
     "/refresh",
-    response_model=TokenResponse,
+    response_model=SessionResponse,
 )
 def refresh(
     response: Response,
-    payload: RefreshSessionRequest,
+    refresh_token: str = REFRESH_TOKEN_DEPENDENCY,
     auth_service: AuthService = AUTH_SERVICE_DEPENDENCY,
-) -> TokenResponse:
+) -> SessionResponse:
     try:
-        auth_result = auth_service.refresh_session(payload.refresh_token)
-        return _token_response(auth_result)
+        auth_result = auth_service.refresh_session(refresh_token)
+        _set_session_cookies(response, auth_result)
+        return _session_response("Session refreshed successfully.", auth_result)
     except AuthApplicationError as exc:
         clear_auth_cookies(response)
         raise_http_error(exc)
@@ -213,7 +203,7 @@ def forgot_password(
 
 @router.post(
     "/verify-recovery-otp",
-    response_model=TokenResponse,
+    response_model=SessionResponse,
 )
 @limiter.limit("10/minute")
 def verify_recovery_otp(
@@ -221,11 +211,11 @@ def verify_recovery_otp(
     response: Response,
     payload: VerifyRecoveryOtpRequest,
     auth_service: AuthService = AUTH_SERVICE_DEPENDENCY,
-) -> TokenResponse:
+) -> SessionResponse:
     try:
         auth_result = auth_service.verify_recovery_otp(payload)
         _set_session_cookies(response, auth_result)
-        return _token_response(auth_result)
+        return _session_response("Recovery OTP verified successfully.", auth_result)
     except AuthApplicationError as exc:
         raise_http_error(exc)
 

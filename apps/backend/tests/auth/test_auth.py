@@ -118,7 +118,7 @@ def valid_register_payload(**overrides):
 
 def test_register_valid_data_normalizes_inputs(client, auth_service_override):
     response = client.post(
-        "/api/v1/auth/register",
+        "/api/auth/register",
         json=valid_register_payload(),
     )
 
@@ -147,7 +147,7 @@ def test_register_valid_data_normalizes_inputs(client, auth_service_override):
 )
 def test_register_rejects_invalid_phone_numbers(client, number):
     response = client.post(
-        "/api/v1/auth/register",
+        "/api/auth/register",
         json=valid_register_payload(number=number),
     )
 
@@ -167,7 +167,7 @@ def test_register_rejects_invalid_phone_numbers(client, number):
 )
 def test_register_rejects_weak_passwords(client, password):
     response = client.post(
-        "/api/v1/auth/register",
+        "/api/auth/register",
         json=valid_register_payload(
             password=password,
             confirm_password=password,
@@ -179,7 +179,7 @@ def test_register_rejects_weak_passwords(client, password):
 
 def test_register_rejects_password_mismatch(client):
     response = client.post(
-        "/api/v1/auth/register",
+        "/api/auth/register",
         json=valid_register_payload(confirm_password="OtherPassword123!"),
     )
 
@@ -188,7 +188,7 @@ def test_register_rejects_password_mismatch(client):
 
 def test_register_rejects_malformed_email(client):
     response = client.post(
-        "/api/v1/auth/register",
+        "/api/auth/register",
         json=valid_register_payload(email="not-an-email"),
     )
 
@@ -197,7 +197,7 @@ def test_register_rejects_malformed_email(client):
 
 def test_verify_email_sets_cookies_without_tokens_in_json(client):
     response = client.post(
-        "/api/v1/auth/verify-email",
+        "/api/auth/verify-email",
         json={"email": "john@example.com", "otp": "123456"},
     )
 
@@ -211,7 +211,7 @@ def test_verify_email_sets_cookies_without_tokens_in_json(client):
 
 def test_verify_email_rejects_malformed_otp(client):
     response = client.post(
-        "/api/v1/auth/verify-email",
+        "/api/auth/verify-email",
         json={"email": "john@example.com", "otp": "12ab56"},
     )
 
@@ -220,7 +220,7 @@ def test_verify_email_rejects_malformed_otp(client):
 
 def test_resend_verification_returns_generic_message(client):
     response = client.post(
-        "/api/v1/auth/resend-verification",
+        "/api/auth/resend-verification",
         json={"email": "john@example.com"},
     )
 
@@ -228,25 +228,24 @@ def test_resend_verification_returns_generic_message(client):
     assert "If an account is pending verification" in response.json()["message"]
 
 
-def test_login_returns_only_access_and_refresh_tokens(client):
+def test_login_sets_cookies_without_tokens_in_json(client):
     response = client.post(
-        "/api/v1/auth/login",
+        "/api/auth/login",
         json={"email": "john@example.com", "password": "StrongPassword123!"},
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "access_token": "access-token",
-        "refresh_token": "refresh-token",
-        "token_type": "bearer",
-        "expires_in": None,
-    }
-    assert "john@example.com" not in str(response.json())
-    assert "user-123" not in str(response.json())
+    assert response.cookies.get("access_token") == "access-token"
+    assert response.cookies.get("refresh_token") == "refresh-token"
+    response_body = response.json()
+    assert response_body["message"] == "Login successful."
+    assert response_body["user"]["email"] == "john@example.com"
+    assert "access-token" not in str(response_body)
+    assert "refresh-token" not in str(response_body)
 
 
 def test_me_requires_authentication(client):
-    response = client.get("/api/v1/auth/me")
+    response = client.get("/api/auth/me")
 
     assert response.status_code == 401
 
@@ -254,7 +253,7 @@ def test_me_requires_authentication(client):
 def test_me_returns_current_user(client):
     client.cookies.set("access_token", "access-token")
 
-    response = client.get("/api/v1/auth/me")
+    response = client.get("/api/auth/me")
 
     assert response.status_code == 200
     assert response.json()["email"] == "john@example.com"
@@ -262,7 +261,7 @@ def test_me_returns_current_user(client):
 
 def test_me_accepts_bearer_access_token(client):
     response = client.get(
-        "/api/v1/auth/me",
+        "/api/auth/me",
         headers={"Authorization": "Bearer access-token"},
     )
 
@@ -273,24 +272,25 @@ def test_me_accepts_bearer_access_token(client):
 def test_me_rejects_invalid_session(client):
     client.cookies.set("access_token", "expired-token")
 
-    response = client.get("/api/v1/auth/me")
+    response = client.get("/api/auth/me")
 
     assert response.status_code == 401
 
 
 def test_refresh_rotates_session_cookies(client):
+    client.cookies.set("refresh_token", "old-refresh-token")
+
     response = client.post(
-        "/api/v1/auth/refresh",
-        json={"refresh_token": "old-refresh-token"},
+        "/api/auth/refresh",
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "access_token": "new-access-token",
-        "refresh_token": "new-refresh-token",
-        "token_type": "bearer",
-        "expires_in": None,
-    }
+    assert response.cookies.get("access_token") == "new-access-token"
+    assert response.cookies.get("refresh_token") == "new-refresh-token"
+    response_body = response.json()
+    assert response_body["message"] == "Session refreshed successfully."
+    assert "new-access-token" not in str(response_body)
+    assert "new-refresh-token" not in str(response_body)
 
 
 def test_refresh_invalid_token_clears_cookies(client, auth_service_override):
@@ -299,8 +299,7 @@ def test_refresh_invalid_token_clears_cookies(client, auth_service_override):
     client.cookies.set("refresh_token", "old-refresh-token")
 
     response = client.post(
-        "/api/v1/auth/refresh",
-        json={"refresh_token": "old-refresh-token"},
+        "/api/auth/refresh",
     )
 
     assert response.status_code == 401
@@ -312,7 +311,7 @@ def test_logout_clears_cookies(client):
     client.cookies.set("access_token", "access-token")
     client.cookies.set("refresh_token", "refresh-token")
 
-    response = client.post("/api/v1/auth/logout")
+    response = client.post("/api/auth/logout")
 
     assert response.status_code == 200
     assert response.cookies.get("access_token") is None
@@ -321,7 +320,7 @@ def test_logout_clears_cookies(client):
 
 def test_forgot_password_does_not_disclose_account_existence(client):
     response = client.post(
-        "/api/v1/auth/forgot-password",
+        "/api/auth/forgot-password",
         json={"email": "unknown@example.com"},
     )
 
@@ -336,20 +335,22 @@ def test_forgot_password_does_not_disclose_account_existence(client):
 
 def test_verify_recovery_otp_sets_recovery_session(client):
     response = client.post(
-        "/api/v1/auth/verify-recovery-otp",
+        "/api/auth/verify-recovery-otp",
         json={"email": "john@example.com", "otp": "123456"},
     )
 
     assert response.status_code == 200
     assert response.cookies.get("access_token") == "access-token"
     assert response.cookies.get("refresh_token") == "refresh-token"
-    assert response.json()["access_token"] == "access-token"
-    assert response.json()["refresh_token"] == "refresh-token"
+    response_body = response.json()
+    assert response_body["message"] == "Recovery OTP verified successfully."
+    assert "access-token" not in str(response_body)
+    assert "refresh-token" not in str(response_body)
 
 
 def test_change_password_requires_session(client):
     response = client.post(
-        "/api/v1/auth/change-password",
+        "/api/auth/change-password",
         json={
             "new_password": "NewStrongPassword123!",
             "confirm_new_password": "NewStrongPassword123!",
@@ -364,7 +365,7 @@ def test_change_password_rejects_weak_password(client):
     client.cookies.set("refresh_token", "refresh-token")
 
     response = client.post(
-        "/api/v1/auth/change-password",
+        "/api/auth/change-password",
         json={
             "new_password": "weak",
             "confirm_new_password": "weak",
@@ -379,7 +380,7 @@ def test_change_password_rejects_mismatch(client):
     client.cookies.set("refresh_token", "refresh-token")
 
     response = client.post(
-        "/api/v1/auth/change-password",
+        "/api/auth/change-password",
         json={
             "new_password": "NewStrongPassword123!",
             "confirm_new_password": "OtherStrongPassword123!",
@@ -394,7 +395,7 @@ def test_change_password_valid_session(client):
     client.cookies.set("refresh_token", "refresh-token")
 
     response = client.post(
-        "/api/v1/auth/change-password",
+        "/api/auth/change-password",
         json={
             "new_password": "NewStrongPassword123!",
             "confirm_new_password": "NewStrongPassword123!",
@@ -403,3 +404,4 @@ def test_change_password_valid_session(client):
 
     assert response.status_code == 200
     assert response.json() == {"message": "Password changed successfully."}
+

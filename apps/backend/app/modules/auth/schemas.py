@@ -117,10 +117,6 @@ class LoginRequest(EmailRequest):
     password: str = Field(min_length=1, max_length=128, strict=True)
 
 
-class RefreshSessionRequest(AuthBaseModel):
-    refresh_token: str = Field(min_length=1, max_length=4096, strict=True)
-
-
 class ForgotPasswordRequest(EmailRequest):
     pass
 
@@ -158,11 +154,9 @@ class VerifyEmailResponse(BaseModel):
     user: UserResponse
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int | None = None
+class SessionResponse(BaseModel):
+    message: str
+    user: UserResponse
 
 
 class MessageResponse(BaseModel):

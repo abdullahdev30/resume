@@ -62,7 +62,7 @@ def personal_payload():
 
 def create_personal(client):
     return client.post(
-        "/api/v1/profile/onboarding/personal",
+        "/api/profile/onboarding/personal",
         json=personal_payload(),
         headers=auth_headers(),
     )
@@ -70,7 +70,7 @@ def create_personal(client):
 
 def test_optional_sections_require_personal_profile_first(client):
     response = client.post(
-        "/api/v1/profile/onboarding/education",
+        "/api/profile/onboarding/education",
         json={
             "institute_name": "University",
             "field_of_study": "Computer Science",
@@ -98,7 +98,7 @@ def test_profile_supports_multiple_optional_sections(client):
     create_personal(client)
 
     education = client.post(
-        "/api/v1/profile/onboarding/education",
+        "/api/profile/onboarding/education",
         json={
             "institute_name": "University",
             "field_of_study": "Computer Science",
@@ -109,7 +109,7 @@ def test_profile_supports_multiple_optional_sections(client):
         headers=auth_headers(),
     )
     experience = client.post(
-        "/api/v1/profile/onboarding/experience",
+        "/api/profile/onboarding/experience",
         json={
             "institute_name": "Acme",
             "job_title": "Frontend Engineer",
@@ -119,12 +119,12 @@ def test_profile_supports_multiple_optional_sections(client):
         headers=auth_headers(),
     )
     skill = client.post(
-        "/api/v1/profile/onboarding/skills",
+        "/api/profile/onboarding/skills",
         json={"name": "React"},
         headers=auth_headers(),
     )
     certificate = client.post(
-        "/api/v1/profile/onboarding/certificates",
+        "/api/profile/onboarding/certificates",
         json={
             "title": "AWS Certificate",
             "category": "Cloud",
@@ -134,7 +134,7 @@ def test_profile_supports_multiple_optional_sections(client):
         headers=auth_headers(),
     )
     project = client.post(
-        "/api/v1/profile/projects",
+        "/api/profile/projects",
         json={
             "name": "Portfolio",
             "description": "Personal portfolio",
@@ -150,7 +150,7 @@ def test_profile_supports_multiple_optional_sections(client):
     assert certificate.status_code == 201
     assert project.status_code == 201
 
-    profile = client.get("/api/v1/profile", headers=auth_headers())
+    profile = client.get("/api/profile", headers=auth_headers())
     body = profile.json()
 
     assert profile.status_code == 200
@@ -164,22 +164,22 @@ def test_profile_supports_multiple_optional_sections(client):
 def test_update_and_delete_skill(client):
     create_personal(client)
     created = client.post(
-        "/api/v1/profile/skills",
+        "/api/profile/skills",
         json={"name": "React"},
         headers=auth_headers(),
     )
     item_id = created.json()["id"]
 
     updated = client.put(
-        f"/api/v1/profile/skills/{item_id}",
+        f"/api/profile/skills/{item_id}",
         json={"name": "Next.js"},
         headers=auth_headers(),
     )
     deleted = client.delete(
-        f"/api/v1/profile/skills/{item_id}",
+        f"/api/profile/skills/{item_id}",
         headers=auth_headers(),
     )
-    profile = client.get("/api/v1/profile", headers=auth_headers())
+    profile = client.get("/api/profile", headers=auth_headers())
 
     assert updated.status_code == 200
     assert updated.json()["name"] == "Next.js"
@@ -191,7 +191,7 @@ def test_certificate_upload(client):
     create_personal(client)
 
     response = client.post(
-        "/api/v1/profile/certificates/upload",
+        "/api/profile/certificates/upload",
         data={
             "title": "Transcript",
             "category": "Education",
@@ -204,3 +204,4 @@ def test_certificate_upload(client):
     assert response.status_code == 201
     assert response.json()["file_name"] == "transcript.pdf"
     assert response.json()["category"] == "Education"
+

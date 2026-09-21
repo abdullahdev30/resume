@@ -9,41 +9,37 @@ verification, login, session refresh, logout, password recovery, and password
 changes. It does not create application user tables, write to `auth.users`, or
 generate custom password hashes, JWTs, refresh tokens, or email tokens.
 
-`POST /api/v1/auth/login` returns only the Supabase access and refresh tokens.
-It does not return the user id, email, or profile data:
+`POST /api/auth/login` sets the Supabase access and refresh tokens in
+HttpOnly cookies. Tokens are not returned in JSON:
 
 ```json
 {
-  "access_token": "...",
-  "refresh_token": "...",
-  "token_type": "bearer",
-  "expires_in": 3600
+  "message": "Login successful.",
+  "user": {
+    "id": "...",
+    "email": "john@example.com",
+    "name": "John Doe",
+    "number": "03001234567",
+    "email_verified": true
+  }
 }
 ```
 
-For authenticated requests, send:
+For browser-authenticated requests, include credentials so cookies are sent.
+Bearer tokens are still accepted by protected backend dependencies for tests
+and non-browser callers where appropriate.
 
-```http
-Authorization: Bearer <access_token>
-```
-
-`POST /api/v1/auth/refresh` accepts the refresh token in the request body,
-rotates the Supabase session, and returns a fresh token pair:
-
-```json
-{
-  "refresh_token": "..."
-}
-```
-
-Response:
+`POST /api/auth/refresh` reads the refresh token from the HttpOnly cookie,
+rotates the Supabase session, replaces both cookies, and returns sanitized user
+data:
 
 ```json
 {
-  "access_token": "...",
-  "refresh_token": "...",
-  "token_type": "bearer",
-  "expires_in": 3600
+  "message": "Session refreshed successfully.",
+  "user": {
+    "id": "...",
+    "email": "john@example.com"
+  }
 }
 ```
 
@@ -81,29 +77,30 @@ Supabase Dashboard settings to configure manually:
 
 Auth endpoints:
 
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/verify-email`
-- `POST /api/v1/auth/resend-verification`
-- `POST /api/v1/auth/login`
-- `GET /api/v1/auth/me`
-- `POST /api/v1/auth/refresh`
-- `POST /api/v1/auth/logout`
-- `POST /api/v1/auth/forgot-password`
-- `POST /api/v1/auth/verify-recovery-otp`
-- `POST /api/v1/auth/change-password`
+- `POST /api/auth/register`
+- `POST /api/auth/verify-email`
+- `POST /api/auth/resend-verification`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/verify-recovery-otp`
+- `POST /api/auth/change-password`
 
-Profile endpoints require `Authorization: Bearer <access_token>`.
+Profile endpoints require an authenticated session cookie or a valid bearer
+access token.
 
 Onboarding/profile endpoints:
 
-- `GET /api/v1/profile`
-- `GET /api/v1/profile/onboarding/status`
-- `POST /api/v1/profile/onboarding/personal`
-- `POST /api/v1/profile/onboarding/education`
-- `POST /api/v1/profile/onboarding/experience`
-- `POST /api/v1/profile/onboarding/skills`
-- `POST /api/v1/profile/onboarding/certificates`
-- `PUT /api/v1/profile/personal`
+- `GET /api/profile`
+- `GET /api/profile/onboarding/status`
+- `POST /api/profile/onboarding/personal`
+- `POST /api/profile/onboarding/education`
+- `POST /api/profile/onboarding/experience`
+- `POST /api/profile/onboarding/skills`
+- `POST /api/profile/onboarding/certificates`
+- `PUT /api/profile/personal`
 
 The personal step is required first and includes first name, last name, email,
 phone, address, and optional social links. Education, experience, skills,
@@ -111,32 +108,32 @@ certificates, and projects can be skipped during onboarding and added later.
 
 Profile item CRUD endpoints:
 
-- `POST /api/v1/profile/social-links`
-- `PUT /api/v1/profile/social-links/{item_id}`
-- `DELETE /api/v1/profile/social-links/{item_id}`
-- `POST /api/v1/profile/education`
-- `PUT /api/v1/profile/education/{item_id}`
-- `DELETE /api/v1/profile/education/{item_id}`
-- `POST /api/v1/profile/experience`
-- `PUT /api/v1/profile/experience/{item_id}`
-- `DELETE /api/v1/profile/experience/{item_id}`
-- `POST /api/v1/profile/skills`
-- `PUT /api/v1/profile/skills/{item_id}`
-- `DELETE /api/v1/profile/skills/{item_id}`
-- `POST /api/v1/profile/certificates`
-- `POST /api/v1/profile/certificates/upload`
-- `PUT /api/v1/profile/certificates/{item_id}`
-- `DELETE /api/v1/profile/certificates/{item_id}`
-- `POST /api/v1/profile/projects`
-- `PUT /api/v1/profile/projects/{item_id}`
-- `DELETE /api/v1/profile/projects/{item_id}`
+- `POST /api/profile/social-links`
+- `PUT /api/profile/social-links/{item_id}`
+- `DELETE /api/profile/social-links/{item_id}`
+- `POST /api/profile/education`
+- `PUT /api/profile/education/{item_id}`
+- `DELETE /api/profile/education/{item_id}`
+- `POST /api/profile/experience`
+- `PUT /api/profile/experience/{item_id}`
+- `DELETE /api/profile/experience/{item_id}`
+- `POST /api/profile/skills`
+- `PUT /api/profile/skills/{item_id}`
+- `DELETE /api/profile/skills/{item_id}`
+- `POST /api/profile/certificates`
+- `POST /api/profile/certificates/upload`
+- `PUT /api/profile/certificates/{item_id}`
+- `DELETE /api/profile/certificates/{item_id}`
+- `POST /api/profile/projects`
+- `PUT /api/profile/projects/{item_id}`
+- `DELETE /api/profile/projects/{item_id}`
 
 Run backend checks from `apps/backend`:
 
 ```sh
 venv\Scripts\python -m ruff check .
 venv\Scripts\python -m pytest
-venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+venv\Scripts\python -m uvicorn main:app --reload --port 8000
 ```
 
 ## Using this example

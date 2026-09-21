@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { authApi } from './api';
-import { 
-  LoginPayload, 
-  RegisterPayload, 
-  VerifyEmailPayload, 
-  ForgotPasswordPayload, 
-  VerifyRecoveryOtpPayload, 
-  ChangePasswordPayload 
-} from './types';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { authApi } from "./api";
+import {
+  LoginPayload,
+  RegisterPayload,
+  VerifyEmailPayload,
+  ForgotPasswordPayload,
+  VerifyRecoveryOtpPayload,
+  ChangePasswordPayload,
+} from "./types";
 
 export function useAuth() {
   const [loading, setLoading] = useState(false);
@@ -21,12 +21,17 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const data = await authApi.login(payload);
-      if (data.access_token && data.refresh_token) {
-        document.cookie = `access_token=${data.access_token}; path=/; max-age=86400; SameSite=Strict`;
-        document.cookie = `refresh_token=${data.refresh_token}; path=/; max-age=604800; SameSite=Strict`;
-      }
-      router.push('/dashboard');
+      const authResult = await authApi.login(payload);
+      const userState = authResult.user?.id
+        ? localStorage.getItem(`onboarding_state:${authResult.user.id}`)
+        : null;
+      const onboardingState =
+        userState || localStorage.getItem("onboarding_state");
+      router.push(
+        onboardingState === "completed" || onboardingState === "skipped"
+          ? "/dashboard"
+          : "/onboarding",
+      );
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -39,8 +44,8 @@ export function useAuth() {
     setError(null);
     try {
       await authApi.register(payload);
-      localStorage.setItem('auth_email', payload.email);
-      router.push('/auth/verify-email');
+      localStorage.setItem("auth_email", payload.email);
+      router.push("/auth/verify-email");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -52,9 +57,9 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const email = localStorage.getItem('auth_email') || '';
+      const email = localStorage.getItem("auth_email") || "";
       await authApi.verifyEmail({ email, otp });
-      router.push('/auth/login');
+      router.push("/onboarding");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -66,7 +71,7 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const email = localStorage.getItem('auth_email') || '';
+      const email = localStorage.getItem("auth_email") || "";
       await authApi.resendVerification({ email });
     } catch (err: any) {
       setError(err.message);
@@ -80,8 +85,8 @@ export function useAuth() {
     setError(null);
     try {
       await authApi.forgotPassword(payload);
-      localStorage.setItem('auth_email', payload.email);
-      router.push('/auth/verify-recovery-otp');
+      localStorage.setItem("auth_email", payload.email);
+      router.push("/auth/verify-otp-recovery");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -93,9 +98,9 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const email = localStorage.getItem('auth_email') || '';
+      const email = localStorage.getItem("auth_email") || "";
       await authApi.verifyRecoveryOtp({ email, otp });
-      router.push('/auth/change-password');
+      router.push("/auth/change-password");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -107,10 +112,8 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const tokenMatch = document.cookie.match(/access_token=([^;]+)/);
-      const token = tokenMatch ? tokenMatch[1] : '';
-      await authApi.changePassword(payload, token);
-      router.push('/auth/login');
+      await authApi.changePassword(payload);
+      router.push("/auth/login");
     } catch (err: any) {
       setError(err.message);
     } finally {
