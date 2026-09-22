@@ -1,0 +1,2 @@
+class EducationService:
+    pass

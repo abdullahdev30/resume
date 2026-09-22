@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from fastapi import UploadFile
 
@@ -44,6 +45,12 @@ SOCIAL_LINKS_TABLE = "profile_social_links"
 
 MAX_CERTIFICATE_BYTES = 10 * 1024 * 1024
 ALLOWED_CERTIFICATE_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+ALLOWED_CERTIFICATE_MIME_TYPES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+}
 
 
 class ProfileService:
@@ -353,7 +360,10 @@ class ProfileService:
     def _store_certificate_file(self, user_id: str, file: UploadFile) -> str:
         original_name = Path(file.filename or "certificate").name
         extension = Path(original_name).suffix.lower()
-        if extension not in ALLOWED_CERTIFICATE_EXTENSIONS:
+        if (
+            extension not in ALLOWED_CERTIFICATE_EXTENSIONS
+            or file.content_type not in ALLOWED_CERTIFICATE_MIME_TYPES
+        ):
             raise ProfileApplicationError(
                 status_code=422,
                 code="invalid_certificate_file",
@@ -372,16 +382,8 @@ class ProfileService:
         user_dir = upload_root / user_id
         user_dir.mkdir(parents=True, exist_ok=True)
 
-        stored_name = f"{Path(original_name).stem[:80]}-{Path(original_name).suffix}"
+        stored_name = f"{uuid4().hex}{extension}"
         path = user_dir / stored_name
-        counter = 1
-        while path.exists():
-            stored_name = (
-                f"{Path(original_name).stem[:70]}-{counter}"
-                f"{Path(original_name).suffix}"
-            )
-            path = user_dir / stored_name
-            counter += 1
 
         path.write_bytes(data)
         return str(path.as_posix())

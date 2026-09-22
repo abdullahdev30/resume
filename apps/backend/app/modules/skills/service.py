@@ -1,0 +1,2 @@
+class SkillsService:
+    pass

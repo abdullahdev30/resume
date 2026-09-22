@@ -1,0 +1,2 @@
+class ProjectsService:
+    pass

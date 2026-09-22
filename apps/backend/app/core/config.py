@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     supabase_url: str
     supabase_publishable_key: str
+    database_url: str | None = None
 
     cookie_secure: bool = False
     cookie_domain: str | None = None
@@ -23,7 +24,6 @@ class Settings(BaseSettings):
     refresh_token_max_age_seconds: int = 60 * 60 * 24 * 30
 
     rate_limit_storage_uri: str = "memory://"
-    profile_database_path: str = "profile.sqlite3"
     certificate_upload_dir: str = "uploads/certificates"
 
     model_config = SettingsConfigDict(

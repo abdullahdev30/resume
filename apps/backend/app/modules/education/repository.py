@@ -1,0 +1,2 @@
+class EducationRepository:
+    pass

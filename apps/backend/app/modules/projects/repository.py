@@ -1,0 +1,2 @@
+class ProjectsRepository:
+    pass

@@ -1,0 +1,2 @@
+class ExperienceError(Exception):
+    pass

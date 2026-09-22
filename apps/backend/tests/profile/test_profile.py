@@ -7,7 +7,6 @@ from app.main import app
 from app.modules.auth.dependencies import get_auth_service
 from app.modules.auth.schemas import UserResponse
 from app.modules.profile import router as profile_router
-from app.modules.profile.repository import ProfileRepository
 from app.modules.profile.service import ProfileService
 
 
@@ -23,12 +22,115 @@ class FakeAuthService:
         )
 
 
+class FakeProfileRepository:
+    def __init__(self):
+        self.personal = {}
+        self.items = {
+            "profile_social_links": {},
+            "profile_education": {},
+            "profile_experience": {},
+            "profile_skills": {},
+            "profile_certificates": {},
+            "profile_projects": {},
+        }
+        self.counter = 0
+
+    def _id(self):
+        self.counter += 1
+        return f"item-{self.counter}"
+
+    def _stamp(self):
+        return "2026-01-01T00:00:00+00:00"
+
+    def get_personal(self, user_id):
+        return self.personal.get(user_id)
+
+    def upsert_personal(self, user_id, payload):
+        now = self._stamp()
+        record = {
+            "user_id": user_id,
+            "first_name": payload["first_name"],
+            "last_name": payload["last_name"],
+            "email": payload["email"],
+            "phone": payload["phone"],
+            "address": payload["address"],
+            "created_at": now,
+            "updated_at": now,
+        }
+        self.personal[user_id] = record
+        if payload.get("social_links") is not None:
+            self.items["profile_social_links"][user_id] = []
+            for link in payload["social_links"]:
+                self.add_social_link(user_id, link)
+        return record
+
+    def list_social_links(self, user_id):
+        return self.list_items("profile_social_links", user_id)
+
+    def add_social_link(self, user_id, payload):
+        return self._add("profile_social_links", user_id, payload)
+
+    def add_education(self, user_id, payload):
+        return self._add("profile_education", user_id, payload)
+
+    def add_experience(self, user_id, payload):
+        return self._add("profile_experience", user_id, payload)
+
+    def add_skill(self, user_id, payload):
+        return self._add("profile_skills", user_id, payload)
+
+    def add_certificate(self, user_id, payload):
+        return self._add("profile_certificates", user_id, payload)
+
+    def add_project(self, user_id, payload):
+        return self._add("profile_projects", user_id, payload)
+
+    def list_items(self, table, user_id):
+        return list(self.items[table].get(user_id, []))
+
+    def get_item(self, table, user_id, item_id):
+        return next(
+            (
+                item
+                for item in self.items[table].get(user_id, [])
+                if item["id"] == item_id
+            ),
+            None,
+        )
+
+    def update_item(self, table, user_id, item_id, payload):
+        item = self.get_item(table, user_id, item_id)
+        if item is None:
+            return None
+        item.update(payload)
+        item["updated_at"] = self._stamp()
+        return item
+
+    def delete_item(self, table, user_id, item_id):
+        items = self.items[table].get(user_id, [])
+        next_items = [item for item in items if item["id"] != item_id]
+        self.items[table][user_id] = next_items
+        return len(next_items) != len(items)
+
+    def _add(self, table, user_id, payload):
+        now = self._stamp()
+        record = {
+            "id": self._id(),
+            "user_id": user_id,
+            **payload,
+            "created_at": now,
+            "updated_at": now,
+        }
+        self.items[table].setdefault(user_id, []).append(record)
+        return record
+
+
 @pytest.fixture(autouse=True)
-def app_overrides(tmp_path):
+def app_overrides():
     app.dependency_overrides[get_auth_service] = lambda: FakeAuthService()
     original_service = profile_router.profile_service
     profile_router.profile_service = ProfileService(
-        ProfileRepository(str(tmp_path / "profile.sqlite3"))
+        FakeProfileRepository()
     )
     yield
     profile_router.profile_service = original_service

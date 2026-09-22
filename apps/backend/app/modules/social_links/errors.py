@@ -1,0 +1,2 @@
+class SocialLinksError(Exception):
+    pass

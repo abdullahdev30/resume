@@ -1,0 +1,2 @@
+class SocialLinksRepository:
+    pass
