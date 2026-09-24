@@ -19,9 +19,22 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      await authApi.login(payload);
+      const res = await authApi.login(payload);
       const status = await authApi.onboardingStatus().catch(() => null);
-      router.push(status?.personal_completed ? "/dashboard" : "/onboarding");
+      
+      const userId = res?.user?.id || "";
+      const isDoneLocally = typeof window !== "undefined" && (
+        localStorage.getItem(`onboarding_completed:${userId}`) === "true" ||
+        localStorage.getItem(`onboarding_skipped:${userId}`) === "true" ||
+        localStorage.getItem("onboarding_state") === "completed" ||
+        localStorage.getItem("onboarding_state") === "skipped"
+      );
+
+      if (status?.personal_completed || isDoneLocally) {
+        router.push("/dashboard");
+      } else {
+        router.push("/onboarding");
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
       setError(

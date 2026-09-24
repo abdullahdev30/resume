@@ -3,19 +3,20 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
-  "dev": "concurrently \"npm run dev:web\" \"npm run dev:backend\"",
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:backend\"",
     "dev:web": "turbo run dev",
-
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-  "dev:backend": "cd apps/backend && venv\\Scripts\\python -m uvicorn main:app --reload --port 8000",
-
+    "dev:backend": "cd apps/backend && venv\\Scripts\\python -m uvicorn main:app --reload --port 8000",
     "check-types": "turbo run check-types"
   },
-
-
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "autoprefixer": "^10.6.1",
+    "concurrently": "^10.0.5",
+    "postcss": "^8.5.28",
     "prettier": "3.9.6",
+    "tailwindcss": "^4.3.3",
     "turbo": "^2.10.13",
     "typescript": "7.0.2"
   },

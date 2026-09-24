@@ -16,14 +16,25 @@ export function OnboardingGate({ userId }: OnboardingGateProps) {
       return;
     }
 
-    const state =
-      localStorage.getItem(`onboarding_state:${userId}`) ||
-      localStorage.getItem("onboarding_state");
+    const completedUser = localStorage.getItem(`onboarding_completed:${userId}`);
+    const skippedUser = localStorage.getItem(`onboarding_skipped:${userId}`);
+    const genericState = localStorage.getItem("onboarding_state");
+    const legacyUser = localStorage.getItem(`onboarding_state:${userId}`);
 
-    if (state !== "completed" && state !== "skipped") {
+    const isDone =
+      completedUser === "true" ||
+      skippedUser === "true" ||
+      genericState === "completed" ||
+      genericState === "skipped" ||
+      genericState === "done" ||
+      legacyUser === "completed" ||
+      legacyUser === "skipped";
+
+    if (!isDone) {
       router.replace("/onboarding");
     }
   }, [pathname, router, userId]);
 
   return null;
 }
+
