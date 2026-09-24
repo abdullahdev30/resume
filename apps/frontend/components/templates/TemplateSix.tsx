@@ -1,60 +1,15 @@
 import React from "react";
 import { Camera, User as UserIcon } from "lucide-react";
+import type { ResumeData, TemplateProps } from "./TemplateOne";
 
-export interface ElementStyle {
-  isBold?: boolean;
-  isItalic?: boolean;
-  isUnderline?: boolean;
-  align?: "left" | "center" | "right";
-  color?: string;
-}
-
-export interface ResumeData {
-  fullName: string;
-  jobTitle: string;
-  email: string;
-  phone: string;
-  location: string;
-  avatarUrl?: string;
-  summary: string;
-  primaryColor?: string;
-  fontFamily?: string;
-  isBold?: boolean;
-  isItalic?: boolean;
-  isUnderline?: boolean;
-  textAlign?: "left" | "center" | "right";
-  skills: string[];
-  languages: string[];
-  experience: {
-    id?: string;
-    role: string;
-    company: string;
-    period: string;
-    details: string;
-  }[];
-  education?: {
-    id?: string;
-    degree: string;
-    institution: string;
-    period: string;
-    grade?: string;
-  }[];
-}
-
-export interface TemplateProps {
-  data: ResumeData;
-  selectedElementId?: string | null;
-  onSelectElement?: (id: string) => void;
-  elementStyles?: Record<string, ElementStyle>;
-}
-
-export default function TemplateOne({
+export default function TemplateSix({
   data,
   selectedElementId,
   onSelectElement,
   elementStyles = {},
+  onPhotoUpload,
 }: TemplateProps) {
-  const accentColor = data.primaryColor || "#0E7C7B";
+  const primaryColor = data.primaryColor || "#9333ea";
 
   const getItemStyle = (id: string, defaultColor?: string): React.CSSProperties => {
     const custom = elementStyles[id];
@@ -70,7 +25,7 @@ export default function TemplateOne({
   const getItemClass = (id: string, baseClass: string = "") => {
     const isSelected = selectedElementId === id;
     return `${baseClass} cursor-pointer transition p-0.5 rounded-xs ${
-      isSelected ? "ring-2 ring-teal-500 ring-offset-1 bg-teal-500/10" : "hover:ring-1 hover:ring-teal-400/50"
+      isSelected ? "ring-2 ring-purple-500 ring-offset-1 bg-purple-500/10" : "hover:ring-1 hover:ring-purple-400/50"
     }`.trim();
   };
 
@@ -81,9 +36,16 @@ export default function TemplateOne({
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onPhotoUpload) {
+      onPhotoUpload(file);
+    }
+  };
+
   return (
     <div
-      className="bg-white shadow-xl w-full max-w-[210mm] min-h-[297mm] mx-auto flex flex-row font-sans text-slate-800"
+      className="bg-white shadow-xl w-full max-w-[210mm] min-h-[297mm] mx-auto font-sans text-slate-800 flex flex-row"
       style={{
         fontFamily: data.fontFamily || "inherit",
         fontWeight: data.isBold ? "bold" : undefined,
@@ -92,39 +54,36 @@ export default function TemplateOne({
         textAlign: data.textAlign || "left",
       }}
     >
-      {/* Left Sidebar */}
-      <div className="w-[34%] bg-slate-900 text-white p-7 flex flex-col justify-between">
+      {/* Left Sidebar with Big Candidate Avatar Frame */}
+      <div className="w-[36%] bg-slate-900 text-white p-8 flex flex-col justify-between">
         <div>
-          {/* Interactive Canvas Avatar Frame */}
-          <div className="relative group mx-auto mb-5 w-24 h-24 flex justify-center cursor-pointer">
-            <label className="block w-24 h-24 rounded-full overflow-hidden border-2 border-slate-700 bg-slate-800 shadow-lg cursor-pointer relative group-hover:border-teal-400 transition">
+          {/* Circular Photo Card on Canvas */}
+          <div className="relative group mx-auto mb-6 w-32 h-32 flex justify-center cursor-pointer">
+            <label className="block w-32 h-32 rounded-full overflow-hidden border-4 border-purple-400/30 bg-slate-800 shadow-2xl cursor-pointer relative group-hover:border-purple-400 transition">
               {data.avatarUrl ? (
-                <img src={data.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                <img src={data.avatarUrl} alt="Candidate Avatar" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-2 text-center bg-slate-800 hover:bg-slate-700 transition">
-                  <UserIcon className="w-8 h-8 text-teal-300 mb-0.5" />
-                  <span className="text-[9px] font-bold text-teal-300 flex items-center">
-                    <Camera className="w-3 h-3 mr-0.5" />
-                    <span>Upload</span>
+                  <UserIcon className="w-12 h-12 text-purple-300 mb-1" />
+                  <span className="text-[10px] font-bold text-purple-300 flex items-center">
+                    <Camera className="w-3 h-3 mr-1" />
+                    <span>Upload Photo</span>
                   </span>
                 </div>
               )}
+
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
-                <Camera className="w-3.5 h-3.5 mr-1" />
-                <span>Photo</span>
+                <Camera className="w-4 h-4 mr-1" />
+                <span>Change</span>
               </div>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => e.target.files?.[0] && onPhotoUpload?.(e.target.files[0])}
-              />
+
+              <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
             </label>
           </div>
 
           <h1
             onClick={(e) => handleSelect("fullName", e)}
-            className={getItemClass("fullName", "text-xl font-bold uppercase tracking-wider text-white mb-1")}
+            className={getItemClass("fullName", "text-2xl font-extrabold uppercase tracking-wider text-white text-center mb-1")}
             style={getItemStyle("fullName", "#ffffff")}
           >
             {data.fullName || "Your Full Name"}
@@ -132,35 +91,23 @@ export default function TemplateOne({
 
           <p
             onClick={(e) => handleSelect("jobTitle", e)}
-            className={getItemClass("jobTitle", "text-xs font-semibold text-teal-400 uppercase tracking-widest mb-6")}
-            style={getItemStyle("jobTitle", "#2dd4bf")}
+            className={getItemClass("jobTitle", "text-xs font-semibold text-purple-300 uppercase tracking-widest text-center mb-6")}
+            style={getItemStyle("jobTitle", "#c084fc")}
           >
-            {data.jobTitle || "Job Title"}
+            {data.jobTitle || "Creative Designer"}
           </p>
 
-          {/* Contact */}
+          {/* Contact info */}
           <div className="mb-6 space-y-1.5 text-xs text-slate-300 border-t border-slate-800 pt-4">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Contact</h3>
-            <p
-              onClick={(e) => handleSelect("contact-phone", e)}
-              className={getItemClass("contact-phone", "truncate")}
-              style={getItemStyle("contact-phone")}
-            >
-              {data.phone || "+1 (555) 000-0000"}
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Contact Info</h3>
+            <p onClick={(e) => handleSelect("contact-phone", e)} className={getItemClass("contact-phone", "truncate")}>
+              📞 {data.phone || "+1 555-0192"}
             </p>
-            <p
-              onClick={(e) => handleSelect("contact-email", e)}
-              className={getItemClass("contact-email", "truncate")}
-              style={getItemStyle("contact-email")}
-            >
-              {data.email || "email@example.com"}
+            <p onClick={(e) => handleSelect("contact-email", e)} className={getItemClass("contact-email", "truncate")}>
+              ✉️ {data.email || "email@example.com"}
             </p>
-            <p
-              onClick={(e) => handleSelect("contact-location", e)}
-              className={getItemClass("contact-location", "truncate")}
-              style={getItemStyle("contact-location")}
-            >
-              {data.location || "City, Country"}
+            <p onClick={(e) => handleSelect("contact-location", e)} className={getItemClass("contact-location", "truncate")}>
+              📍 {data.location || "City, Country"}
             </p>
           </div>
 
@@ -175,8 +122,8 @@ export default function TemplateOne({
                     <span
                       key={index}
                       onClick={(e) => handleSelect(id, e)}
-                      className={getItemClass(id, "text-[11px] bg-slate-800 text-teal-300 border border-slate-700/60 px-2.5 py-1 rounded-md")}
-                      style={getItemStyle(id, "#5eead4")}
+                      className={getItemClass(id, "text-[11px] bg-purple-950/60 text-purple-300 border border-purple-800/60 px-2.5 py-1 rounded-md")}
+                      style={getItemStyle(id, "#d8b4fe")}
                     >
                       {skill}
                     </span>
@@ -185,39 +132,24 @@ export default function TemplateOne({
               </div>
             </div>
           )}
-
-          {/* Languages */}
-          {data.languages && data.languages.length > 0 && (
-            <div className="mb-6 border-t border-slate-800 pt-4">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Languages</h3>
-              <ul className="text-xs text-slate-300 space-y-1">
-                {data.languages.map((lang, index) => (
-                  <li key={index} className="flex items-center space-x-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
-                    <span>{lang}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
 
         <div className="text-[10px] text-slate-500 pt-4 border-t border-slate-800 text-center">
-          Generated via Resume Builder
+          Portfolio & Resume Studio
         </div>
       </div>
 
       {/* Right Content Area */}
-      <div className="w-[66%] p-8 space-y-6 bg-white">
+      <div className="w-[64%] p-8 space-y-6 bg-white">
         {/* Summary */}
         {data.summary && (
           <div>
             <h3
               onClick={(e) => handleSelect("section-summary", e)}
               className={getItemClass("section-summary", "text-xs font-bold uppercase tracking-widest pb-1 mb-3 border-b-2")}
-              style={{ color: accentColor, borderColor: accentColor, ...getItemStyle("section-summary") }}
+              style={{ color: primaryColor, borderColor: primaryColor, ...getItemStyle("section-summary") }}
             >
-              Professional Profile
+              About & Portfolio
             </h3>
             <p
               onClick={(e) => handleSelect("summary", e)}
@@ -235,9 +167,9 @@ export default function TemplateOne({
             <h3
               onClick={(e) => handleSelect("section-experience", e)}
               className={getItemClass("section-experience", "text-xs font-bold uppercase tracking-widest pb-1 mb-4 border-b-2")}
-              style={{ color: accentColor, borderColor: accentColor, ...getItemStyle("section-experience") }}
+              style={{ color: primaryColor, borderColor: primaryColor, ...getItemStyle("section-experience") }}
             >
-              Work Experience
+              Experience Timeline
             </h3>
             <div className="space-y-4">
               {data.experience.map((exp, index) => {
@@ -259,7 +191,7 @@ export default function TemplateOne({
                     </div>
                     <p
                       onClick={(e) => handleSelect(companyId, e)}
-                      className={getItemClass(companyId, "text-[11px] font-medium text-slate-500")}
+                      className={getItemClass(companyId, "text-[11px] font-medium text-purple-700")}
                       style={getItemStyle(companyId)}
                     >
                       {exp.company}
@@ -284,9 +216,9 @@ export default function TemplateOne({
             <h3
               onClick={(e) => handleSelect("section-education", e)}
               className={getItemClass("section-education", "text-xs font-bold uppercase tracking-widest pb-1 mb-4 border-b-2")}
-              style={{ color: accentColor, borderColor: accentColor, ...getItemStyle("section-education") }}
+              style={{ color: primaryColor, borderColor: primaryColor, ...getItemStyle("section-education") }}
             >
-              Education & Qualifications
+              Education
             </h3>
             <div className="space-y-3">
               {data.education.map((edu, index) => {

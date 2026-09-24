@@ -2,14 +2,14 @@ import React from "react";
 import { Camera, User as UserIcon } from "lucide-react";
 import type { ResumeData, TemplateProps } from "./TemplateOne";
 
-export default function TemplateFour({
+export default function TemplateFive({
   data,
   selectedElementId,
   onSelectElement,
   elementStyles = {},
   onPhotoUpload,
 }: TemplateProps) {
-  const primaryColor = data.primaryColor || "#1e3a8a";
+  const primaryColor = data.primaryColor || "#0E7C7B";
 
   const getItemStyle = (id: string, defaultColor?: string): React.CSSProperties => {
     const custom = elementStyles[id];
@@ -25,7 +25,7 @@ export default function TemplateFour({
   const getItemClass = (id: string, baseClass: string = "") => {
     const isSelected = selectedElementId === id;
     return `${baseClass} cursor-pointer transition p-0.5 rounded-xs ${
-      isSelected ? "ring-2 ring-blue-400 ring-offset-1 bg-blue-500/10" : "hover:ring-1 hover:ring-blue-300/50"
+      isSelected ? "ring-2 ring-[var(--primary)] ring-offset-1 bg-[var(--primary-tint)]" : "hover:ring-1 hover:ring-teal-400/50"
     }`.trim();
   };
 
@@ -33,6 +33,13 @@ export default function TemplateFour({
     e.stopPropagation();
     if (onSelectElement) {
       onSelectElement(id);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onPhotoUpload) {
+      onPhotoUpload(file);
     }
   };
 
@@ -47,60 +54,58 @@ export default function TemplateFour({
         textAlign: data.textAlign || "left",
       }}
     >
-      {/* Top Navy Header Block */}
-      <div className="p-8 text-white flex items-center justify-between" style={{ backgroundColor: primaryColor }}>
-        <div>
+      {/* Top Banner with Headshot Photo Container */}
+      <div className="p-8 bg-slate-900 text-white flex items-center justify-between gap-6 border-b-4" style={{ borderColor: primaryColor }}>
+        <div className="flex-1 space-y-2">
           <h1
             onClick={(e) => handleSelect("fullName", e)}
-            className={getItemClass("fullName", "text-3xl font-extrabold uppercase tracking-wide")}
+            className={getItemClass("fullName", "text-3xl font-extrabold uppercase tracking-wide text-white")}
             style={getItemStyle("fullName", "#ffffff")}
           >
-            {data.fullName || "EXECUTIVE NAME"}
+            {data.fullName || "YOUR FULL NAME"}
           </h1>
           <p
             onClick={(e) => handleSelect("jobTitle", e)}
-            className={getItemClass("jobTitle", "text-xs text-blue-200 uppercase font-semibold tracking-widest mt-1")}
-            style={getItemStyle("jobTitle", "#bfdbfe")}
+            className={getItemClass("jobTitle", "text-xs uppercase font-semibold tracking-widest text-teal-300")}
+            style={getItemStyle("jobTitle", "#2dd4bf")}
           >
-            {data.jobTitle || "EXECUTIVE LEADER"}
+            {data.jobTitle || "EXECUTIVE CANDIDATE"}
           </p>
-          <div className="flex flex-wrap gap-4 text-xs text-blue-100 mt-4 font-medium">
+          <div className="flex flex-wrap gap-4 text-xs text-slate-300 pt-2 font-medium">
             <span onClick={(e) => handleSelect("contact-phone", e)} className={getItemClass("contact-phone")}>
-              📞 {data.phone}
+              📞 {data.phone || "+1 555-0192"}
             </span>
             <span onClick={(e) => handleSelect("contact-email", e)} className={getItemClass("contact-email")}>
-              ✉️ {data.email}
+              ✉️ {data.email || "email@example.com"}
             </span>
             <span onClick={(e) => handleSelect("contact-location", e)} className={getItemClass("contact-location")}>
-              📍 {data.location}
+              📍 {data.location || "City, Country"}
             </span>
           </div>
         </div>
 
-        {/* Interactive Canvas Avatar Frame */}
+        {/* Prominent Candidate Photo Frame on Canvas */}
         <div className="relative group flex-shrink-0 cursor-pointer">
-          <label className="block w-24 h-24 rounded-xl overflow-hidden border-2 border-white/40 bg-slate-800 shadow-xl cursor-pointer relative group-hover:border-white transition">
+          <label className="block w-28 h-28 rounded-2xl overflow-hidden border-4 border-white/20 bg-slate-800 shadow-xl cursor-pointer relative group-hover:border-teal-400 transition">
             {data.avatarUrl ? (
-              <img src={data.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              <img src={data.avatarUrl} alt="Candidate Photo" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 p-1 text-center bg-slate-800/80 hover:bg-slate-700 transition">
-                <UserIcon className="w-8 h-8 text-blue-200 mb-0.5" />
-                <span className="text-[9px] font-bold text-blue-200 flex items-center">
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-2 text-center bg-slate-800 hover:bg-slate-700 transition">
+                <UserIcon className="w-10 h-10 text-slate-300 mb-1" />
+                <span className="text-[10px] font-bold text-teal-300 flex items-center space-x-1">
                   <Camera className="w-3 h-3 mr-0.5" />
-                  <span>Photo</span>
+                  <span>Upload Photo</span>
                 </span>
               </div>
             )}
-            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
-              <Camera className="w-3.5 h-3.5 mr-1" />
-              <span>Upload</span>
+
+            {/* Hover overlay badge */}
+            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
+              <Camera className="w-4 h-4 mr-1" />
+              <span>Change</span>
             </div>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && onPhotoUpload?.(e.target.files[0])}
-            />
+
+            <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
           </label>
         </div>
       </div>
@@ -112,8 +117,12 @@ export default function TemplateFour({
           {/* Summary */}
           {data.summary && (
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-1 mb-2">
-                Executive Profile
+              <h3
+                onClick={(e) => handleSelect("section-summary", e)}
+                className={getItemClass("section-summary", "text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 pb-1 mb-2")}
+                style={{ borderColor: primaryColor, ...getItemStyle("section-summary") }}
+              >
+                Executive Summary
               </h3>
               <p
                 onClick={(e) => handleSelect("summary", e)}
@@ -128,8 +137,12 @@ export default function TemplateFour({
           {/* Work History */}
           {data.experience && data.experience.length > 0 && (
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-1 mb-4">
-                Career History
+              <h3
+                onClick={(e) => handleSelect("section-experience", e)}
+                className={getItemClass("section-experience", "text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 pb-1 mb-4")}
+                style={{ borderColor: primaryColor, ...getItemStyle("section-experience") }}
+              >
+                Work Experience
               </h3>
               <div className="space-y-4">
                 {data.experience.map((exp, index) => {
@@ -138,7 +151,7 @@ export default function TemplateFour({
                   const detailsId = `exp-${index}-details`;
 
                   return (
-                    <div key={index} className="space-y-1">
+                    <div key={index} className="space-y-1 pl-3 border-l-2" style={{ borderColor: primaryColor }}>
                       <div className="flex justify-between items-baseline">
                         <h4
                           onClick={(e) => handleSelect(roleId, e)}
@@ -151,7 +164,7 @@ export default function TemplateFour({
                       </div>
                       <p
                         onClick={(e) => handleSelect(companyId, e)}
-                        className={getItemClass(companyId, "text-[11px] font-semibold text-blue-900")}
+                        className={getItemClass(companyId, "text-[11px] font-semibold text-teal-700")}
                         style={getItemStyle(companyId)}
                       >
                         {exp.company}

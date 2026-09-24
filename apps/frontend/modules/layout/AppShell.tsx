@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Home, Layout, Settings, LogOut, Menu, X } from "lucide-react";
+import { Home, Layout, Settings, LogOut, Menu, X, User as UserIcon, Sparkles } from "lucide-react";
 
 import { authApi } from "../auth/api";
 import type { User } from "../auth/types";
@@ -33,7 +33,7 @@ export function AppShell({ user, children }: AppShellProps) {
       await authApi.logout();
     } finally {
       localStorage.removeItem("onboarding_state");
-      localStorage.removeItem(`onboarding_state:${user.id}`);
+      if (user?.id) localStorage.removeItem(`onboarding_state:${user.id}`);
       router.push("/auth/login");
       router.refresh();
     }
@@ -41,57 +41,72 @@ export function AppShell({ user, children }: AppShellProps) {
 
   const navItems = [
     { href: "/dashboard", label: "Home", icon: Home },
-    { href: "/templates", label: "Templates", icon: Layout },
+    { href: "/templates", label: "Resume Templates", icon: Layout },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
+  const displayName = user?.name || "Jane Doe";
+  const userEmail = user?.email || "";
+  const username = `@${userEmail.split("@")[0]?.toLowerCase() || "janedoe"}`;
+
   return (
-    <div className="min-h-screen bg-[#F7F9FB] flex flex-col font-sans text-[#0F1B2D]">
-      {/* Navbar: Logo on Left, User Profile with Avatar on Right */}
-      <header className="h-16 bg-white border-b border-[#E3E8EE] px-4 md:px-8 flex items-center justify-between sticky top-0 z-40 shadow-xs">
-        {/* Left: Logo & Mobile Toggle */}
+    <div className="min-h-screen bg-[var(--bg)] flex flex-col font-sans text-[var(--text)]">
+      {/* 1. Professional Navbar: Logo on Left, User Avatar, Username & Name on Right */}
+      <header className="h-16 bg-[var(--surface)] border-b border-[var(--border)] px-4 md:px-8 flex items-center justify-between sticky top-0 z-40 shadow-xs">
+        {/* Left Side: Logo & Mobile Toggle */}
         <div className="flex items-center space-x-4">
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="md:hidden p-2 rounded-lg text-[#5B6B7F] hover:bg-[#E3F4F3]"
+            className="md:hidden p-2 rounded-lg text-[var(--text-muted)] hover:bg-[var(--primary-tint)] transition"
+            aria-label="Toggle menu"
           >
             {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          <Link href="/dashboard" className="flex items-center space-x-3 group">
-            <div className="w-10 h-10 rounded-xl bg-[#0E7C7B] text-white flex items-center justify-center font-extrabold text-base shadow-sm group-hover:bg-[#0A6463] transition">
+          <Link href="/dashboard" className="flex items-center space-x-3 group text-decoration-none">
+            <div className="w-10 h-10 rounded-xl bg-[var(--primary)] text-[var(--on-primary)] flex items-center justify-center font-extrabold text-base shadow-sm group-hover:bg-[var(--primary-hover)] transition">
               RB
             </div>
             <div className="flex flex-col">
-              <span className="font-extrabold text-lg text-[#0F1B2D] tracking-tight leading-tight">
+              <span className="font-extrabold text-lg text-[var(--text)] tracking-tight leading-tight">
                 Resume Builder
               </span>
-              <span className="text-[11px] text-[#5B6B7F] font-medium">
-                Professional Builder
+              <span className="text-[11px] text-[var(--text-muted)] font-medium">
+                Docs & Studio Editor
               </span>
             </div>
           </Link>
         </div>
 
-        {/* Right: User Avatar & Name */}
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-3 bg-[#F7F9FB] border border-[#E3E8EE] px-3 py-1.5 rounded-full">
-            <div className="w-8 h-8 rounded-full bg-[#0E7C7B] text-white flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0">
+        {/* Right Side: User Profile Pill with Avatar, Name, and Username */}
+        <div className="flex items-center space-x-3">
+          <Link
+            href="/settings"
+            className="flex items-center space-x-3 bg-[var(--bg)] hover:bg-[var(--primary-tint)] border border-[var(--border)] px-3.5 py-1.5 rounded-full transition text-decoration-none"
+          >
+            <div className="w-8 h-8 rounded-full bg-[var(--primary)] text-[var(--on-primary)] flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 shadow-xs">
               {avatarUrl ? (
-                <img src={avatarUrl} alt="User Avatar" className="w-full h-full object-cover" />
+                <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
               ) : (
-                <span>{(user.name?.[0] || user.email[0] || "U").toUpperCase()}</span>
+                <span>{(displayName[0] || "U").toUpperCase()}</span>
               )}
             </div>
-            <span className="text-sm font-semibold text-[#0F1B2D] hidden sm:inline">
-              {user.name || user.email}
-            </span>
-          </div>
 
+            <div className="hidden sm:flex flex-col text-left">
+              <span className="text-xs font-bold text-[var(--text)] leading-tight">
+                {displayName}
+              </span>
+              <span className="text-[10px] font-semibold text-[var(--primary)] leading-tight">
+                {username}
+              </span>
+            </div>
+          </Link>
+
+          {/* Logout button */}
           <button
             onClick={logout}
             disabled={loggingOut}
-            className="p-2 text-[#5B6B7F] hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
+            className="p-2 text-[var(--text-muted)] hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
             title="Log out"
           >
             <LogOut className="w-5 h-5" />
@@ -99,17 +114,17 @@ export function AppShell({ user, children }: AppShellProps) {
         </div>
       </header>
 
-      {/* Main Body with Sidebar */}
+      {/* Main Container with Sidebar & Content */}
       <div className="flex-1 flex min-h-0">
-        {/* Sidebar: Exactly 3 options (Home, Templates, Settings) */}
+        {/* 2. Functional Sidebar */}
         <aside
-          className={`fixed md:sticky top-16 z-30 h-[calc(100vh-4rem)] w-60 bg-white border-r border-[#E3E8EE] p-4 flex flex-col justify-between transition-transform duration-200 ${
+          className={`fixed md:sticky top-16 z-30 h-[calc(100vh-4rem)] w-60 bg-[var(--surface)] border-r border-[var(--border)] p-4 flex flex-col justify-between transition-transform duration-200 ${
             mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           }`}
         >
           <nav className="space-y-1.5">
-            <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-[#5B6B7F]">
-              Navigation
+            <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Main Menu
             </div>
 
             {navItems.map((item) => {
@@ -123,10 +138,10 @@ export function AppShell({ user, children }: AppShellProps) {
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-xl font-semibold text-sm transition ${
+                  className={`flex items-center space-x-3 px-4 py-3 rounded-xl font-semibold text-sm transition text-decoration-none ${
                     isActive
-                      ? "bg-[#0E7C7B] text-white shadow-sm"
-                      : "text-[#5B6B7F] hover:bg-[#E3F4F3] hover:text-[#0E7C7B]"
+                      ? "bg-[var(--primary)] text-[var(--on-primary)] shadow-xs"
+                      : "text-[var(--text-muted)] hover:bg-[var(--primary-tint)] hover:text-[var(--primary)]"
                   }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
@@ -136,14 +151,15 @@ export function AppShell({ user, children }: AppShellProps) {
             })}
           </nav>
 
-          <div className="pt-4 border-t border-[#E3E8EE]">
-            <div className="p-3 bg-[#E3F4F3] rounded-xl text-xs text-[#0E7C7B] font-medium text-center">
-              Matched Auth Color System
+          <div className="pt-4 border-t border-[var(--border)] space-y-2">
+            <div className="p-3 bg-[var(--primary-tint)] rounded-xl text-xs text-[var(--primary)] font-semibold flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 flex-shrink-0" />
+              <span>Theme System Active</span>
             </div>
           </div>
         </aside>
 
-        {/* Main Content Area */}
+        {/* Main Workspace Area */}
         <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full min-w-0">
           {children}
         </main>
@@ -151,3 +167,4 @@ export function AppShell({ user, children }: AppShellProps) {
     </div>
   );
 }
+
