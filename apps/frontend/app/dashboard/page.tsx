@@ -1,63 +1,70 @@
-import Link from "next/link";
+'use client';
+import { useRouter } from 'next/navigation';
 
-import { requireCurrentUser } from "../../modules/auth/server";
-import { AppShell } from "../../modules/layout/AppShell";
-import { OnboardingGate } from "../../modules/onboarding/OnboardingGate";
+interface SavedResume {
+  id: string;
+  title: string;
+  template: string;
+  updatedAt: string;
+}
 
-export default async function DashboardPage() {
-  const user = await requireCurrentUser();
+const savedResumes: SavedResume[] = [
+  { id: 'res-1', title: 'Software Engineer Resume', template: 'Professional Modern', updatedAt: '2026-06-12' },
+  { id: 'res-2', title: 'AI Developer CV', template: 'Minimalist Clean', updatedAt: '2026-06-10' },
+];
+
+export default function DashboardPage() {
+  const router = useRouter();
+
+  const handleEdit = (id: string): void => {
+    router.push(`/editor/1?resumeId=${id}`);
+  };
+
+  const handleDownload = (id: string): void => {
+    alert(`Downloading resume ID: ${id}`);
+  };
 
   return (
-    <AppShell user={user}>
-      <OnboardingGate userId={user.id} />
-      <section className="dashboard-grid">
-        <div className="work-surface resume-start">
-          <div>
-            <p className="eyebrow">Next step</p>
-            <h2>Create your resume</h2>
-            <p>
-              Start from your saved profile information and build a polished
-              resume.
-            </p>
-          </div>
-          <Link href="/onboarding" className="primary-link-button">
-            Create Resume
-          </Link>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">My Saved Resumes</h1>
+          <p className="text-gray-600">Manage, edit, or download your previously saved resumes.</p>
         </div>
+        <button 
+          onClick={() => router.push('/templates')}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition"
+        >
+          + Create New Resume
+        </button>
+      </div>
 
-        <div className="work-surface">
-          <div className="section-heading">
-            <p className="eyebrow">Account</p>
-            <h2>{user.name || "Welcome"}</h2>
-            <p>{user.email}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {savedResumes.map((res) => (
+          <div key={res.id} className="bg-white rounded-xl shadow-md p-6 border border-gray-200 flex flex-col justify-between">
+            <div>
+              <span className="text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full">{res.template}</span>
+              <h3 className="text-xl font-bold text-gray-800 mt-3 mb-1">{res.title}</h3>
+              <p className="text-sm text-gray-500">Last updated: {res.updatedAt}</p>
+            </div>
+            
+            <div className="flex space-x-3 mt-6 pt-4 border-t border-gray-100">
+              <button 
+                onClick={() => handleEdit(res.id)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-lg font-medium text-sm transition text-center"
+              >
+                Edit
+              </button>
+              <button 
+                onClick={() => handleDownload(res.id)}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium text-sm transition text-center"
+              >
+                Download
+              </button>
+            </div>
           </div>
-          <div className="status-list">
-            <span
-              className={
-                user.email_verified
-                  ? "status-tag is-success"
-                  : "status-tag is-warning"
-              }
-            >
-              {user.email_verified ? "Email verified" : "Email pending"}
-            </span>
-          </div>
-        </div>
-
-        <div className="work-surface">
-          <div className="section-heading">
-            <p className="eyebrow">Profile</p>
-            <h2>Keep your details ready</h2>
-            <p>
-              Update personal information from settings before generating your
-              resume.
-            </p>
-          </div>
-          <Link href="/settings" className="secondary-link-button">
-            Edit profile
-          </Link>
-        </div>
-      </section>
-    </AppShell>
+        ))}
+      </div>
+    </div>
   );
 }

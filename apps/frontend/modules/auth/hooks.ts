@@ -2,14 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { authApi } from "./api";
-import { AUTH_EMAIL_STORAGE_KEY } from "./constants";
+import { authApi, AUTH_EMAIL_STORAGE_KEY } from "./api";
 import {
   LoginPayload,
   RegisterPayload,
-  VerifyEmailPayload,
   ForgotPasswordPayload,
-  VerifyRecoveryOtpPayload,
   ChangePasswordPayload,
 } from "./types";
 
@@ -106,11 +103,13 @@ export function useAuth() {
     }
   };
 
-  const handleChangePassword = async (payload: ChangePasswordPayload) => {
+  const handleChangePassword = async (payload: Omit<ChangePasswordPayload, "email">) => {
     setLoading(true);
     setError(null);
     try {
-      await authApi.changePassword(payload);
+      const email = localStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
+      await authApi.changePassword({ ...payload, email });
+      localStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
       router.push("/auth/login");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to change password");

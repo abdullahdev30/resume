@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-
 import type { User } from "./types";
 
 const API_BASE = (
@@ -15,18 +14,22 @@ export async function getCurrentUser(): Promise<User | null> {
     return null;
   }
 
-  const response = await fetch(`${API_BASE}/auth/me`, {
-    headers: {
-      cookie: cookieHeader,
-    },
-    cache: "no-store",
-  });
+  try {
+    const response = await fetch(`${API_BASE}/auth/me`, {
+      headers: {
+        cookie: cookieHeader,
+      },
+      cache: "no-store",
+    });
 
-  if (!response.ok) {
+    if (!response.ok) {
+      return null;
+    }
+
+    return response.json() as Promise<User>;
+  } catch {
     return null;
   }
-
-  return response.json() as Promise<User>;
 }
 
 export async function requireCurrentUser(): Promise<User> {
