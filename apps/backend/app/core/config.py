@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     rate_limit_storage_uri: str = "memory://"
     certificate_upload_dir: str = "uploads/certificates"
 
+    # Supabase Storage (S3-compatible API). The AWS_* variable names are
+    # reused because the existing .env already defines them for that storage.
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    aws_region: str = "us-east-1"
+    aws_s3_bucket_name: str = "resumes"
+    supabase_s3_endpoint: str | None = None
+
+    # Resume PDF uploads.
+    resume_max_file_size_bytes: int = 10 * 1024 * 1024
+    resume_signed_url_expires_in_seconds: int = 300
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

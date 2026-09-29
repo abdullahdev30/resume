@@ -1,0 +1,1 @@
+"""Resume PDF upload module."""

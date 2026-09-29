@@ -46,6 +46,7 @@ export interface TemplateProps {
   selectedElementId?: string | null;
   onSelectElement?: (id: string) => void;
   elementStyles?: Record<string, ElementStyle>;
+  onPhotoUpload?: (file: File) => void;
 }
 
 export default function TemplateOne({
@@ -53,6 +54,7 @@ export default function TemplateOne({
   selectedElementId,
   onSelectElement,
   elementStyles = {},
+  onPhotoUpload,
 }: TemplateProps) {
   const accentColor = data.primaryColor || "#0E7C7B";
 
