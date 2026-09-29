@@ -2,5 +2,7 @@ import { apiClient } from "../../lib/api-client";
 import type { Experience } from "./types";
 
 export function listExperiences() {
-  return apiClient<Experience[]>("/profile/experience", { method: "GET" });
+  return apiClient<{ experience: Experience[] }>("/profile", { method: "GET" }).then(
+    (profile) => profile.experience || [],
+  );
 }

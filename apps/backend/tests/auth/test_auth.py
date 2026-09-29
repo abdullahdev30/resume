@@ -59,9 +59,11 @@ class FakeAuthService:
         self.forgot_payload = payload
 
     def verify_recovery_otp(self, payload):
-        return auth_result()
+        return "recovery-code-123456789"
 
-    def change_password(self, *, payload, access_token, refresh_token):
+    def change_password(self, *, payload, access_token=None, refresh_token=None):
+        if not payload.recovery_code and (not access_token or not refresh_token):
+            raise invalid_session_error()
         return user_response()
 
 
@@ -116,9 +118,15 @@ def valid_register_payload(**overrides):
     return payload
 
 
+def valid_register_payload_with_phone(**overrides):
+    payload = valid_register_payload(**overrides)
+    payload["phone"] = payload.pop("number")
+    return payload
+
+
 def test_register_valid_data_normalizes_inputs(client, auth_service_override):
     response = client.post(
-        "/api/auth/register",
+        "/api/v1/auth/register",
         json=valid_register_payload(),
     )
 
@@ -133,6 +141,17 @@ def test_register_valid_data_normalizes_inputs(client, auth_service_override):
     }
     assert auth_service_override.register_payload.name == "John Doe"
     assert str(auth_service_override.register_payload.email) == "john@example.com"
+    assert auth_service_override.register_payload.number == "03001234567"
+
+
+def test_register_accepts_phone_field(client, auth_service_override):
+    response = client.post(
+        "/api/v1/auth/register",
+        json=valid_register_payload_with_phone(),
+    )
+
+    assert response.status_code == 201
+    assert auth_service_override.register_payload.number == "03001234567"
 
 
 @pytest.mark.parametrize(
@@ -147,7 +166,7 @@ def test_register_valid_data_normalizes_inputs(client, auth_service_override):
 )
 def test_register_rejects_invalid_phone_numbers(client, number):
     response = client.post(
-        "/api/auth/register",
+        "/api/v1/auth/register",
         json=valid_register_payload(number=number),
     )
 
@@ -167,7 +186,7 @@ def test_register_rejects_invalid_phone_numbers(client, number):
 )
 def test_register_rejects_weak_passwords(client, password):
     response = client.post(
-        "/api/auth/register",
+        "/api/v1/auth/register",
         json=valid_register_payload(
             password=password,
             confirm_password=password,
@@ -179,7 +198,7 @@ def test_register_rejects_weak_passwords(client, password):
 
 def test_register_rejects_password_mismatch(client):
     response = client.post(
-        "/api/auth/register",
+        "/api/v1/auth/register",
         json=valid_register_payload(confirm_password="OtherPassword123!"),
     )
 
@@ -188,7 +207,7 @@ def test_register_rejects_password_mismatch(client):
 
 def test_register_rejects_malformed_email(client):
     response = client.post(
-        "/api/auth/register",
+        "/api/v1/auth/register",
         json=valid_register_payload(email="not-an-email"),
     )
 
@@ -197,7 +216,7 @@ def test_register_rejects_malformed_email(client):
 
 def test_verify_email_sets_cookies_without_tokens_in_json(client):
     response = client.post(
-        "/api/auth/verify-email",
+        "/api/v1/auth/verify-email",
         json={"email": "john@example.com", "otp": "123456"},
     )
 
@@ -211,7 +230,7 @@ def test_verify_email_sets_cookies_without_tokens_in_json(client):
 
 def test_verify_email_rejects_malformed_otp(client):
     response = client.post(
-        "/api/auth/verify-email",
+        "/api/v1/auth/verify-email",
         json={"email": "john@example.com", "otp": "12ab56"},
     )
 
@@ -220,7 +239,7 @@ def test_verify_email_rejects_malformed_otp(client):
 
 def test_resend_verification_returns_generic_message(client):
     response = client.post(
-        "/api/auth/resend-verification",
+        "/api/v1/auth/resend-verification",
         json={"email": "john@example.com"},
     )
 
@@ -228,9 +247,9 @@ def test_resend_verification_returns_generic_message(client):
     assert "If an account is pending verification" in response.json()["message"]
 
 
-def test_login_sets_cookies_without_tokens_in_json(client):
+def test_login_returns_tokens_without_user_details(client):
     response = client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         json={"email": "john@example.com", "password": "StrongPassword123!"},
     )
 
@@ -238,14 +257,17 @@ def test_login_sets_cookies_without_tokens_in_json(client):
     assert response.cookies.get("access_token") == "access-token"
     assert response.cookies.get("refresh_token") == "refresh-token"
     response_body = response.json()
-    assert response_body["message"] == "Login successful."
-    assert response_body["user"]["email"] == "john@example.com"
-    assert "access-token" not in str(response_body)
-    assert "refresh-token" not in str(response_body)
+    assert response_body == {
+        "message": "Login successful.",
+        "access_token": "access-token",
+        "refresh_token": "refresh-token",
+    }
+    assert "user" not in response_body
+    assert "id" not in response_body
 
 
 def test_me_requires_authentication(client):
-    response = client.get("/api/auth/me")
+    response = client.get("/api/v1/auth/me")
 
     assert response.status_code == 401
 
@@ -253,7 +275,7 @@ def test_me_requires_authentication(client):
 def test_me_returns_current_user(client):
     client.cookies.set("access_token", "access-token")
 
-    response = client.get("/api/auth/me")
+    response = client.get("/api/v1/auth/me")
 
     assert response.status_code == 200
     assert response.json()["email"] == "john@example.com"
@@ -261,7 +283,7 @@ def test_me_returns_current_user(client):
 
 def test_me_accepts_bearer_access_token(client):
     response = client.get(
-        "/api/auth/me",
+        "/api/v1/auth/me",
         headers={"Authorization": "Bearer access-token"},
     )
 
@@ -272,7 +294,7 @@ def test_me_accepts_bearer_access_token(client):
 def test_me_rejects_invalid_session(client):
     client.cookies.set("access_token", "expired-token")
 
-    response = client.get("/api/auth/me")
+    response = client.get("/api/v1/auth/me")
 
     assert response.status_code == 401
 
@@ -281,16 +303,20 @@ def test_refresh_rotates_session_cookies(client):
     client.cookies.set("refresh_token", "old-refresh-token")
 
     response = client.post(
-        "/api/auth/refresh",
+        "/api/v1/auth/refresh",
     )
 
     assert response.status_code == 200
     assert response.cookies.get("access_token") == "new-access-token"
     assert response.cookies.get("refresh_token") == "new-refresh-token"
     response_body = response.json()
-    assert response_body["message"] == "Session refreshed successfully."
-    assert "new-access-token" not in str(response_body)
-    assert "new-refresh-token" not in str(response_body)
+    assert response_body == {
+        "message": "Session refreshed successfully.",
+        "access_token": "new-access-token",
+        "refresh_token": "new-refresh-token",
+    }
+    assert "user" not in response_body
+    assert "id" not in response_body
 
 
 def test_refresh_invalid_token_clears_cookies(client, auth_service_override):
@@ -299,7 +325,7 @@ def test_refresh_invalid_token_clears_cookies(client, auth_service_override):
     client.cookies.set("refresh_token", "old-refresh-token")
 
     response = client.post(
-        "/api/auth/refresh",
+        "/api/v1/auth/refresh",
     )
 
     assert response.status_code == 401
@@ -311,7 +337,7 @@ def test_logout_clears_cookies(client):
     client.cookies.set("access_token", "access-token")
     client.cookies.set("refresh_token", "refresh-token")
 
-    response = client.post("/api/auth/logout")
+    response = client.post("/api/v1/auth/logout")
 
     assert response.status_code == 200
     assert response.cookies.get("access_token") is None
@@ -320,7 +346,7 @@ def test_logout_clears_cookies(client):
 
 def test_forgot_password_does_not_disclose_account_existence(client):
     response = client.post(
-        "/api/auth/forgot-password",
+        "/api/v1/auth/forgot-password",
         json={"email": "unknown@example.com"},
     )
 
@@ -333,24 +359,26 @@ def test_forgot_password_does_not_disclose_account_existence(client):
     }
 
 
-def test_verify_recovery_otp_sets_recovery_session(client):
+def test_verify_recovery_otp_returns_only_recovery_code(client):
     response = client.post(
-        "/api/auth/verify-recovery-otp",
+        "/api/v1/auth/verify-recovery-otp",
         json={"email": "john@example.com", "otp": "123456"},
     )
 
     assert response.status_code == 200
-    assert response.cookies.get("access_token") == "access-token"
-    assert response.cookies.get("refresh_token") == "refresh-token"
+    assert response.cookies.get("access_token") is None
+    assert response.cookies.get("refresh_token") is None
     response_body = response.json()
     assert response_body["message"] == "Recovery OTP verified successfully."
+    assert response_body["recovery_code"] == "recovery-code-123456789"
+    assert "user" not in response_body
     assert "access-token" not in str(response_body)
     assert "refresh-token" not in str(response_body)
 
 
 def test_change_password_requires_session(client):
     response = client.post(
-        "/api/auth/change-password",
+        "/api/v1/auth/change-password",
         json={
             "new_password": "NewStrongPassword123!",
             "confirm_new_password": "NewStrongPassword123!",
@@ -365,7 +393,7 @@ def test_change_password_rejects_weak_password(client):
     client.cookies.set("refresh_token", "refresh-token")
 
     response = client.post(
-        "/api/auth/change-password",
+        "/api/v1/auth/change-password",
         json={
             "new_password": "weak",
             "confirm_new_password": "weak",
@@ -380,7 +408,7 @@ def test_change_password_rejects_mismatch(client):
     client.cookies.set("refresh_token", "refresh-token")
 
     response = client.post(
-        "/api/auth/change-password",
+        "/api/v1/auth/change-password",
         json={
             "new_password": "NewStrongPassword123!",
             "confirm_new_password": "OtherStrongPassword123!",
@@ -395,10 +423,24 @@ def test_change_password_valid_session(client):
     client.cookies.set("refresh_token", "refresh-token")
 
     response = client.post(
-        "/api/auth/change-password",
+        "/api/v1/auth/change-password",
         json={
             "new_password": "NewStrongPassword123!",
             "confirm_new_password": "NewStrongPassword123!",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"message": "Password changed successfully."}
+
+
+def test_change_password_accepts_recovery_code_without_session(client):
+    response = client.post(
+        "/api/v1/auth/change-password",
+        json={
+            "new_password": "NewStrongPassword123!",
+            "confirm_new_password": "NewStrongPassword123!",
+            "recovery_code": "recovery-code-123456789",
         },
     )
 

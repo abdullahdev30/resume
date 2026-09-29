@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import type { User } from "./types";
 
 const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"
 ).replace(/\/$/, "");
 
 export async function getCurrentUser(): Promise<User | null> {

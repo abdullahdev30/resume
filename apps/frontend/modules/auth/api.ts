@@ -7,6 +7,8 @@ import {
   VerifyRecoveryOtpPayload,
   ChangePasswordPayload,
   AuthResponse,
+  TokenResponse,
+  RecoveryCodeResponse,
 } from "./types";
 
 import { apiClient } from "../../lib/api-client";
@@ -19,7 +21,7 @@ export const authApi = {
     });
   },
 
-  async login(payload: LoginPayload): Promise<AuthResponse> {
+  async login(payload: LoginPayload): Promise<TokenResponse> {
     return apiClient("/auth/login", {
       method: "POST",
       body: payload,
@@ -51,7 +53,7 @@ export const authApi = {
 
   async verifyRecoveryOtp(
     payload: VerifyRecoveryOtpPayload,
-  ): Promise<AuthResponse> {
+  ): Promise<RecoveryCodeResponse> {
     return apiClient("/auth/verify-recovery-otp", {
       method: "POST",
       body: payload,
@@ -78,10 +80,8 @@ export const authApi = {
   },
 
   async onboardingStatus(): Promise<{ personal_completed: boolean }> {
-    return apiClient("/profile/onboarding/status", {
+    return apiClient("/profile/onboarding-status", {
       method: "GET",
     });
   },
 };
-
-export const AUTH_EMAIL_STORAGE_KEY = "auth_email";

@@ -1,5 +1,5 @@
 const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"
 ).replace(/\/$/, "");
 
 interface ApiClientOptions extends RequestInit {
@@ -41,7 +41,10 @@ export async function apiClient<T = any>(
 
   if (!response.ok) {
     const errorMessage =
-      data?.message || data?.error || `Request failed with status ${response.status}`;
+      data?.detail?.message ||
+      data?.message ||
+      data?.error ||
+      `Request failed with status ${response.status}`;
     throw new Error(errorMessage);
   }
 

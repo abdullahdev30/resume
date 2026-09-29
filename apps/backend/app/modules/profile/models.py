@@ -1,6 +1,8 @@
 # backend/app/modules/profile/models.py
-from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, JSON
+from sqlalchemy import JSON, Boolean, Column, Integer, String
+
 from app.database.connection import Base
+
 
 class PersonalDetail(Base):
     __tablename__ = "personal_details"

@@ -214,7 +214,7 @@ def create_resume(
     authenticate(client, token)
     data = {} if title is None else {"title": title}
     return client.post(
-        "/api/resumes",
+        "/api/v1/resumes",
         files={"file": (filename, content, content_type)},
         data=data,
     )
@@ -226,7 +226,7 @@ def error_code(response) -> str:
 
 def test_create_resume_requires_authentication(client):
     response = client.post(
-        "/api/resumes",
+        "/api/v1/resumes",
         files={"file": ("resume.pdf", PDF_BYTES, "application/pdf")},
     )
 
@@ -262,7 +262,7 @@ def test_create_resume_uploads_pdf_and_stores_metadata(client, resume_overrides)
 def test_create_resume_ignores_client_supplied_user_id(client, resume_overrides):
     authenticate(client)
     response = client.post(
-        "/api/resumes",
+        "/api/v1/resumes",
         files={"file": ("resume.pdf", PDF_BYTES, "application/pdf")},
         data={"title": "Resume", "user_id": USER_B_ID},
     )
@@ -348,7 +348,7 @@ def test_create_resume_reports_storage_failure(client, resume_overrides):
 
 
 def test_list_resumes_requires_authentication(client):
-    response = client.get("/api/resumes")
+    response = client.get("/api/v1/resumes")
 
     assert response.status_code == 401
 
@@ -359,7 +359,7 @@ def test_list_resumes_only_returns_own_resumes(client):
     create_resume(client, token=USER_B_TOKEN, title="Other user resume")
 
     authenticate(client)
-    response = client.get("/api/resumes")
+    response = client.get("/api/v1/resumes")
 
     assert response.status_code == 200
     body = response.json()
@@ -375,7 +375,7 @@ def test_list_resumes_is_scoped_per_user(client):
         title="User B resume",
     ).json()
 
-    response = client.get("/api/resumes")
+    response = client.get("/api/v1/resumes")
 
     assert response.status_code == 200
     resumes = response.json()["resumes"]
@@ -386,7 +386,7 @@ def test_list_resumes_is_scoped_per_user(client):
 def test_get_resume_returns_signed_download_url(client, resume_overrides):
     created = create_resume(client).json()
 
-    response = client.get(f"/api/resumes/{created['id']}")
+    response = client.get(f"/api/v1/resumes/{created['id']}")
 
     assert response.status_code == 200
     body = response.json()
@@ -402,7 +402,7 @@ def test_get_resume_returns_signed_download_url(client, resume_overrides):
 
 def test_get_resume_returns_not_found_for_unknown_id(client):
     authenticate(client)
-    response = client.get(f"/api/resumes/{MISSING_RESUME_ID}")
+    response = client.get(f"/api/v1/resumes/{MISSING_RESUME_ID}")
 
     assert response.status_code == 404
     assert error_code(response) == "resume_not_found"
@@ -410,7 +410,7 @@ def test_get_resume_returns_not_found_for_unknown_id(client):
 
 def test_get_resume_rejects_invalid_id(client):
     authenticate(client)
-    response = client.get("/api/resumes/not-a-uuid")
+    response = client.get("/api/v1/resumes/not-a-uuid")
 
     assert response.status_code == 422
 
@@ -419,7 +419,7 @@ def test_get_resume_of_another_user_is_not_found(client):
     created = create_resume(client).json()
 
     authenticate(client, USER_B_TOKEN)
-    response = client.get(f"/api/resumes/{created['id']}")
+    response = client.get(f"/api/v1/resumes/{created['id']}")
 
     assert response.status_code == 404
     assert error_code(response) == "resume_not_found"
@@ -429,7 +429,7 @@ def test_get_resume_requires_authentication(client, resume_overrides):
     created = create_resume(client).json()
     client.cookies.clear()
 
-    response = client.get(f"/api/resumes/{created['id']}")
+    response = client.get(f"/api/v1/resumes/{created['id']}")
 
     assert response.status_code == 401
 
@@ -439,7 +439,7 @@ def test_update_resume_title_only(client, resume_overrides):
     storage_path = f"{USER_A_ID}/resumes/{created['id']}.pdf"
 
     response = client.put(
-        f"/api/resumes/{created['id']}",
+        f"/api/v1/resumes/{created['id']}",
         data={"title": "Updated title"},
     )
 
@@ -457,7 +457,7 @@ def test_update_resume_replaces_pdf_only(client, resume_overrides):
     storage_path = f"{USER_A_ID}/resumes/{created['id']}.pdf"
 
     response = client.put(
-        f"/api/resumes/{created['id']}",
+        f"/api/v1/resumes/{created['id']}",
         files={"file": ("updated.pdf", OTHER_PDF_BYTES, "application/pdf")},
     )
 
@@ -475,7 +475,7 @@ def test_update_resume_replaces_pdf_and_title(client, resume_overrides):
     created = create_resume(client).json()
 
     response = client.put(
-        f"/api/resumes/{created['id']}",
+        f"/api/v1/resumes/{created['id']}",
         files={"file": ("updated.pdf", OTHER_PDF_BYTES, "application/pdf")},
         data={"title": "Replaced resume"},
     )
@@ -490,7 +490,7 @@ def test_update_resume_replaces_pdf_and_title(client, resume_overrides):
 def test_update_resume_requires_a_change(client, resume_overrides):
     created = create_resume(client).json()
 
-    response = client.put(f"/api/resumes/{created['id']}")
+    response = client.put(f"/api/v1/resumes/{created['id']}")
 
     assert response.status_code == 422
     assert error_code(response) == "resume_update_error"
@@ -501,7 +501,7 @@ def test_update_resume_rejects_invalid_pdf(client, resume_overrides):
     storage_path = f"{USER_A_ID}/resumes/{created['id']}.pdf"
 
     response = client.put(
-        f"/api/resumes/{created['id']}",
+        f"/api/v1/resumes/{created['id']}",
         files={"file": ("updated.pdf", b"broken pdf body", "application/pdf")},
     )
 
@@ -517,7 +517,7 @@ def test_update_resume_of_another_user_is_not_found(client, resume_overrides):
 
     authenticate(client, USER_B_TOKEN)
     response = client.put(
-        f"/api/resumes/{created['id']}",
+        f"/api/v1/resumes/{created['id']}",
         files={"file": ("updated.pdf", OTHER_PDF_BYTES, "application/pdf")},
         data={"title": "Hijacked"},
     )
@@ -531,7 +531,7 @@ def test_update_resume_of_another_user_is_not_found(client, resume_overrides):
 def test_update_resume_returns_not_found_for_unknown_id(client):
     authenticate(client)
     response = client.put(
-        f"/api/resumes/{MISSING_RESUME_ID}",
+        f"/api/v1/resumes/{MISSING_RESUME_ID}",
         data={"title": "Updated title"},
     )
 
@@ -544,7 +544,7 @@ def test_update_resume_reports_storage_failure(client, resume_overrides):
     resume_overrides.storage.fail_upload = True
 
     response = client.put(
-        f"/api/resumes/{created['id']}",
+        f"/api/v1/resumes/{created['id']}",
         files={"file": ("updated.pdf", OTHER_PDF_BYTES, "application/pdf")},
     )
 
@@ -557,7 +557,7 @@ def test_delete_resume_removes_storage_object_and_record(client, resume_override
     storage_path = f"{USER_A_ID}/resumes/{created['id']}.pdf"
     assert storage_path in resume_overrides.storage.objects
 
-    response = client.delete(f"/api/resumes/{created['id']}")
+    response = client.delete(f"/api/v1/resumes/{created['id']}")
 
     assert response.status_code == 200
     assert response.json() == {"message": "Resume deleted successfully."}
@@ -571,7 +571,7 @@ def test_delete_resume_of_another_user_is_not_found(client, resume_overrides):
     storage_path = f"{USER_A_ID}/resumes/{created['id']}.pdf"
 
     authenticate(client, USER_B_TOKEN)
-    response = client.delete(f"/api/resumes/{created['id']}")
+    response = client.delete(f"/api/v1/resumes/{created['id']}")
 
     assert response.status_code == 404
     assert error_code(response) == "resume_not_found"
@@ -581,7 +581,7 @@ def test_delete_resume_of_another_user_is_not_found(client, resume_overrides):
 
 def test_delete_resume_returns_not_found_for_unknown_id(client):
     authenticate(client)
-    response = client.delete(f"/api/resumes/{MISSING_RESUME_ID}")
+    response = client.delete(f"/api/v1/resumes/{MISSING_RESUME_ID}")
 
     assert response.status_code == 404
     assert error_code(response) == "resume_not_found"
@@ -591,7 +591,7 @@ def test_delete_resume_requires_authentication(client, resume_overrides):
     created = create_resume(client).json()
     client.cookies.clear()
 
-    response = client.delete(f"/api/resumes/{created['id']}")
+    response = client.delete(f"/api/v1/resumes/{created['id']}")
 
     assert response.status_code == 401
 
@@ -602,7 +602,7 @@ def test_delete_resume_keeps_record_when_storage_delete_fails(
     created = create_resume(client).json()
     resume_overrides.storage.fail_delete = True
 
-    response = client.delete(f"/api/resumes/{created['id']}")
+    response = client.delete(f"/api/v1/resumes/{created['id']}")
 
     assert response.status_code == 502
     assert error_code(response) == "resume_storage_error"
@@ -616,7 +616,7 @@ def test_delete_resume_reports_database_failure(client, resume_overrides):
     created = create_resume(client).json()
     resume_overrides.repository.fail_on_delete = True
 
-    response = client.delete(f"/api/resumes/{created['id']}")
+    response = client.delete(f"/api/v1/resumes/{created['id']}")
 
     assert response.status_code == 500
     assert error_code(response) == "resume_persistence_error"

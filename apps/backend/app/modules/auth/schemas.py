@@ -3,6 +3,7 @@ import unicodedata
 from typing import Any
 
 from pydantic import (
+    AliasChoices,
     BaseModel,
     ConfigDict,
     EmailStr,
@@ -49,7 +50,12 @@ class AuthBaseModel(BaseModel):
 class RegisterRequest(AuthBaseModel):
     name: str = Field(min_length=2, max_length=100, strict=True)
     email: EmailStr
-    number: str = Field(min_length=11, max_length=11, strict=True)
+    number: str = Field(
+        min_length=11,
+        max_length=11,
+        strict=True,
+        validation_alias=AliasChoices("phone", "number"),
+    )
     password: str = Field(min_length=8, max_length=128, strict=True)
     confirm_password: str = Field(min_length=8, max_length=128, strict=True)
 
@@ -125,9 +131,15 @@ class VerifyRecoveryOtpRequest(VerifyEmailOtpRequest):
     pass
 
 
+class RecoveryCodeResponse(BaseModel):
+    message: str
+    recovery_code: str
+
+
 class ChangePasswordRequest(AuthBaseModel):
     new_password: str = Field(min_length=8, max_length=128, strict=True)
     confirm_new_password: str = Field(min_length=8, max_length=128, strict=True)
+    recovery_code: str | None = Field(default=None, min_length=16, max_length=256)
 
     @field_validator("new_password")
     @classmethod
@@ -157,6 +169,12 @@ class VerifyEmailResponse(BaseModel):
 class SessionResponse(BaseModel):
     message: str
     user: UserResponse
+
+
+class TokenResponse(BaseModel):
+    message: str
+    access_token: str
+    refresh_token: str
 
 
 class MessageResponse(BaseModel):

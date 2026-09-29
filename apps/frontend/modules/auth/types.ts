@@ -14,7 +14,7 @@ export interface LoginPayload {
 export interface RegisterPayload {
   name: string;
   email: string;
-  number: string;
+  phone: string;
   password: string;
   confirm_password: string;
 }
@@ -38,12 +38,23 @@ export interface VerifyRecoveryOtpPayload {
 }
 
 export interface ChangePasswordPayload {
-  email?: string;
   new_password: string;
   confirm_new_password: string;
+  recovery_code?: string;
 }
 
 export interface AuthResponse {
   message?: string;
   user?: User;
+}
+
+export interface TokenResponse {
+  message: string;
+  access_token: string;
+  refresh_token: string;
+}
+
+export interface RecoveryCodeResponse {
+  message: string;
+  recovery_code: string;
 }

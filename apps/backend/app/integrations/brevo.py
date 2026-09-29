@@ -1,6 +1,12 @@
 # backend/app/integrations/brevo.py
 import httpx
+
 from app.core.config import settings
+
+
+class BrevoEmailError(Exception):
+    """Raised when Brevo rejects an email request."""
+
 
 class BrevoEmailService:
     @staticmethod
@@ -20,9 +26,9 @@ class BrevoEmailService:
             "subject": subject,
             "htmlContent": html_content,
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload, headers=headers)
             if response.status_code >= 400:
-                raise Exception(f"Failed to send email via Brevo: {response.text}")
+                raise BrevoEmailError("Failed to send email via Brevo.")
             return response.json()

@@ -5,7 +5,6 @@ from slowapi.util import get_remote_address
 from app.core.config import settings
 from app.modules.auth.cookies import clear_auth_cookies, set_auth_cookies
 from app.modules.auth.dependencies import (
-    ACCESS_TOKEN_DEPENDENCY,
     AUTH_SERVICE_DEPENDENCY,
     CURRENT_USER_DEPENDENCY,
     REFRESH_TOKEN_DEPENDENCY,
@@ -16,10 +15,12 @@ from app.modules.auth.schemas import (
     ForgotPasswordRequest,
     LoginRequest,
     MessageResponse,
+    RecoveryCodeResponse,
     RegisterRequest,
     RegisterResponse,
     ResendVerificationRequest,
     SessionResponse,
+    TokenResponse,
     UserResponse,
     VerifyEmailOtpRequest,
     VerifyEmailResponse,
@@ -52,6 +53,22 @@ def _session_response(message: str, auth_result: AuthResult) -> SessionResponse:
     return SessionResponse(
         message=message,
         user=auth_result.user,
+    )
+
+
+def _token_response(message: str, auth_result: AuthResult) -> TokenResponse:
+    if auth_result.tokens is None:
+        raise_http_error(AuthApplicationError(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="invalid_session",
+            message="Invalid or expired session.",
+        ))
+        raise RuntimeError("unreachable")
+
+    return TokenResponse(
+        message=message,
+        access_token=auth_result.tokens.access_token,
+        refresh_token=auth_result.tokens.refresh_token,
     )
 
 
@@ -115,7 +132,7 @@ def resend_verification(
 
 @router.post(
     "/login",
-    response_model=SessionResponse,
+    response_model=TokenResponse,
 )
 @limiter.limit("5/minute")
 def login(
@@ -123,11 +140,11 @@ def login(
     response: Response,
     payload: LoginRequest,
     auth_service: AuthService = AUTH_SERVICE_DEPENDENCY,
-) -> SessionResponse:
+) -> TokenResponse:
     try:
         auth_result = auth_service.login(payload)
         _set_session_cookies(response, auth_result)
-        return _session_response("Login successful.", auth_result)
+        return _token_response("Login successful.", auth_result)
     except AuthApplicationError as exc:
         raise_http_error(exc)
 
@@ -144,17 +161,17 @@ def me(
 
 @router.post(
     "/refresh",
-    response_model=SessionResponse,
+    response_model=TokenResponse,
 )
 def refresh(
     response: Response,
     refresh_token: str = REFRESH_TOKEN_DEPENDENCY,
     auth_service: AuthService = AUTH_SERVICE_DEPENDENCY,
-) -> SessionResponse:
+) -> TokenResponse:
     try:
         auth_result = auth_service.refresh_session(refresh_token)
         _set_session_cookies(response, auth_result)
-        return _session_response("Session refreshed successfully.", auth_result)
+        return _token_response("Session refreshed successfully.", auth_result)
     except AuthApplicationError as exc:
         clear_auth_cookies(response)
         raise_http_error(exc)
@@ -203,19 +220,20 @@ def forgot_password(
 
 @router.post(
     "/verify-recovery-otp",
-    response_model=SessionResponse,
+    response_model=RecoveryCodeResponse,
 )
 @limiter.limit("10/minute")
 def verify_recovery_otp(
     request: Request,
-    response: Response,
     payload: VerifyRecoveryOtpRequest,
     auth_service: AuthService = AUTH_SERVICE_DEPENDENCY,
-) -> SessionResponse:
+) -> RecoveryCodeResponse:
     try:
-        auth_result = auth_service.verify_recovery_otp(payload)
-        _set_session_cookies(response, auth_result)
-        return _session_response("Recovery OTP verified successfully.", auth_result)
+        recovery_code = auth_service.verify_recovery_otp(payload)
+        return RecoveryCodeResponse(
+            message="Recovery OTP verified successfully.",
+            recovery_code=recovery_code,
+        )
     except AuthApplicationError as exc:
         raise_http_error(exc)
 
@@ -226,15 +244,14 @@ def verify_recovery_otp(
 )
 def change_password(
     payload: ChangePasswordRequest,
-    access_token: str = ACCESS_TOKEN_DEPENDENCY,
-    refresh_token: str = REFRESH_TOKEN_DEPENDENCY,
+    request: Request,
     auth_service: AuthService = AUTH_SERVICE_DEPENDENCY,
 ) -> MessageResponse:
     try:
         auth_service.change_password(
             payload=payload,
-            access_token=access_token,
-            refresh_token=refresh_token,
+            access_token=request.cookies.get(settings.access_token_cookie_name),
+            refresh_token=request.cookies.get(settings.refresh_token_cookie_name),
         )
         return MessageResponse(message="Password changed successfully.")
     except AuthApplicationError as exc:

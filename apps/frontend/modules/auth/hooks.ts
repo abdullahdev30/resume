@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { authApi, AUTH_EMAIL_STORAGE_KEY } from "./api";
+import { authApi } from "./api";
+import {
+  AUTH_EMAIL_STORAGE_KEY,
+  AUTH_RECOVERY_CODE_STORAGE_KEY,
+} from "./constants";
 import {
   LoginPayload,
   RegisterPayload,
@@ -19,10 +23,11 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const res = await authApi.login(payload);
+      await authApi.login(payload);
+      const currentUser = await authApi.me();
       const status = await authApi.onboardingStatus().catch(() => null);
       
-      const userId = res?.user?.id || "";
+      const userId = currentUser?.id || "";
       const isDoneLocally = typeof window !== "undefined" && (
         localStorage.getItem(`onboarding_completed:${userId}`) === "true" ||
         localStorage.getItem(`onboarding_skipped:${userId}`) === "true" ||
@@ -107,7 +112,11 @@ export function useAuth() {
     setError(null);
     try {
       const email = localStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
-      await authApi.verifyRecoveryOtp({ email, otp });
+      const response = await authApi.verifyRecoveryOtp({ email, otp });
+      localStorage.setItem(
+        AUTH_RECOVERY_CODE_STORAGE_KEY,
+        response.recovery_code,
+      );
       router.push("/auth/change-password");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Recovery verification failed");
@@ -116,13 +125,20 @@ export function useAuth() {
     }
   };
 
-  const handleChangePassword = async (payload: Omit<ChangePasswordPayload, "email">) => {
+  const handleChangePassword = async (payload: ChangePasswordPayload) => {
     setLoading(true);
     setError(null);
     try {
-      const email = localStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
-      await authApi.changePassword({ ...payload, email });
+      const recoveryCode =
+        payload.recovery_code ||
+        localStorage.getItem(AUTH_RECOVERY_CODE_STORAGE_KEY) ||
+        undefined;
+      await authApi.changePassword({
+        ...payload,
+        recovery_code: recoveryCode,
+      });
       localStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
+      localStorage.removeItem(AUTH_RECOVERY_CODE_STORAGE_KEY);
       router.push("/auth/login");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to change password");

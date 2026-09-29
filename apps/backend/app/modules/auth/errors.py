@@ -58,6 +58,14 @@ def invalid_session_error() -> AuthApplicationError:
     )
 
 
+def invalid_recovery_code_error() -> AuthApplicationError:
+    return AuthApplicationError(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        code="invalid_recovery_code",
+        message="Invalid or expired recovery code.",
+    )
+
+
 def upstream_auth_error(
     exc: Exception,
     *,

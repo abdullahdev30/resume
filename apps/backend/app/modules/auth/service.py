@@ -1,5 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from secrets import token_urlsafe
 from typing import Any
 
 from httpx import HTTPError
@@ -10,6 +12,7 @@ from app.core.config import settings
 from app.integrations.supabase import create_supabase_client
 from app.modules.auth.errors import (
     AuthApplicationError,
+    invalid_recovery_code_error,
     invalid_session_error,
     upstream_auth_error,
 )
@@ -25,6 +28,9 @@ from app.modules.auth.schemas import (
     VerifyRecoveryOtpRequest,
 )
 
+RECOVERY_CODE_TTL_MINUTES = 10
+_RECOVERY_SESSIONS: dict[str, "RecoverySession"] = {}
+
 
 @dataclass(frozen=True)
 class AuthTokens:
@@ -37,6 +43,13 @@ class AuthTokens:
 class AuthResult:
     user: UserResponse
     tokens: AuthTokens | None = None
+
+
+@dataclass(frozen=True)
+class RecoverySession:
+    access_token: str
+    refresh_token: str
+    expires_at: datetime
 
 
 class AuthService:
@@ -180,7 +193,7 @@ class AuthService:
     def verify_recovery_otp(
         self,
         payload: VerifyRecoveryOtpRequest,
-    ) -> AuthResult:
+    ) -> str:
         try:
             response = self._client_factory().auth.verify_otp(
                 {
@@ -192,15 +205,27 @@ class AuthService:
         except Exception as exc:
             raise upstream_auth_error(exc) from exc
 
-        return self._auth_result_from_response(response, require_session=True)
+        auth_result = self._auth_result_from_response(response, require_session=True)
+        if auth_result.tokens is None:
+            raise invalid_session_error()
+
+        return self._create_recovery_code(auth_result.tokens)
 
     def change_password(
         self,
         *,
         payload: ChangePasswordRequest,
-        access_token: str,
-        refresh_token: str,
+        access_token: str | None = None,
+        refresh_token: str | None = None,
     ) -> UserResponse:
+        if payload.recovery_code:
+            recovery_session = self._consume_recovery_code(payload.recovery_code)
+            access_token = recovery_session.access_token
+            refresh_token = recovery_session.refresh_token
+
+        if not access_token or not refresh_token:
+            raise invalid_session_error()
+
         try:
             client = self._client_factory()
             client.auth.set_session(access_token, refresh_token)
@@ -217,6 +242,33 @@ class AuthService:
             raise invalid_session_error()
 
         return self._user_response(user)
+
+    def _create_recovery_code(self, tokens: AuthTokens) -> str:
+        self._delete_expired_recovery_codes()
+        recovery_code = token_urlsafe(32)
+        _RECOVERY_SESSIONS[recovery_code] = RecoverySession(
+            access_token=tokens.access_token,
+            refresh_token=tokens.refresh_token,
+            expires_at=datetime.now(UTC) + timedelta(minutes=RECOVERY_CODE_TTL_MINUTES),
+        )
+        return recovery_code
+
+    def _consume_recovery_code(self, recovery_code: str) -> RecoverySession:
+        self._delete_expired_recovery_codes()
+        recovery_session = _RECOVERY_SESSIONS.pop(recovery_code, None)
+        if recovery_session is None:
+            raise invalid_recovery_code_error()
+        return recovery_session
+
+    def _delete_expired_recovery_codes(self) -> None:
+        now = datetime.now(UTC)
+        expired_codes = [
+            code
+            for code, recovery_session in _RECOVERY_SESSIONS.items()
+            if recovery_session.expires_at <= now
+        ]
+        for code in expired_codes:
+            _RECOVERY_SESSIONS.pop(code, None)
 
     def _auth_result_from_response(
         self,

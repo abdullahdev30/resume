@@ -16,7 +16,7 @@ export function RegisterForm() {
   const [form, setForm] = useState({
     name: "",
     email: "",
-    number: "",
+    phone: "",
     password: "",
     confirm_password: "",
   });
@@ -25,7 +25,7 @@ export function RegisterForm() {
 
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.name || !form.email || !form.number || !form.password || !form.confirm_password) {
+    if (!form.name || !form.email || !form.phone || !form.password || !form.confirm_password) {
       setFormError("Fill in every required field.");
       return;
     }
@@ -60,8 +60,8 @@ export function RegisterForm() {
         />
         <Input
           label="Phone number"
-          value={form.number}
-          onChange={(event) => setForm({ ...form, number: event.target.value })}
+          value={form.phone}
+          onChange={(event) => setForm({ ...form, phone: event.target.value })}
           placeholder="03001234567"
           hint="11 digits, e.g. 03001234567"
         />

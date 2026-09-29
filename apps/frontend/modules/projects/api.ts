@@ -2,5 +2,7 @@ import { apiClient } from "../../lib/api-client";
 import type { Project } from "./types";
 
 export function listProjects() {
-  return apiClient<Project[]>("/profile/projects", { method: "GET" });
+  return apiClient<{ projects: Project[] }>("/profile", { method: "GET" }).then(
+    (profile) => profile.projects || [],
+  );
 }

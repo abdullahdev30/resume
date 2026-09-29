@@ -22,10 +22,17 @@ CREATE TABLE IF NOT EXISTS public.resumes (
 
 -- PDF columns (no-ops when the columns already exist).
 ALTER TABLE public.resumes
+    ADD COLUMN IF NOT EXISTS user_id VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS title VARCHAR(255),
     ADD COLUMN IF NOT EXISTS file_name TEXT,
     ADD COLUMN IF NOT EXISTS storage_path TEXT,
     ADD COLUMN IF NOT EXISTS mime_type TEXT,
-    ADD COLUMN IF NOT EXISTS file_size BIGINT;
+    ADD COLUMN IF NOT EXISTS file_size BIGINT,
+    ADD COLUMN IF NOT EXISTS template_id VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS data JSON,
+    ADD COLUMN IF NOT EXISTS is_ai_generated BOOLEAN,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW();
 
 -- Editor resume documents do not carry a PDF, so these two columns must
 -- become optional. Existing values are preserved.

@@ -17,7 +17,7 @@ export const profileApi = {
   },
 
   async getOnboardingStatus(): Promise<OnboardingStatus> {
-    return apiClient("/profile/onboarding/status", {
+    return apiClient("/profile/onboarding-status", {
       method: "GET",
     });
   },
@@ -30,28 +30,28 @@ export const profileApi = {
   },
 
   async addOnboardingEducation(payload: EducationPayload) {
-    return apiClient("/profile/onboarding/education", {
+    return apiClient("/profile/education", {
       method: "POST",
       body: payload,
     });
   },
 
   async addOnboardingExperience(payload: ExperiencePayload) {
-    return apiClient("/profile/onboarding/experience", {
+    return apiClient("/profile/experience", {
       method: "POST",
       body: payload,
     });
   },
 
   async addOnboardingSkill(payload: SkillPayload) {
-    return apiClient("/profile/onboarding/skills", {
+    return apiClient("/profile/skills", {
       method: "POST",
       body: payload,
     });
   },
 
   async uploadAvatar(file: File): Promise<{ url: string }> {
-    const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace(/\/$/, "");
+    const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/$/, "");
     const formData = new FormData();
     formData.append("file", file);
 
@@ -63,9 +63,10 @@ export const profileApi = {
       });
       if (response.ok) {
         const res = await response.json();
-        if (res.url) {
-          localStorage.setItem("user_avatar", res.url);
-          return res;
+        const avatarUrl = res.avatar_url || res.personal?.avatar_url;
+        if (avatarUrl) {
+          localStorage.setItem("user_avatar", avatarUrl);
+          return { url: avatarUrl };
         }
       }
     } catch {
@@ -84,19 +85,27 @@ export const profileApi = {
   },
 
   async uploadDocument(file: File): Promise<{ id: string; name: string; url: string; size: string; uploadedAt: string }> {
-    const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace(/\/$/, "");
+    const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/$/, "");
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("title", file.name);
+    formData.append("category", "Profile Document");
 
     try {
-      const response = await fetch(`${API_BASE}/profile/documents`, {
+      const response = await fetch(`${API_BASE}/profile/certificates/upload`, {
         method: "POST",
         body: formData,
         credentials: "include",
       });
       if (response.ok) {
         const res = await response.json();
-        return res;
+        return {
+          id: res.id,
+          name: res.file_name || file.name,
+          url: res.file_url || "",
+          size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+          uploadedAt: new Date(res.created_at || Date.now()).toLocaleDateString(),
+        };
       }
     } catch {
       // API fallback
@@ -135,4 +144,3 @@ export const profileApi = {
     }
   },
 };
-
