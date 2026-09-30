@@ -52,6 +52,22 @@ def resume_update_error() -> ResumeApplicationError:
     )
 
 
+def resume_not_editable_error() -> ResumeApplicationError:
+    return ResumeApplicationError(
+        status_code=409,
+        code="resume_not_editable",
+        message="This legacy PDF resume cannot be edited. Create a template or AI resume to edit source content.",
+    )
+
+
+def resume_ai_error() -> ResumeApplicationError:
+    return ResumeApplicationError(
+        status_code=502,
+        code="resume_ai_error",
+        message="Unable to generate resume content. Please try again.",
+    )
+
+
 def resume_storage_error() -> ResumeApplicationError:
     return ResumeApplicationError(
         status_code=502,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Home, Layout, Settings, LogOut, Menu, X, User as UserIcon, Sparkles } from "lucide-react";
+import { Home, Layout, Settings, LogOut, Menu, X, User as UserIcon, Sparkles, FileText } from "lucide-react";
 
 import { authApi } from "../auth/api";
 import type { User } from "../auth/types";
@@ -41,6 +41,7 @@ export function AppShell({ user, children }: AppShellProps) {
 
   const navItems = [
     { href: "/dashboard", label: "Home", icon: Home },
+    { href: "/resumes", label: "My Resumes", icon: FileText },
     { href: "/templates", label: "Resume Templates", icon: Layout },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
@@ -167,4 +168,3 @@ export function AppShell({ user, children }: AppShellProps) {
     </div>
   );
 }
-

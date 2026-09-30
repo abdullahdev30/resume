@@ -24,9 +24,12 @@ class Resume(Base):
     mime_type = Column(Text, nullable=True)
     file_size = Column(BigInteger, nullable=True)
 
-    # Owned by the editor / AI resume flow, unused for PDF uploads.
+    # Owned by the editor / AI resume flow. Legacy uploads keep these empty.
     template_id = Column(String(255), nullable=True)
     data = Column(JSON, nullable=True)
+    html_content = Column(Text, nullable=True)
+    resume_type = Column(String(30), nullable=True)
+    source_version = Column(BigInteger, nullable=True)
     is_ai_generated = Column(Boolean, nullable=True)
 
     created_at = Column(DateTime(timezone=True), nullable=True)

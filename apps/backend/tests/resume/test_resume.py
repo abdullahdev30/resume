@@ -69,6 +69,11 @@ class FakeResumeRepository:
         storage_path,
         mime_type,
         file_size,
+        template_id=None,
+        data=None,
+        html_content=None,
+        resume_type="legacy_pdf",
+        is_ai_generated=False,
     ) -> Resume:
         if self.fail_on_create:
             raise RuntimeError("database unavailable")
@@ -81,6 +86,12 @@ class FakeResumeRepository:
             storage_path=storage_path,
             mime_type=mime_type,
             file_size=file_size,
+            template_id=template_id,
+            data=data,
+            html_content=html_content,
+            resume_type=resume_type,
+            source_version=1,
+            is_ai_generated=is_ai_generated,
             created_at=now,
             updated_at=now,
         )
@@ -88,6 +99,36 @@ class FakeResumeRepository:
         self._insert_seq[resume_id] = self._counter
         self.rows[resume_id] = resume
         return resume
+
+    def create_document(
+        self,
+        *,
+        resume_id,
+        user_id,
+        title,
+        template_id,
+        data,
+        html_content,
+        storage_path,
+        file_name,
+        file_size,
+        resume_type,
+        is_ai_generated,
+    ) -> Resume:
+        return self.create(
+            resume_id=resume_id,
+            user_id=user_id,
+            title=title,
+            file_name=file_name,
+            storage_path=storage_path,
+            mime_type="application/pdf",
+            file_size=file_size,
+            template_id=template_id,
+            data=data,
+            html_content=html_content,
+            resume_type=resume_type,
+            is_ai_generated=is_ai_generated,
+        )
 
     def get(self, user_id: str, resume_id: str) -> Resume | None:
         resume = self.rows.get(resume_id)
@@ -347,6 +388,63 @@ def test_create_resume_reports_storage_failure(client, resume_overrides):
     assert resume_overrides.repository.rows == {}
 
 
+def test_create_template_resume_stores_editable_source_and_pdf(client, resume_overrides):
+    authenticate(client)
+    payload = {
+        "title": "Template Resume",
+        "template_id": "1",
+        "resume_data": {
+            "fullName": "John Doe",
+            "jobTitle": "Backend Engineer",
+            "email": "john@example.com",
+            "skills": ["Python", "FastAPI"],
+            "experience": [],
+            "education": [],
+        },
+        "html_content": "<main><h1>John Doe</h1><script>alert(1)</script></main>",
+    }
+
+    response = client.post("/api/v1/resumes/template", json=payload)
+    body = response.json()
+
+    assert response.status_code == 201
+    assert body["resume_type"] == "template"
+    assert body["editable"] is True
+    assert body["template_id"] == "1"
+    assert body["resume_data"]["fullName"] == "John Doe"
+    assert "<script" not in body["html_content"].lower()
+    assert body["file_name"] == "Template-Resume.pdf"
+    assert body["download_url"]
+
+    storage_path = f"{USER_A_ID}/resumes/{body['id']}.pdf"
+    assert resume_overrides.storage.objects[storage_path]["data"].startswith(b"%PDF-")
+
+
+def test_create_ai_resume_works_without_openai_key(client, resume_overrides, monkeypatch):
+    monkeypatch.setattr(settings, "openai_api_key", None)
+    authenticate(client)
+
+    response = client.post(
+        "/api/v1/resumes/ai",
+        json={
+            "title": "AI Resume",
+            "prompt": "Target backend engineering roles using only my existing data.",
+            "profile_context": {
+                "fullName": "John Doe",
+                "jobTitle": "Backend Engineer",
+                "skills": ["Python"],
+            },
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["resume_type"] == "ai"
+    assert body["editable"] is True
+    assert body["resume_data"]["fullName"] == "John Doe"
+    assert body["download_url"]
+
+
 def test_list_resumes_requires_authentication(client):
     response = client.get("/api/v1/resumes")
 
@@ -494,6 +592,93 @@ def test_update_resume_requires_a_change(client, resume_overrides):
 
     assert response.status_code == 422
     assert error_code(response) == "resume_update_error"
+
+
+def test_update_template_resume_accepts_json_source_changes(client, resume_overrides):
+    authenticate(client)
+    created = client.post(
+        "/api/v1/resumes/template",
+        json={
+            "title": "Template Resume",
+            "template_id": "1",
+            "resume_data": {"fullName": "John Doe", "skills": []},
+        },
+    ).json()
+
+    response = client.put(
+        f"/api/v1/resumes/{created['id']}",
+        json={
+            "title": "Updated Template",
+            "template_id": "2",
+            "resume_data": {"fullName": "John Updated", "skills": ["Python"]},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["title"] == "Updated Template"
+    assert body["template_id"] == "2"
+    assert body["resume_data"]["fullName"] == "John Updated"
+    assert body["file_name"] == "Updated-Template.pdf"
+
+
+def test_ai_edit_returns_proposal_without_saving(client, resume_overrides, monkeypatch):
+    monkeypatch.setattr(settings, "openai_api_key", None)
+    authenticate(client)
+    created = client.post(
+        "/api/v1/resumes/template",
+        json={
+            "title": "Template Resume",
+            "template_id": "1",
+            "resume_data": {"fullName": "John Doe", "skills": []},
+        },
+    ).json()
+
+    response = client.post(
+        f"/api/v1/resumes/{created['id']}/ai-edit",
+        json={"instruction": "Make the summary target backend roles."},
+    )
+
+    assert response.status_code == 200
+    proposal = response.json()
+    assert proposal["resume_data"]["fullName"] == "John Doe"
+    assert "backend" in proposal["resume_data"]["summary"].lower()
+
+    stored = resume_overrides.repository.rows[created["id"]]
+    assert stored.data["fullName"] == "John Doe"
+    assert stored.data.get("summary") is None
+
+
+def test_generate_pdf_regenerates_editable_resume_pdf(client, resume_overrides):
+    authenticate(client)
+    created = client.post(
+        "/api/v1/resumes/template",
+        json={
+            "title": "Template Resume",
+            "template_id": "1",
+            "resume_data": {"fullName": "John Doe", "skills": []},
+        },
+    ).json()
+
+    response = client.post(f"/api/v1/resumes/{created['id']}/generate-pdf")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["download_url"]
+    storage_path = f"{USER_A_ID}/resumes/{created['id']}.pdf"
+    assert resume_overrides.storage.objects[storage_path]["data"].startswith(b"%PDF-")
+
+
+def test_legacy_pdf_cannot_be_ai_edited(client):
+    created = create_resume(client).json()
+
+    response = client.post(
+        f"/api/v1/resumes/{created['id']}/ai-edit",
+        json={"instruction": "Rewrite this resume."},
+    )
+
+    assert response.status_code == 409
+    assert error_code(response) == "resume_not_editable"
 
 
 def test_update_resume_rejects_invalid_pdf(client, resume_overrides):

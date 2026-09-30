@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     # Resume PDF uploads.
     resume_max_file_size_bytes: int = 10 * 1024 * 1024
     resume_signed_url_expires_in_seconds: int = 300
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-5-mini"
 
     model_config = SettingsConfigDict(
         env_file=".env",

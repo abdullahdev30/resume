@@ -42,6 +42,7 @@ import TemplateFive from "../../../components/templates/TemplateFive";
 import TemplateSix from "../../../components/templates/TemplateSix";
 import type { ResumeData } from "../../../components/templates/TemplateOne";
 import { Camera, Image as ImageIcon, Upload as UploadIcon } from "lucide-react";
+import { resumeApi } from "../../../modules/resume/api";
 
 const initialResumeData: ResumeData = {
   fullName: "Jane Doe",
@@ -144,6 +145,27 @@ export default function EditorPage() {
 
   // Load existing saved resume on mount
   useEffect(() => {
+    const resumeIdParam = searchParams.get("resumeId");
+    if (resumeIdParam) {
+      resumeApi
+        .get(resumeIdParam)
+        .then((found) => {
+          if (!found.editable) {
+            router.push(`/resumes/${resumeIdParam}`);
+            return;
+          }
+          setEditingResumeId(found.id);
+          setResumeTitle(found.title);
+          setActiveTemplateId(found.template_id || "1");
+          if (found.resume_data) setResumeData(found.resume_data as ResumeData);
+        })
+        .catch(() => {
+          setSaveNotice("Unable to load resume.");
+          setTimeout(() => setSaveNotice(""), 3500);
+        });
+      return;
+    }
+
     if (typeof window !== "undefined") {
       const resumeIdParam = searchParams.get("resumeId");
       if (resumeIdParam) {
@@ -275,31 +297,51 @@ export default function EditorPage() {
     }));
   };
 
-  const handleSaveResume = () => {
-    if (typeof window === "undefined") return;
-    const existing = JSON.parse(localStorage.getItem("saved_resumes") || "[]");
+  const handleSaveResume = async () => {
+    try {
+      const saved = editingResumeId
+        ? await resumeApi.update(editingResumeId, {
+            title: resumeTitle,
+            template_id: activeTemplateId,
+            resume_data: resumeData,
+          })
+        : await resumeApi.createTemplate({
+            title: resumeTitle,
+            template_id: activeTemplateId,
+            resume_data: resumeData,
+          });
 
-    const id = editingResumeId || `res-${Date.now()}`;
-    const newResume = {
-      id,
-      title: resumeTitle,
-      templateId: activeTemplateId,
-      updatedAt: new Date().toISOString().slice(0, 10),
-      data: resumeData,
-    };
-
-    const filtered = existing.filter((r: any) => r.id !== id);
-    const updated = [newResume, ...filtered];
-
-    localStorage.setItem("saved_resumes", JSON.stringify(updated));
-    setEditingResumeId(id);
-    setSaveNotice("Resume saved!");
-    setTimeout(() => setSaveNotice(""), 3500);
+      setEditingResumeId(saved.id);
+      setSaveNotice("Resume saved!");
+      router.replace(`/editor/${saved.template_id || activeTemplateId}?resumeId=${saved.id}`);
+    } catch (error) {
+      setSaveNotice(error instanceof Error ? error.message : "Unable to save resume.");
+    } finally {
+      setTimeout(() => setSaveNotice(""), 3500);
+    }
   };
 
   // ISOLATED DOWNLOAD PDF / PRINT FUNCTION
-  const handleDownloadPDF = () => {
-    window.print();
+  const handleDownloadPDF = async () => {
+    try {
+      const saved = editingResumeId
+        ? await resumeApi.update(editingResumeId, {
+            title: resumeTitle,
+            template_id: activeTemplateId,
+            resume_data: resumeData,
+          })
+        : await resumeApi.createTemplate({
+            title: resumeTitle,
+            template_id: activeTemplateId,
+            resume_data: resumeData,
+          });
+      setEditingResumeId(saved.id);
+      const withPdf = await resumeApi.generatePdf(saved.id);
+      window.open(withPdf.download_url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setSaveNotice(error instanceof Error ? error.message : "Unable to download PDF.");
+      setTimeout(() => setSaveNotice(""), 3500);
+    }
   };
 
   const selectShadeColor = (color: string) => {

@@ -200,7 +200,7 @@ export default function DashboardClient() {
             </label>
 
             <button
-              onClick={() => router.push("/templates")}
+              onClick={() => router.push("/resumes/create")}
               className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-primary)] font-semibold text-xs px-4.5 py-2.5 rounded-xl transition flex items-center space-x-2 shadow-xs"
             >
               <Plus className="w-4 h-4" />
