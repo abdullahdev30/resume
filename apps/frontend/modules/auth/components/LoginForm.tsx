@@ -34,6 +34,9 @@ export function LoginForm() {
         <Input
           label="Email"
           type="email"
+          autoComplete="email"
+          autoFocus
+          required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="user@example.com"
@@ -41,6 +44,8 @@ export function LoginForm() {
         <PasswordField
           label="Password"
           value={password}
+          autoComplete="current-password"
+          required
           onChange={(event) => setPassword(event.target.value)}
           placeholder="Enter your password"
         />
@@ -50,7 +55,7 @@ export function LoginForm() {
             Forgot password?
           </Link>
         </div>
-        <Button type="submit" loading={loading}>
+        <Button type="submit" loading={loading} loadingLabel="Signing in..." fullWidth>
           Log in
         </Button>
         <p>

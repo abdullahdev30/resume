@@ -1,3 +1,3 @@
 export function Footer() {
-  return <footer style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>Resume Builder</footer>;
+  return <footer className="border-t border-[var(--border)] py-6 text-center text-sm text-[var(--text-muted)]">Resume Builder</footer>;
 }

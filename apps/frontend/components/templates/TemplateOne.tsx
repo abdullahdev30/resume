@@ -129,7 +129,7 @@ export default function TemplateOne({
             className={getItemClass("fullName", "text-xl font-bold uppercase tracking-wider text-white mb-1")}
             style={getItemStyle("fullName", "#ffffff")}
           >
-            {data.fullName || "Your Full Name"}
+            {data.fullName}
           </h1>
 
           <p
@@ -137,7 +137,7 @@ export default function TemplateOne({
             className={getItemClass("jobTitle", "text-xs font-semibold text-teal-400 uppercase tracking-widest mb-6")}
             style={getItemStyle("jobTitle", "#2dd4bf")}
           >
-            {data.jobTitle || "Job Title"}
+            {data.jobTitle}
           </p>
 
           {/* Contact */}
@@ -148,21 +148,21 @@ export default function TemplateOne({
               className={getItemClass("contact-phone", "truncate")}
               style={getItemStyle("contact-phone")}
             >
-              {data.phone || "+1 (555) 000-0000"}
+              {data.phone}
             </p>
             <p
               onClick={(e) => handleSelect("contact-email", e)}
               className={getItemClass("contact-email", "truncate")}
               style={getItemStyle("contact-email")}
             >
-              {data.email || "email@example.com"}
+              {data.email}
             </p>
             <p
               onClick={(e) => handleSelect("contact-location", e)}
               className={getItemClass("contact-location", "truncate")}
               style={getItemStyle("contact-location")}
             >
-              {data.location || "City, Country"}
+              {data.location}
             </p>
           </div>
 

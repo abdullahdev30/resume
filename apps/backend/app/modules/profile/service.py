@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
-from app.integrations.s3_storage import S3StorageService
+from app.integrations.s3_storage import S3StorageError, S3StorageService
 from app.modules.profile.errors import (
     ProfileApplicationError,
     item_not_found_error,
@@ -87,7 +87,7 @@ class ProfileService:
                 for item in self.repository.list_items(SKILLS_TABLE, user_id)
             ],
             certificates=[
-                CertificateResponse(**item)
+                self._certificate_response(item)
                 for item in self.repository.list_items(CERTIFICATES_TABLE, user_id)
             ],
             projects=[
@@ -119,7 +119,7 @@ class ProfileService:
 
     def list_certificates(self, user_id: str) -> list[CertificateResponse]:
         return [
-            CertificateResponse(**item)
+            self._certificate_response(item)
             for item in self.repository.list_items(CERTIFICATES_TABLE, user_id)
         ]
 
@@ -326,8 +326,8 @@ class ProfileService:
         payload: CertificateCreate,
     ) -> CertificateResponse:
         self._ensure_personal(user_id)
-        return CertificateResponse(
-            **self.repository.add_certificate(user_id, payload.model_dump(mode="json"))
+        return self._certificate_response(
+            self.repository.add_certificate(user_id, payload.model_dump(mode="json"))
         )
 
     async def add_certificate_upload(
@@ -354,7 +354,7 @@ class ProfileService:
             "file_url": storage_path,
             "file_name": Path(file.filename or storage_path).name,
         }
-        return CertificateResponse(**self.repository.add_certificate(user_id, data))
+        return self._certificate_response(self.repository.add_certificate(user_id, data))
 
     def update_certificate(
         self,
@@ -362,8 +362,8 @@ class ProfileService:
         item_id: str,
         payload: CertificateUpdate,
     ) -> CertificateResponse:
-        return CertificateResponse(
-            **self._update_item(
+        return self._certificate_response(
+            self._update_item(
                 CERTIFICATES_TABLE,
                 user_id,
                 item_id,
@@ -409,9 +409,29 @@ class ProfileService:
         if record is None:
             raise profile_not_found_error()
         return PersonalInfoResponse(
-            **record,
+            **self._record_with_signed_url(record, "avatar_url"),
             social_links=self._social_links(user_id),
         )
+
+    def _certificate_response(self, record: dict) -> CertificateResponse:
+        return CertificateResponse(**self._record_with_signed_url(record, "file_url"))
+
+    def _record_with_signed_url(self, record: dict, key: str) -> dict:
+        next_record = dict(record)
+        value = next_record.get(key)
+        if value:
+            next_record[key] = self._display_url(value)
+        return next_record
+
+    def _display_url(self, value: str) -> str:
+        if value.startswith(("http://", "https://", "data:", "blob:")):
+            return value
+        if not isinstance(self.repository, ProfileRepository):
+            return value
+        try:
+            return self.storage.generate_signed_url(value)
+        except S3StorageError:
+            return value
 
     def _social_links(self, user_id: str) -> list[SocialLinkResponse]:
         return [

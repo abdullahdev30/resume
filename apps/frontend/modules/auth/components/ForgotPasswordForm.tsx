@@ -1,5 +1,7 @@
 "use client";
 
+import type { FormEvent } from "react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { Alert } from "../../../components/feedback/Alert";
@@ -8,36 +10,34 @@ import { Input } from "../../../components/ui/Input";
 import { AuthLayout } from "./AuthLayout";
 import { useAuth } from "../hooks";
 
-const RECOVERY_MESSAGE =
-  "If an account exists for this email, recovery instructions have been sent.";
-
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
   const { handleForgotPassword, loading, error } = useAuth();
 
-  const submit = async () => {
-    setMessage(RECOVERY_MESSAGE);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
     await handleForgotPassword({ email });
   };
 
   return (
     <AuthLayout title="Recover your account" subtitle="Enter your email and we will send recovery instructions.">
-      <div className="form-stack">
-        {(message || error) && (
-          <Alert variant={error ? "error" : "info"}>{error || message}</Alert>
-        )}
+      <form className="form-stack" onSubmit={submit}>
+        {error && <Alert variant="error">{error}</Alert>}
         <Input
           label="Email"
           type="email"
+          autoComplete="email"
+          autoFocus
+          required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="user@example.com"
         />
-        <Button type="button" onClick={() => void submit()} loading={loading} disabled={!email}>
+        <Button type="submit" loading={loading} loadingLabel="Sending..." disabled={!email} fullWidth>
           Send recovery code
         </Button>
-      </div>
+        <Link href="/auth/login" className="text-link text-center">Back to sign in</Link>
+      </form>
     </AuthLayout>
   );
 }

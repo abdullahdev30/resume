@@ -43,9 +43,17 @@ export interface ChangePasswordPayload {
   recovery_code?: string;
 }
 
-export interface AuthResponse {
-  message?: string;
-  user?: User;
+export interface MessageResponse {
+  message: string;
+}
+
+export interface RegisterResponse extends MessageResponse {
+  email: string;
+  email_verification_required: boolean;
+}
+
+export interface VerifyEmailResponse extends MessageResponse {
+  user: User;
 }
 
 export interface TokenResponse {

@@ -1,28 +1,35 @@
 import type React from "react";
+import { useId } from "react";
+import { FormField } from "./FormField";
 
 export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
   label?: string;
+  hint?: string;
   error?: string;
+  optional?: boolean;
 };
 
-export function Textarea({ label, error, id, style, ...props }: TextareaProps) {
+export function Textarea({
+  label,
+  hint,
+  error,
+  optional,
+  id,
+  className = "",
+  ...props
+}: TextareaProps) {
+  const generatedId = useId();
+  const textareaId = id || generatedId;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", width: "100%" }}>
-      {label && <label htmlFor={id} style={{ fontSize: "0.875rem", fontWeight: 500 }}>{label}</label>}
+    <FormField id={textareaId} label={label} hint={hint} error={error} optional={optional}>
       <textarea
-        id={id}
-        style={{
-          minHeight: "6rem",
-          padding: "0.5rem 0.75rem",
-          border: `1px solid ${error ? "var(--error)" : "var(--input)"}`,
-          borderRadius: "var(--radius)",
-          background: "var(--background)",
-          color: "var(--foreground)",
-          ...style,
-        }}
+        id={textareaId}
+        className={["field-control", className].filter(Boolean).join(" ")}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${textareaId}-error` : hint ? `${textareaId}-hint` : undefined}
         {...props}
       />
-      {error && <span style={{ color: "var(--error)", fontSize: "0.75rem" }}>{error}</span>}
-    </div>
+    </FormField>
   );
 }

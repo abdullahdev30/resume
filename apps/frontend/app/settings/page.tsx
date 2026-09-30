@@ -1,17 +1,17 @@
 import { requireCurrentUser } from "../../modules/auth/server";
-import { AppShell } from "../../modules/layout/AppShell";
+import { AppShellServer as AppShell } from "../../modules/layout/AppShellServer";
 import SettingsClient from "./SettingsClient";
+import { getProfileOnServer } from "../../modules/profile/server";
 
 export default async function SettingsPage() {
-  const user = await requireCurrentUser().catch(() => ({
-    id: "user-1",
-    email: "jane@mail.com",
-    name: "Jane Doe",
-  }));
+  const [user, profile] = await Promise.all([
+    requireCurrentUser(),
+    getProfileOnServer(),
+  ]);
 
   return (
-    <AppShell user={user}>
-      <SettingsClient user={user} />
+    <AppShell user={user} initialProfile={profile}>
+      <SettingsClient user={user} initialProfile={profile} />
     </AppShell>
   );
 }

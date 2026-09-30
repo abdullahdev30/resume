@@ -1,4 +1,8 @@
+import { CheckCircle2, ShieldCheck, Sparkles } from "lucide-react";
+import Link from "next/link";
 import type React from "react";
+
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 type AuthLayoutProps = {
   title: string;
@@ -10,18 +14,23 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
   return (
     <main className="auth-page">
       <section className="auth-brand-panel" aria-label="Resume Builder">
-        <div className="auth-logo">RB</div>
+        <Link className="auth-logo" href="/auth/login" aria-label="Resume Builder home">RB</Link>
         <div className="auth-brand-copy">
-          <h1>Build a resume that looks like you.</h1>
+          <div className="page-eyebrow"><Sparkles size={15} aria-hidden="true" /> Your story, clearly told</div>
+          <h1>Build a resume that feels unmistakably yours.</h1>
           <p>
-            Shape a polished profile with guided steps, clear structure, and a
-            live resume preview.
+            Turn your real experience into a polished, focused resume with guided editing and a live preview.
           </p>
+          <ul className="auth-benefits">
+            <li><CheckCircle2 size={18} aria-hidden="true" /> Start from your saved profile</li>
+            <li><CheckCircle2 size={18} aria-hidden="true" /> Edit every section in one workspace</li>
+            <li><ShieldCheck size={18} aria-hidden="true" /> Keep your documents private and secure</li>
+          </ul>
         </div>
         <div className="mini-resume" aria-hidden="true">
           <div>
-            <div className="mini-resume-name">Jane Doe</div>
-            <div className="field-hint">Product designer · jane@mail.com</div>
+            <div className="mini-resume-name">Your Name</div>
+            <div className="field-hint">Role title · email@example.com</div>
           </div>
           <div className="mini-resume-section">
             <div className="mini-resume-line is-primary" />
@@ -36,7 +45,10 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
       </section>
       <section className="auth-form-wrap">
         <div className="auth-form-card">
-          <div className="auth-mobile-logo">RB</div>
+          <div className="flex items-center justify-between">
+            <Link className="auth-mobile-logo" href="/auth/login" aria-label="Resume Builder home">RB</Link>
+            <span className="ml-auto"><ThemeToggle /></span>
+          </div>
           <div className="form-stack">
             <h1>{title}</h1>
             <p>{subtitle}</p>

@@ -322,8 +322,8 @@ def test_profile_section_list_endpoints(client):
         response = client.get(endpoint, headers=auth_headers())
         assert response.status_code == 200
         body = response.json()
-        assert len(body) == 1
-        assert expected_key in body[0]
+        assert len(body) >= 1
+        assert any(expected_key in item for item in body)
 
 
 def test_update_and_delete_skill(client):

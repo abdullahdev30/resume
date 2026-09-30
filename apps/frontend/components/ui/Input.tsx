@@ -1,11 +1,14 @@
 import type React from "react";
 import { useId } from "react";
+import { FormField } from "./FormField";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   hint?: string;
   error?: string;
+  leading?: React.ReactNode;
   trailing?: React.ReactNode;
+  optional?: boolean;
 }
 
 export function Input({
@@ -14,7 +17,9 @@ export function Input({
   error,
   id,
   className = "",
+  leading,
   trailing,
+  optional,
   ...props
 }: InputProps) {
   const generatedId = useId();
@@ -22,33 +27,26 @@ export function Input({
   const hintId = hint ? `${inputId}-hint` : undefined;
   const errorId = error ? `${inputId}-error` : undefined;
 
+  const describedBy = error ? errorId : hintId;
+
   return (
-    <div className="field">
-      {label && (
-        <label className="field-label" htmlFor={inputId}>
-          {label}
-        </label>
-      )}
+    <FormField id={inputId} label={label} hint={hint} error={error} optional={optional}>
       <div className="field-control-wrap">
+        {leading && <div className="field-leading">{leading}</div>}
         <input
           id={inputId}
-          className={["field-control", className].filter(Boolean).join(" ")}
+          className={[
+            "field-control",
+            leading ? "has-leading" : "",
+            trailing ? "has-trailing" : "",
+            className,
+          ].filter(Boolean).join(" ")}
           aria-invalid={Boolean(error)}
-          aria-describedby={[hintId, errorId].filter(Boolean).join(" ") || undefined}
+          aria-describedby={describedBy}
           {...props}
         />
         {trailing && <div className="field-trailing">{trailing}</div>}
       </div>
-      {hint && (
-        <span className="field-hint" id={hintId}>
-          {hint}
-        </span>
-      )}
-      {error && (
-        <span className="field-error" id={errorId}>
-          {error}
-        </span>
-      )}
-    </div>
+    </FormField>
   );
 }

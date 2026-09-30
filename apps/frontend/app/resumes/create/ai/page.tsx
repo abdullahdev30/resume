@@ -1,5 +1,5 @@
 import { requireCurrentUser } from "@/modules/auth/server";
-import { AppShell } from "@/modules/layout/AppShell";
+import { AppShellServer as AppShell } from "@/modules/layout/AppShellServer";
 import { CreateAIResumeClient } from "@/modules/resume/components/CreateAIResumeClient";
 
 export default async function CreateAIResumePage() {

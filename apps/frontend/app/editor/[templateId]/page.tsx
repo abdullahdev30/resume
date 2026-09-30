@@ -5,9 +5,6 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   Save,
   Download,
-  Printer,
-  Undo,
-  Redo,
   ZoomIn,
   ZoomOut,
   Palette,
@@ -30,8 +27,9 @@ import {
   PenTool,
   Check,
   X,
-  Sparkles,
   Target,
+  Camera,
+  Upload as UploadIcon,
 } from "lucide-react";
 
 import TemplateOne, { ElementStyle } from "../../../components/templates/TemplateOne";
@@ -41,47 +39,31 @@ import TemplateFour from "../../../components/templates/TemplateFour";
 import TemplateFive from "../../../components/templates/TemplateFive";
 import TemplateSix from "../../../components/templates/TemplateSix";
 import type { ResumeData } from "../../../components/templates/TemplateOne";
-import { Camera, Image as ImageIcon, Upload as UploadIcon } from "lucide-react";
+import { ConfirmDialog } from "../../../components/common/ConfirmDialog";
+import { LoadingState } from "../../../components/common/LoadingState";
+import { toast } from "../../../components/feedback/Toast";
+import { Button } from "../../../components/ui/Button";
+import { ThemeToggle } from "../../../components/ui/ThemeToggle";
 import { resumeApi } from "../../../modules/resume/api";
+import { profileToResumeData } from "../../../modules/resume/profileSnapshot";
 import { profileApi } from "../../../modules/profile/api";
 import type { ProfileResponse } from "../../../modules/profile/types";
 
+type SaveStatus = "idle" | "dirty" | "saving" | "success" | "error";
+
 const initialResumeData: ResumeData = {
-  fullName: "Jane Doe",
-  jobTitle: "Product Designer",
-  email: "jane@mail.com",
-  phone: "+1 555-0192",
-  location: "New York, USA",
-  summary:
-    "Creative product designer crafting intuitive user interfaces and modern web applications with focus on usability and elegant design systems.",
+  fullName: "",
+  jobTitle: "",
+  email: "",
+  phone: "",
+  location: "",
+  summary: "",
   primaryColor: "#0E7C7B",
   fontFamily: "Inter, sans-serif",
-  skills: ["UI/UX Design", "Figma", "React", "TypeScript", "Tailwind CSS", "User Research"],
-  languages: ["English (Native)", "French (Intermediate)"],
-  experience: [
-    {
-      id: "exp-1",
-      role: "Senior Product Designer",
-      company: "Design Studio Inc.",
-      period: "2023 - Present",
-      details: "Leading UI component design systems and cross-platform product design workflows.",
-    },
-    {
-      id: "exp-2",
-      role: "UI Engineer",
-      company: "Creative Cloud Labs",
-      period: "2021 - 2023",
-      details: "Created responsive interfaces and design tokens used by over 500k active users.",
-    },
-  ],
-  education: [
-    {
-      id: "edu-1",
-      degree: "B.A. Graphic & Digital Design",
-      institution: "New York Design Academy",
-      period: "2017 - 2021",
-    },
-  ],
+  skills: [],
+  languages: [],
+  experience: [],
+  education: [],
 };
 
 // Color Columns with 8 Hues and 7 Shade Rows (Light Tints to Dark Shades)
@@ -120,37 +102,6 @@ const colorShadesColumns = [
   },
 ];
 
-function profileToResumeData(profile: ProfileResponse): Partial<ResumeData> {
-  const personal = profile.personal;
-  const fullName = [personal.first_name || personal.name, personal.last_name].filter(Boolean).join(" ");
-  return {
-    fullName: fullName || undefined,
-    email: personal.email || undefined,
-    phone: personal.phone || undefined,
-    location: personal.city || personal.address || undefined,
-    avatarUrl: personal.avatar_url || undefined,
-    skills: profile.skills.length ? profile.skills.map((skill) => skill.name) : undefined,
-    experience: profile.experience.length
-      ? profile.experience.map((item) => ({
-          id: item.id,
-          role: item.job_title,
-          company: item.company_name || item.institute_name || "",
-          period: `${item.start_date || ""}${item.end_date ? ` - ${item.end_date}` : item.is_current ? " - Present" : ""}`,
-          details: item.description || "",
-        }))
-      : undefined,
-    education: profile.education.length
-      ? profile.education.map((item) => ({
-          id: item.id,
-          degree: item.degree || item.field_of_study || "",
-          institution: item.institute_name,
-          period: `${item.start_date || ""}${item.end_date ? ` - ${item.end_date}` : ""}`,
-          grade: item.grade || undefined,
-        }))
-      : undefined,
-  };
-}
-
 export default function EditorPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -162,8 +113,12 @@ export default function EditorPage() {
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [activeTab, setActiveTab] = useState<"personal" | "experience" | "education" | "skills">("personal");
   const [saveNotice, setSaveNotice] = useState<string>("");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [downloadStatus, setDownloadStatus] = useState<"idle" | "saving" | "downloading" | "error">("idle");
+  const [loadingResume, setLoadingResume] = useState<boolean>(Boolean(searchParams.get("resumeId")));
   const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
   const [profileSuggestions, setProfileSuggestions] = useState<ProfileResponse | null>(null);
+  const [leaveOpen, setLeaveOpen] = useState(false);
 
   // SELECTIVE CANVAS EDITING STATE
   const [selectedElementId, setSelectedElementId] = useState<string | null>("fullName");
@@ -181,6 +136,7 @@ export default function EditorPage() {
   useEffect(() => {
     const resumeIdParam = searchParams.get("resumeId");
     if (resumeIdParam) {
+      setLoadingResume(true);
       resumeApi
         .get(resumeIdParam)
         .then((found) => {
@@ -192,34 +148,33 @@ export default function EditorPage() {
           setResumeTitle(found.title);
           setActiveTemplateId(found.template_id || "1");
           if (found.resume_data) setResumeData(found.resume_data as ResumeData);
+          setSaveStatus("idle");
         })
         .catch(() => {
           setSaveNotice("Unable to load resume.");
+          setSaveStatus("error");
           setTimeout(() => setSaveNotice(""), 3500);
+        })
+        .finally(() => {
+          setLoadingResume(false);
         });
       return;
     }
 
-    if (typeof window !== "undefined") {
-      const resumeIdParam = searchParams.get("resumeId");
-      if (resumeIdParam) {
-        const savedResumes = JSON.parse(localStorage.getItem("saved_resumes") || "[]");
-        const found = savedResumes.find((r: any) => r.id === resumeIdParam);
-        if (found) {
-          setEditingResumeId(found.id);
-          setResumeTitle(found.title);
-          setActiveTemplateId(found.templateId || "1");
-          if (found.data) setResumeData(found.data);
-          return;
-        }
-      }
-
-      const avatar = localStorage.getItem("user_avatar");
-      if (avatar) {
-        setResumeData((prev) => ({ ...prev, avatarUrl: avatar }));
-      }
-    }
+    setResumeData(initialResumeData);
+    setSaveStatus("dirty");
+    setLoadingResume(false);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (saveStatus !== "dirty" && saveStatus !== "error") return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [saveStatus]);
 
   useEffect(() => {
     if (searchParams.get("resumeId")) {
@@ -246,14 +201,20 @@ export default function EditorPage() {
       .catch(() => null);
   }, [searchParams]);
 
-  const handleFieldChange = (field: keyof ResumeData, value: any) => {
+  const markDirty = () => {
+    setSaveStatus((current) => (current === "saving" ? current : "dirty"));
+  };
+
+  const handleFieldChange = <K extends keyof ResumeData>(field: K, value: ResumeData[K]) => {
+    markDirty();
     setResumeData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const applyStyleToSelected = (key: keyof ElementStyle, value: any) => {
+  const applyStyleToSelected = <K extends keyof ElementStyle>(key: K, value: ElementStyle[K]) => {
     if (!selectedElementId) {
       // Global fallback
-      handleFieldChange(key as any, value);
+      setResumeData((prev) => ({ ...prev, [key]: value }));
+      markDirty();
       return;
     }
 
@@ -268,6 +229,7 @@ export default function EditorPage() {
         },
       };
     });
+    markDirty();
   };
 
   const handleExperienceChange = (
@@ -279,27 +241,30 @@ export default function EditorPage() {
     const item = updated[index];
     if (item) {
       updated[index] = { ...item, [key]: value };
+      markDirty();
       setResumeData((prev) => ({ ...prev, experience: updated }));
     }
   };
 
   const addExperience = () => {
+    markDirty();
     setResumeData((prev) => ({
       ...prev,
       experience: [
         ...prev.experience,
         {
           id: `exp-${Date.now()}`,
-          role: "Software Engineer",
-          company: "Company Name",
-          period: "2024 - Present",
-          details: "Describe key responsibilities and achievements...",
+          role: "",
+          company: "",
+          period: "",
+          details: "",
         },
       ],
     }));
   };
 
   const removeExperience = (index: number) => {
+    markDirty();
     setResumeData((prev) => ({
       ...prev,
       experience: prev.experience.filter((_, i) => i !== index),
@@ -315,26 +280,29 @@ export default function EditorPage() {
     const item = updated[index];
     if (item) {
       updated[index] = { ...item, [key]: value };
+      markDirty();
       setResumeData((prev) => ({ ...prev, education: updated }));
     }
   };
 
   const addEducation = () => {
+    markDirty();
     setResumeData((prev) => ({
       ...prev,
       education: [
         ...(prev.education || []),
         {
           id: `edu-${Date.now()}`,
-          degree: "Degree / Qualification",
-          institution: "University / Institute Name",
-          period: "2020 - 2024",
+          degree: "",
+          institution: "",
+          period: "",
         },
       ],
     }));
   };
 
   const removeEducation = (index: number) => {
+    markDirty();
     setResumeData((prev) => ({
       ...prev,
       education: (prev.education || []).filter((_, i) => i !== index),
@@ -343,6 +311,7 @@ export default function EditorPage() {
 
   const addSkill = (skillText: string) => {
     if (!skillText.trim()) return;
+    markDirty();
     setResumeData((prev) => ({
       ...prev,
       skills: [...prev.skills, skillText.trim()],
@@ -350,6 +319,7 @@ export default function EditorPage() {
   };
 
   const removeSkill = (index: number) => {
+    markDirty();
     setResumeData((prev) => ({
       ...prev,
       skills: prev.skills.filter((_, i) => i !== index),
@@ -359,6 +329,7 @@ export default function EditorPage() {
   const applyProfilePersonal = () => {
     if (!profileSuggestions) return;
     const profileData = profileToResumeData(profileSuggestions);
+    markDirty();
     setResumeData((prev) => ({
       ...prev,
       fullName: profileData.fullName || prev.fullName,
@@ -370,6 +341,7 @@ export default function EditorPage() {
   };
 
   const addProfileExperience = (item: ProfileResponse["experience"][number]) => {
+    markDirty();
     setResumeData((prev) => ({
       ...prev,
       experience: [
@@ -386,6 +358,7 @@ export default function EditorPage() {
   };
 
   const addProfileEducation = (item: ProfileResponse["education"][number]) => {
+    markDirty();
     setResumeData((prev) => ({
       ...prev,
       education: [
@@ -402,6 +375,7 @@ export default function EditorPage() {
   };
 
   const addProfileSkill = (name: string) => {
+    markDirty();
     setResumeData((prev) => ({
       ...prev,
       skills: prev.skills.includes(name) ? prev.skills : [...prev.skills, name],
@@ -409,6 +383,9 @@ export default function EditorPage() {
   };
 
   const handleSaveResume = async () => {
+    if (!resumeTitle.trim() || saveStatus === "saving") return;
+    setSaveStatus("saving");
+    setSaveNotice("");
     try {
       const saved = editingResumeId
         ? await resumeApi.update(editingResumeId, {
@@ -423,17 +400,29 @@ export default function EditorPage() {
           });
 
       setEditingResumeId(saved.id);
-      setSaveNotice("Resume saved!");
+      if (saved.resume_data) setResumeData(saved.resume_data as ResumeData);
+      setSaveStatus("success");
+      setSaveNotice("Saved ✓");
+      toast.success("Your latest changes are saved.");
       router.replace(`/editor/${saved.template_id || activeTemplateId}?resumeId=${saved.id}`);
-    } catch (error) {
-      setSaveNotice(error instanceof Error ? error.message : "Unable to save resume.");
+    } catch {
+      setSaveStatus("error");
+      setSaveNotice("Save failed");
+      toast.error("Your changes are still in the editor. Please try saving again.", "Save failed");
     } finally {
-      setTimeout(() => setSaveNotice(""), 3500);
+      setTimeout(() => {
+        setSaveNotice("");
+        setSaveStatus((current) => (current === "success" ? "idle" : current));
+      }, 3500);
     }
   };
 
   // ISOLATED DOWNLOAD PDF / PRINT FUNCTION
   const handleDownloadPDF = async () => {
+    if (!resumeTitle.trim() || downloadStatus !== "idle") return;
+    const downloadWindow = window.open("", "_blank");
+    setDownloadStatus("saving");
+    setSaveNotice("");
     try {
       const saved = editingResumeId
         ? await resumeApi.update(editingResumeId, {
@@ -447,11 +436,29 @@ export default function EditorPage() {
             resume_data: resumeData,
           });
       setEditingResumeId(saved.id);
+      if (saved.resume_data) setResumeData(saved.resume_data as ResumeData);
+      setSaveStatus("success");
+      setDownloadStatus("downloading");
       const withPdf = await resumeApi.generatePdf(saved.id);
-      window.open(withPdf.download_url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      setSaveNotice(error instanceof Error ? error.message : "Unable to download PDF.");
+      if (downloadWindow) {
+        downloadWindow.opener = null;
+        downloadWindow.location.href = withPdf.download_url;
+      } else {
+        window.open(withPdf.download_url, "_blank", "noopener,noreferrer");
+      }
+      toast.success("Your PDF is ready.");
+    } catch {
+      downloadWindow?.close();
+      setDownloadStatus("error");
+      setSaveStatus("error");
+      setSaveNotice("Download failed");
+      toast.error("We could not generate the PDF. Your editor changes are still available.", "Download failed");
       setTimeout(() => setSaveNotice(""), 3500);
+    } finally {
+      setTimeout(() => {
+        setDownloadStatus("idle");
+        setSaveStatus((current) => (current === "success" ? "idle" : current));
+      }, 1200);
     }
   };
 
@@ -478,11 +485,16 @@ export default function EditorPage() {
     reader.onloadend = () => {
       const url = reader.result as string;
       handleFieldChange("avatarUrl", url);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("user_avatar", url);
-      }
     };
     reader.readAsDataURL(file);
+  };
+
+  const requestLeave = () => {
+    if (saveStatus === "dirty" || saveStatus === "error") {
+      setLeaveOpen(true);
+      return;
+    }
+    router.push("/dashboard");
   };
 
   const renderSelectedTemplate = () => {
@@ -512,30 +524,58 @@ export default function EditorPage() {
     }
   };
 
+  const saveLabel =
+    saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved ✓" : "Save";
+  const statusLabel =
+    saveStatus === "dirty"
+      ? "Unsaved changes"
+      : saveStatus === "saving"
+        ? "Saving..."
+        : saveStatus === "success"
+          ? "Saved ✓"
+          : saveStatus === "error"
+            ? "Save failed"
+            : "Saved";
+
+  if (loadingResume) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] p-6 font-sans text-[var(--text)]">
+        <LoadingState label="Loading resume..." cards={2} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[var(--bg)] flex flex-col font-sans text-[var(--text)]">
       {/* 1. Editor Navbar Header */}
       <header className="bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2 flex flex-col md:flex-row items-center justify-between gap-3 sticky top-0 z-40 shadow-xs no-print">
-        {/* Left Side: Back & Non-Editable Resume Title */}
-        <div className="flex items-center space-x-3">
+        <div className="flex min-w-0 items-center space-x-3">
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={requestLeave}
             className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary-tint)] transition"
             title="Back to Dashboard"
+            aria-label="Back to dashboard"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex min-w-0 items-center space-x-2">
             <FileText className="w-5 h-5 text-[var(--primary)]" />
-            <span className="text-sm font-extrabold text-[var(--text)] px-2.5 py-1 bg-[var(--bg)] border border-[var(--border)] rounded-xl shadow-xs">
-              {resumeTitle}
-            </span>
+            <input
+              value={resumeTitle}
+              onChange={(event) => {
+                setResumeTitle(event.target.value);
+                markDirty();
+              }}
+              aria-label="Resume title"
+              maxLength={255}
+              className="min-w-0 max-w-56 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-sm font-bold text-[var(--text)] outline-none focus:border-[var(--primary)]"
+            />
           </div>
 
           <span className="hidden md:flex items-center text-xs text-[var(--primary)] font-semibold bg-[var(--primary-tint)] px-2.5 py-0.5 rounded-full border border-[var(--primary)]/30">
             <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-            Selective Canvas Mode
+            {statusLabel}
           </span>
         </div>
 
@@ -544,7 +584,10 @@ export default function EditorPage() {
           <span className="text-xs text-[var(--text-muted)] font-semibold hidden sm:inline">Template:</span>
           <select
             value={activeTemplateId}
-            onChange={(e) => setActiveTemplateId(e.target.value)}
+            onChange={(e) => {
+              setActiveTemplateId(e.target.value);
+              markDirty();
+            }}
             className="bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] text-xs font-bold px-3 py-1.5 rounded-xl outline-none cursor-pointer focus:border-[var(--primary)]"
           >
             <option value="1">Template #1: Slate Tech Modern (Photo)</option>
@@ -557,27 +600,37 @@ export default function EditorPage() {
         </div>
 
         {/* Right Side: Save & Isolated PDF Download */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2">
           {saveNotice && (
             <span className="text-xs font-bold text-[var(--primary)]">{saveNotice}</span>
           )}
 
-          <button
-            onClick={handleSaveResume}
-            className="bg-[var(--primary-tint)] hover:bg-[var(--border)] text-[var(--primary)] text-xs font-bold px-4 py-2 rounded-xl border border-[var(--primary)]/30 transition flex items-center space-x-1.5"
+          <ThemeToggle />
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => void handleSaveResume()}
+            disabled={saveStatus === "saving" || downloadStatus === "saving"}
+            loading={saveStatus === "saving"}
+            loadingLabel="Saving..."
           >
-            <Save className="w-4 h-4" />
-            <span>Save Resume</span>
-          </button>
+            {saveStatus === "success" ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            <span>{saveLabel}</span>
+          </Button>
 
-          <button
-            onClick={handleDownloadPDF}
-            className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-primary)] text-xs font-bold px-4 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-sm"
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void handleDownloadPDF()}
+            disabled={saveStatus === "saving" || downloadStatus !== "idle"}
+            loading={downloadStatus !== "idle"}
+            loadingLabel={downloadStatus === "saving" ? "Saving..." : "Opening..."}
             title="Download isolated resume content as PDF"
           >
             <Download className="w-4 h-4" />
-            <span>Download PDF</span>
-          </button>
+            <span>{downloadStatus === "saving" ? "Saving..." : downloadStatus === "downloading" ? "Opening..." : "Download PDF"}</span>
+          </Button>
         </div>
       </header>
 
@@ -807,9 +860,9 @@ export default function EditorPage() {
       </div>
 
       {/* 3. Main Split Layout: Form Drawer Left + Live Canvas Right */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 flex-col lg:flex-row lg:overflow-hidden">
         {/* Left Form Sidebar Drawer */}
-        <div className="w-[360px] lg:w-[420px] bg-[var(--surface)] border-r border-[var(--border)] flex flex-col flex-shrink-0 no-print">
+        <div className="flex max-h-[58vh] w-full flex-shrink-0 flex-col border-b border-[var(--border)] bg-[var(--surface)] lg:max-h-none lg:w-[420px] lg:border-b-0 lg:border-r no-print">
           {/* Section Tabs */}
           <div className="flex border-b border-[var(--border)] bg-[var(--bg)] p-2 gap-1">
             <button
@@ -1208,7 +1261,7 @@ export default function EditorPage() {
         </div>
 
         {/* Right Live Preview Canvas Area (Isolatable for PDF Download) */}
-        <div className="flex-1 bg-[var(--bg)] p-6 md:p-10 overflow-y-auto flex items-start justify-center">
+        <div className="flex min-h-[42rem] flex-1 items-start justify-center overflow-auto bg-[var(--bg)] p-4 sm:p-6 md:p-10">
           <div
             id="resume-canvas-container"
             className="transition-transform duration-200 origin-top shadow-xl rounded-md bg-white"
@@ -1218,6 +1271,17 @@ export default function EditorPage() {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={leaveOpen}
+        title="Leave with unsaved changes?"
+        description="Changes that have not been saved to your account will be lost."
+        onClose={() => setLeaveOpen(false)}
+      >
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => setLeaveOpen(false)}>Keep editing</Button>
+          <Button variant="danger" onClick={() => router.push("/dashboard")}>Discard and leave</Button>
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

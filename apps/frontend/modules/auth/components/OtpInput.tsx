@@ -46,6 +46,7 @@ export function OtpInput({ value, onChange, onComplete }: OtpInputProps) {
           className="field-control otp-input"
           value={digit.trim()}
           inputMode="numeric"
+          autoFocus={index === 0}
           autoComplete={index === 0 ? "one-time-code" : undefined}
           aria-label={`Digit ${index + 1}`}
           maxLength={1}

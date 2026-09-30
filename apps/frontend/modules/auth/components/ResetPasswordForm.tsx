@@ -39,6 +39,9 @@ export function ResetPasswordForm() {
         <PasswordField
           label="New password"
           value={form.new_password}
+          autoComplete="new-password"
+          autoFocus
+          required
           onChange={(event) => setForm({ ...form, new_password: event.target.value })}
           placeholder="Create a new password"
           showChecklist
@@ -46,10 +49,12 @@ export function ResetPasswordForm() {
         <PasswordField
           label="Confirm new password"
           value={form.confirm_new_password}
+          autoComplete="new-password"
+          required
           onChange={(event) => setForm({ ...form, confirm_new_password: event.target.value })}
           placeholder="Repeat your new password"
         />
-        <Button type="submit" loading={loading}>
+        <Button type="submit" loading={loading} loadingLabel="Updating password..." fullWidth>
           Update password
         </Button>
       </form>

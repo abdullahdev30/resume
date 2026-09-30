@@ -52,14 +52,14 @@ export default function TemplateThree({
           className={getItemClass("fullName", "text-3xl font-bold uppercase tracking-widest text-slate-900 mb-1")}
           style={getItemStyle("fullName")}
         >
-          {data.fullName || "YOUR NAME"}
+          {data.fullName}
         </h1>
         <p
           onClick={(e) => handleSelect("jobTitle", e)}
           className={getItemClass("jobTitle", "text-xs uppercase font-sans font-semibold tracking-widest text-slate-500 mb-3")}
           style={getItemStyle("jobTitle")}
         >
-          {data.jobTitle || "PROFESSIONAL TITLE"}
+          {data.jobTitle}
         </p>
         <p className="text-xs font-sans text-slate-600 space-x-2">
           <span onClick={(e) => handleSelect("contact-email", e)} className={getItemClass("contact-email")}>

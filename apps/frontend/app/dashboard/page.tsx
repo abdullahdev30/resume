@@ -1,17 +1,22 @@
 import { requireCurrentUser } from "../../modules/auth/server";
-import { AppShell } from "../../modules/layout/AppShell";
+import { AppShellServer as AppShell } from "../../modules/layout/AppShellServer";
 import DashboardClient from "./DashboardClient";
+import { listResumesOnServer } from "../../modules/resume/server";
+import { getProfileOnServer } from "../../modules/profile/server";
 
 export default async function DashboardPage() {
-  const user = await requireCurrentUser().catch(() => ({
-    id: "user-1",
-    email: "jane@mail.com",
-    name: "Jane Doe",
-  }));
+  const [user, resumes, profile] = await Promise.all([
+    requireCurrentUser(),
+    listResumesOnServer(),
+    getProfileOnServer(),
+  ]);
 
   return (
-    <AppShell user={user}>
-      <DashboardClient />
+    <AppShell user={user} initialProfile={profile}>
+      <DashboardClient
+        initialResumes={resumes || undefined}
+        initialProfileIncomplete={!profile?.personal.phone || !profile?.personal.email}
+      />
     </AppShell>
   );
 }

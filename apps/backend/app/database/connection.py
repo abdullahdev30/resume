@@ -7,9 +7,15 @@ from app.core.config import settings
 # Settings se database URL lein (fallback ke sath)
 DATABASE_URL = getattr(settings, "database_url", None) or "sqlite:///./database.db"
 
+def _sqlalchemy_url(database_url: str) -> str:
+    if database_url.startswith("postgresql://"):
+        return database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return database_url
+
+
 # SQLAlchemy engine create karein
 engine = create_engine(
-    DATABASE_URL, 
+    _sqlalchemy_url(DATABASE_URL),
     connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 )
 

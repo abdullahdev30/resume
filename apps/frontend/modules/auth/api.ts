@@ -6,15 +6,18 @@ import {
   ForgotPasswordPayload,
   VerifyRecoveryOtpPayload,
   ChangePasswordPayload,
-  AuthResponse,
+  MessageResponse,
+  RegisterResponse,
+  VerifyEmailResponse,
   TokenResponse,
   RecoveryCodeResponse,
+  User,
 } from "./types";
 
 import { apiClient } from "../../lib/api-client";
 
 export const authApi = {
-  async register(payload: RegisterPayload): Promise<AuthResponse> {
+  async register(payload: RegisterPayload): Promise<RegisterResponse> {
     return apiClient("/auth/register", {
       method: "POST",
       body: payload,
@@ -28,7 +31,7 @@ export const authApi = {
     });
   },
 
-  async verifyEmail(payload: VerifyEmailPayload): Promise<AuthResponse> {
+  async verifyEmail(payload: VerifyEmailPayload): Promise<VerifyEmailResponse> {
     return apiClient("/auth/verify-email", {
       method: "POST",
       body: payload,
@@ -37,14 +40,14 @@ export const authApi = {
 
   async resendVerification(
     payload: ResendVerificationPayload,
-  ): Promise<AuthResponse> {
+  ): Promise<MessageResponse> {
     return apiClient("/auth/resend-verification", {
       method: "POST",
       body: payload,
     });
   },
 
-  async forgotPassword(payload: ForgotPasswordPayload): Promise<AuthResponse> {
+  async forgotPassword(payload: ForgotPasswordPayload): Promise<MessageResponse> {
     return apiClient("/auth/forgot-password", {
       method: "POST",
       body: payload,
@@ -60,28 +63,28 @@ export const authApi = {
     });
   },
 
-  async changePassword(payload: ChangePasswordPayload): Promise<AuthResponse> {
+  async changePassword(payload: ChangePasswordPayload): Promise<MessageResponse> {
     return apiClient("/auth/change-password", {
       method: "POST",
       body: payload,
     });
   },
 
-  async me(): Promise<NonNullable<AuthResponse["user"]>> {
+  async me(): Promise<User> {
     return apiClient("/auth/me", {
       method: "GET",
     });
   },
 
-  async logout(): Promise<AuthResponse> {
-    return apiClient("/auth/logout", {
+  async refresh(): Promise<TokenResponse> {
+    return apiClient("/auth/refresh", {
       method: "POST",
     });
   },
 
-  async onboardingStatus(): Promise<{ personal_completed: boolean }> {
-    return apiClient("/profile/onboarding-status", {
-      method: "GET",
+  async logout(): Promise<MessageResponse> {
+    return apiClient("/auth/logout", {
+      method: "POST",
     });
   },
 };

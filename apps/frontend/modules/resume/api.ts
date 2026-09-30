@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api-client";
+import { apiClient, apiClientUpload } from "@/lib/api-client";
 import type {
   AIEditPayload,
   AIEditProposal,
@@ -26,6 +26,17 @@ export const resumeApi = {
       body: payload,
     }),
 
+  uploadPdf: (
+    file: File,
+    title?: string,
+    options?: { onProgress?: (percent: number) => void; signal?: AbortSignal },
+  ) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (title) formData.append("title", title);
+    return apiClientUpload<ResumeRecord>("/resumes", formData, options);
+  },
+
   update: (id: string, payload: ResumeUpdatePayload) =>
     apiClient<ResumeRecord>(`/resumes/${id}`, {
       method: "PUT",
@@ -42,6 +53,9 @@ export const resumeApi = {
     apiClient<ResumeRecord>(`/resumes/${id}/generate-pdf`, {
       method: "POST",
     }),
+
+  getPdf: (id: string) =>
+    apiClient<{ download_url: string }>(`/resumes/${id}/pdf`),
 
   remove: (id: string) =>
     apiClient<{ message: string }>(`/resumes/${id}`, {

@@ -55,14 +55,14 @@ export default function TemplateFour({
             className={getItemClass("fullName", "text-3xl font-extrabold uppercase tracking-wide")}
             style={getItemStyle("fullName", "#ffffff")}
           >
-            {data.fullName || "EXECUTIVE NAME"}
+            {data.fullName}
           </h1>
           <p
             onClick={(e) => handleSelect("jobTitle", e)}
             className={getItemClass("jobTitle", "text-xs text-blue-200 uppercase font-semibold tracking-widest mt-1")}
             style={getItemStyle("jobTitle", "#bfdbfe")}
           >
-            {data.jobTitle || "EXECUTIVE LEADER"}
+            {data.jobTitle}
           </p>
           <div className="flex flex-wrap gap-4 text-xs text-blue-100 mt-4 font-medium">
             <span onClick={(e) => handleSelect("contact-phone", e)} className={getItemClass("contact-phone")}>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "@/components/feedback/Toast";
 import { authApi } from "./api";
 import {
   AUTH_EMAIL_STORAGE_KEY,
@@ -24,29 +25,16 @@ export function useAuth() {
     setError(null);
     try {
       await authApi.login(payload);
-      const currentUser = await authApi.me();
-      const status = await authApi.onboardingStatus().catch(() => null);
-      
-      const userId = currentUser?.id || "";
-      const isDoneLocally = typeof window !== "undefined" && (
-        localStorage.getItem(`onboarding_completed:${userId}`) === "true" ||
-        localStorage.getItem(`onboarding_skipped:${userId}`) === "true" ||
-        localStorage.getItem("onboarding_state") === "completed" ||
-        localStorage.getItem("onboarding_state") === "skipped"
-      );
-
-      if (status?.personal_completed || isDoneLocally) {
-        router.push("/dashboard");
-      } else {
-        router.push("/onboarding");
-      }
+      toast.success("Welcome back. Your workspace is ready.");
+      router.push("/dashboard");
+      router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
-      setError(
-        message.startsWith("Too many attempts")
+      const friendlyMessage = message.startsWith("Too many attempts")
           ? message
-          : "Invalid email or password.",
-      );
+          : "Invalid email or password.";
+      setError(friendlyMessage);
+      toast.error(friendlyMessage, "Unable to sign in");
     } finally {
       setLoading(false);
     }
@@ -57,10 +45,13 @@ export function useAuth() {
     setError(null);
     try {
       await authApi.register(payload);
-      localStorage.setItem(AUTH_EMAIL_STORAGE_KEY, payload.email);
+      sessionStorage.setItem(AUTH_EMAIL_STORAGE_KEY, payload.email);
+      toast.success("Account created. Check your email for the verification code.");
       router.push("/auth/verify-email");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      const message = err instanceof Error ? err.message : "Registration failed.";
+      setError(message);
+      toast.error(message, "Unable to create account");
     } finally {
       setLoading(false);
     }
@@ -70,11 +61,14 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const email = localStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
+      const email = sessionStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
       await authApi.verifyEmail({ email, otp });
-      router.push("/onboarding");
+      toast.success("Email verified successfully.");
+      router.push("/settings");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Email verification failed");
+      const message = err instanceof Error ? err.message : "Email verification failed.";
+      setError(message);
+      toast.error(message, "Verification failed");
     } finally {
       setLoading(false);
     }
@@ -84,10 +78,13 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const email = localStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
+      const email = sessionStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
       await authApi.resendVerification({ email });
+      toast.success("A new verification code has been sent.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to resend OTP");
+      const message = err instanceof Error ? err.message : "Unable to resend the code.";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -98,10 +95,13 @@ export function useAuth() {
     setError(null);
     try {
       await authApi.forgotPassword(payload);
-      localStorage.setItem(AUTH_EMAIL_STORAGE_KEY, payload.email);
+      sessionStorage.setItem(AUTH_EMAIL_STORAGE_KEY, payload.email);
+      toast.info("If an account exists for this email, a recovery code has been sent.");
       router.push("/auth/verify-otp-recovery");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to start recovery");
+      const message = err instanceof Error ? err.message : "Unable to start recovery.";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -111,15 +111,18 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const email = localStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
+      const email = sessionStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
       const response = await authApi.verifyRecoveryOtp({ email, otp });
-      localStorage.setItem(
+      sessionStorage.setItem(
         AUTH_RECOVERY_CODE_STORAGE_KEY,
         response.recovery_code,
       );
+      toast.success("Recovery code verified.");
       router.push("/auth/change-password");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Recovery verification failed");
+      const message = err instanceof Error ? err.message : "Recovery verification failed.";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -131,17 +134,20 @@ export function useAuth() {
     try {
       const recoveryCode =
         payload.recovery_code ||
-        localStorage.getItem(AUTH_RECOVERY_CODE_STORAGE_KEY) ||
+        sessionStorage.getItem(AUTH_RECOVERY_CODE_STORAGE_KEY) ||
         undefined;
       await authApi.changePassword({
         ...payload,
         recovery_code: recoveryCode,
       });
-      localStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
-      localStorage.removeItem(AUTH_RECOVERY_CODE_STORAGE_KEY);
+      sessionStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
+      sessionStorage.removeItem(AUTH_RECOVERY_CODE_STORAGE_KEY);
+      toast.success("Password updated. You can now sign in.");
       router.push("/auth/login");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to change password");
+      const message = err instanceof Error ? err.message : "Unable to change password.";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Figtree } from "next/font/google";
+import { ToastProvider } from "@/components/feedback/Toast";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -15,9 +16,22 @@ const bricolage = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
-  title: "Resume Builder",
-  description: "Authenticated resume builder portal",
+  title: {
+    default: "Resume Builder",
+    template: "%s | Resume Builder",
+  },
+  description: "Build, tailor, and manage polished resumes from one secure workspace.",
 };
+
+const themeScript = `
+  try {
+    var storedTheme = localStorage.getItem("resume-builder-theme");
+    var theme = storedTheme === "dark" || storedTheme === "light"
+      ? storedTheme
+      : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.dataset.theme = theme;
+  } catch (_) {}
+`;
 
 export default function RootLayout({
   children,
@@ -25,8 +39,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="light" className={`${figtree.variable} ${bricolage.variable}`}>
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning className={`${figtree.variable} ${bricolage.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body>
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

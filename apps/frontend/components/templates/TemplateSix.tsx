@@ -86,7 +86,7 @@ export default function TemplateSix({
             className={getItemClass("fullName", "text-2xl font-extrabold uppercase tracking-wider text-white text-center mb-1")}
             style={getItemStyle("fullName", "#ffffff")}
           >
-            {data.fullName || "Your Full Name"}
+            {data.fullName}
           </h1>
 
           <p
@@ -94,20 +94,20 @@ export default function TemplateSix({
             className={getItemClass("jobTitle", "text-xs font-semibold text-purple-300 uppercase tracking-widest text-center mb-6")}
             style={getItemStyle("jobTitle", "#c084fc")}
           >
-            {data.jobTitle || "Creative Designer"}
+            {data.jobTitle}
           </p>
 
           {/* Contact info */}
           <div className="mb-6 space-y-1.5 text-xs text-slate-300 border-t border-slate-800 pt-4">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Contact Info</h3>
             <p onClick={(e) => handleSelect("contact-phone", e)} className={getItemClass("contact-phone", "truncate")}>
-              📞 {data.phone || "+1 555-0192"}
+              Phone: {data.phone}
             </p>
             <p onClick={(e) => handleSelect("contact-email", e)} className={getItemClass("contact-email", "truncate")}>
-              ✉️ {data.email || "email@example.com"}
+              Email: {data.email}
             </p>
             <p onClick={(e) => handleSelect("contact-location", e)} className={getItemClass("contact-location", "truncate")}>
-              📍 {data.location || "City, Country"}
+              Location: {data.location}
             </p>
           </div>
 

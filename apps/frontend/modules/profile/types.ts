@@ -14,10 +14,21 @@ export interface PersonalInfoPayload {
   social_links?: SocialLinkInput[];
 }
 
-export interface PersonalInfo extends PersonalInfoPayload {
+export interface PersonalInfo {
+  user_id: string;
   name?: string | null;
-  created_at?: string;
-  updated_at?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  father_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  avatar_url?: string | null;
+  onboarding_completed?: boolean | null;
+  social_links?: import("../social-links/types").SocialLink[];
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface EducationPayload {
@@ -37,15 +48,6 @@ export interface ExperiencePayload {
 
 export interface SkillPayload {
   name: string;
-}
-
-export interface OnboardingStatus {
-  personal_completed: boolean;
-  education_count: number;
-  experience_count: number;
-  skill_count: number;
-  certificate_count: number;
-  project_count: number;
 }
 
 export interface ProfileResponse {

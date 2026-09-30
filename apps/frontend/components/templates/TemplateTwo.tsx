@@ -55,14 +55,14 @@ export default function TemplateTwo({
             className={getItemClass("fullName", "text-3xl font-extrabold tracking-tight")}
             style={{ color: primaryColor, ...getItemStyle("fullName") }}
           >
-            {data.fullName || "Your Full Name"}
+            {data.fullName}
           </h1>
           <p
             onClick={(e) => handleSelect("jobTitle", e)}
             className={getItemClass("jobTitle", "text-sm font-semibold uppercase tracking-widest text-slate-500")}
             style={getItemStyle("jobTitle")}
           >
-            {data.jobTitle || "Professional Title"}
+            {data.jobTitle}
           </p>
         </div>
 
@@ -97,13 +97,13 @@ export default function TemplateTwo({
       {/* Contact Pill Bar */}
       <div className="flex flex-wrap gap-4 py-3 border-b border-slate-100 text-xs text-slate-600 font-medium">
         <span onClick={(e) => handleSelect("contact-location", e)} className={getItemClass("contact-location")}>
-          📍 {data.location || "City, Country"}
+          Location: {data.location}
         </span>
         <span onClick={(e) => handleSelect("contact-phone", e)} className={getItemClass("contact-phone")}>
-          📞 {data.phone || "+1 555-0000"}
+          Phone: {data.phone}
         </span>
         <span onClick={(e) => handleSelect("contact-email", e)} className={getItemClass("contact-email")}>
-          ✉️ {data.email || "email@example.com"}
+          Email: {data.email}
         </span>
       </div>
 

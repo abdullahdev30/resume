@@ -1,21 +1,9 @@
 import type React from "react";
 
-export function Badge({ style, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        minHeight: "1.5rem",
-        borderRadius: "999px",
-        padding: "0 0.625rem",
-        background: "var(--secondary)",
-        color: "var(--secondary-foreground)",
-        fontSize: "0.75rem",
-        fontWeight: 700,
-        ...style,
-      }}
-      {...props}
-    />
-  );
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  variant?: "neutral" | "primary" | "info" | "success" | "warning" | "error";
+}
+
+export function Badge({ variant = "neutral", className = "", ...props }: BadgeProps) {
+  return <span className={["badge", `badge-${variant}`, className].filter(Boolean).join(" ")} {...props} />;
 }

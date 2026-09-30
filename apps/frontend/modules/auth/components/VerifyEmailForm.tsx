@@ -23,7 +23,7 @@ export function VerifyEmailForm() {
       <div className="form-stack">
         {error && <Alert variant="error">{error}</Alert>}
         <OtpInput value={otp} onChange={setOtp} onComplete={submit} />
-        <Button type="button" onClick={() => submit()} loading={loading} disabled={otp.length !== 6}>
+        <Button type="button" onClick={() => submit()} loading={loading} loadingLabel="Verifying..." disabled={otp.length !== 6} fullWidth>
           Verify code
         </Button>
         <Button type="button" onClick={() => void handleResendOtp()} variant="ghost" disabled={loading}>

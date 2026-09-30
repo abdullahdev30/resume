@@ -47,6 +47,9 @@ export function RegisterForm() {
         {(formError || error) && <Alert variant="error">{formError || error}</Alert>}
         <Input
           label="Full name"
+          autoComplete="name"
+          autoFocus
+          required
           value={form.name}
           onChange={(event) => setForm({ ...form, name: event.target.value })}
           placeholder="John Doe"
@@ -54,12 +57,17 @@ export function RegisterForm() {
         <Input
           label="Email"
           type="email"
+          autoComplete="email"
+          required
           value={form.email}
           onChange={(event) => setForm({ ...form, email: event.target.value })}
           placeholder="user@example.com"
         />
         <Input
           label="Phone number"
+          type="tel"
+          autoComplete="tel"
+          required
           value={form.phone}
           onChange={(event) => setForm({ ...form, phone: event.target.value })}
           placeholder="03001234567"
@@ -68,6 +76,8 @@ export function RegisterForm() {
         <PasswordField
           label="Password"
           value={form.password}
+          autoComplete="new-password"
+          required
           onChange={(event) => setForm({ ...form, password: event.target.value })}
           placeholder="Create a password"
           showChecklist
@@ -75,10 +85,12 @@ export function RegisterForm() {
         <PasswordField
           label="Confirm password"
           value={form.confirm_password}
+          autoComplete="new-password"
+          required
           onChange={(event) => setForm({ ...form, confirm_password: event.target.value })}
           placeholder="Repeat your password"
         />
-        <Button type="submit" loading={loading}>
+        <Button type="submit" loading={loading} loadingLabel="Creating account..." fullWidth>
           Sign up
         </Button>
         <p>

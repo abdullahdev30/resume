@@ -62,24 +62,24 @@ export default function TemplateFive({
             className={getItemClass("fullName", "text-3xl font-extrabold uppercase tracking-wide text-white")}
             style={getItemStyle("fullName", "#ffffff")}
           >
-            {data.fullName || "YOUR FULL NAME"}
+            {data.fullName}
           </h1>
           <p
             onClick={(e) => handleSelect("jobTitle", e)}
             className={getItemClass("jobTitle", "text-xs uppercase font-semibold tracking-widest text-teal-300")}
             style={getItemStyle("jobTitle", "#2dd4bf")}
           >
-            {data.jobTitle || "EXECUTIVE CANDIDATE"}
+            {data.jobTitle}
           </p>
           <div className="flex flex-wrap gap-4 text-xs text-slate-300 pt-2 font-medium">
             <span onClick={(e) => handleSelect("contact-phone", e)} className={getItemClass("contact-phone")}>
-              📞 {data.phone || "+1 555-0192"}
+              Phone: {data.phone}
             </span>
             <span onClick={(e) => handleSelect("contact-email", e)} className={getItemClass("contact-email")}>
-              ✉️ {data.email || "email@example.com"}
+              Email: {data.email}
             </span>
             <span onClick={(e) => handleSelect("contact-location", e)} className={getItemClass("contact-location")}>
-              📍 {data.location || "City, Country"}
+              Location: {data.location}
             </span>
           </div>
         </div>

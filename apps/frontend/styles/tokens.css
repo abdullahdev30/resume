@@ -1,102 +1,152 @@
 :root {
   color-scheme: light;
-  --bg: #F7F9FB;
-  --surface: #FFFFFF;
-  --border: #E3E8EE;
-  --text: #0F1B2D;
-  --text-muted: #5B6B7F;
-  --primary: #0E7C7B;
-  --primary-hover: #0A6463;
-  --primary-tint: #E3F4F3;
-  --on-primary: #FFFFFF;
-  --accent: #F5A524;
-  --success: #16A34A;
-  --danger: #DC2626;
-  --radius-control: 10px;
-  --radius-panel: 16px;
-  --radius-pill: 999px;
-  --shadow-popover: 0 18px 60px rgb(15 27 45 / 14%);
-  --font-body: var(--font-figtree), system-ui, sans-serif;
-  --font-heading: var(--font-bricolage), var(--font-figtree), system-ui, sans-serif;
-  --ease-out: 180ms ease-out;
+
+  /* Base palette: the existing Resume Builder brand colors. */
+  --color-slate-950: #0f1b2d;
+  --color-slate-600: #5b6b7f;
+  --color-slate-200: #e3e8ee;
+  --color-slate-50: #f7f9fb;
+  --color-white: #ffffff;
+  --color-teal-700: #0a6463;
+  --color-teal-600: #0e7c7b;
+  --color-teal-100: #e3f4f3;
+  --color-amber-500: #f5a524;
+  --color-green-600: #16a34a;
+  --color-red-600: #dc2626;
+
+  /* Semantic theme tokens. */
+  --bg: var(--color-slate-50);
+  --surface: var(--color-white);
+  --surface-raised: var(--color-white);
+  --surface-subtle: var(--color-slate-50);
+  --border: var(--color-slate-200);
+  --border-strong: color-mix(in srgb, var(--color-slate-600) 38%, var(--color-slate-200));
+  --text: var(--color-slate-950);
+  --text-muted: var(--color-slate-600);
+  --primary: var(--color-teal-600);
+  --primary-hover: var(--color-teal-700);
+  --primary-tint: var(--color-teal-100);
+  --on-primary: var(--color-white);
+  --accent: var(--color-amber-500);
+  --success: var(--color-green-600);
+  --danger: var(--color-red-600);
+  --warning: var(--color-amber-500);
+
+  /* Compatibility aliases used by existing screens. */
   --background: var(--bg);
   --foreground: var(--text);
   --text-primary: var(--text);
   --text-secondary: var(--text-muted);
   --primary-foreground: var(--on-primary);
-  --secondary: var(--surface);
+  --secondary: var(--surface-subtle);
   --secondary-foreground: var(--text);
   --muted: var(--primary-tint);
   --muted-foreground: var(--text-muted);
   --input: var(--border);
   --ring: var(--primary);
+  --error: var(--danger);
+  --error-foreground: var(--on-primary);
+
+  /* Component tokens. */
   --card-bg-primary: var(--surface);
-  --card-bg-secondary: var(--bg);
+  --card-bg-secondary: var(--surface-subtle);
+  --card-border: var(--border);
   --button-primary-bg: var(--primary);
+  --button-primary-hover: var(--primary-hover);
   --button-primary-text: var(--on-primary);
   --button-secondary-bg: var(--surface);
+  --button-secondary-hover: var(--primary-tint);
   --button-secondary-text: var(--text);
-  --status-error-bg: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  --button-danger-bg: var(--danger);
+  --input-bg: var(--surface);
+  --input-border: var(--border);
+  --status-error-bg: color-mix(in srgb, var(--danger) 9%, var(--surface));
   --status-error-text: var(--danger);
-  --status-success-bg: color-mix(in srgb, var(--success) 12%, var(--surface));
+  --status-success-bg: color-mix(in srgb, var(--success) 11%, var(--surface));
   --status-success-text: var(--success);
-  --status-warning-bg: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  --status-warning-bg: color-mix(in srgb, var(--warning) 17%, var(--surface));
   --status-warning-text: var(--text);
   --notification-bg: var(--primary-tint);
   --notification-text: var(--primary-hover);
-  --error: var(--danger);
-  --error-foreground: var(--on-primary);
+  --backdrop: rgb(15 27 45 / 56%);
+
+  /* Layout, type, and motion. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --radius-control: 0.75rem;
+  --radius-panel: 1rem;
+  --radius-large: 1.5rem;
+  --radius-pill: 999px;
   --radius: var(--radius-control);
+  --shadow-xs: 0 1px 2px rgb(15 27 45 / 5%);
+  --shadow-sm: 0 8px 24px rgb(15 27 45 / 7%);
+  --shadow-md: 0 18px 42px rgb(15 27 45 / 11%);
+  --shadow-popover: 0 24px 70px rgb(15 27 45 / 16%);
+  --font-body: var(--font-figtree), system-ui, sans-serif;
+  --font-heading: var(--font-bricolage), var(--font-figtree), system-ui, sans-serif;
+  --ease-out: 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --transition: var(--ease-out);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0B1220;
-    --surface: #131C2E;
-    --border: #24304A;
-    --text: #E8EEF6;
-    --text-muted: #93A1B8;
-    --primary: #2DD4BF;
-    --primary-hover: #5EEAD4;
-    --primary-tint: #0F2A33;
-    --on-primary: #06201F;
-    --accent: #F5B84A;
-    --success: #4ADE80;
-    --danger: #F87171;
-    --shadow-popover: 0 18px 60px rgb(0 0 0 / 35%);
+    --bg: #0b1220;
+    --surface: #131c2e;
+    --surface-raised: #18243a;
+    --surface-subtle: #101827;
+    --border: #24304a;
+    --border-strong: #3b4965;
+    --text: #e8eef6;
+    --text-muted: #93a1b8;
+    --primary: #2dd4bf;
+    --primary-hover: #5eead4;
+    --primary-tint: #0f2a33;
+    --on-primary: #06201f;
+    --accent: #f5b84a;
+    --success: #4ade80;
+    --danger: #f87171;
+    --warning: #f5b84a;
+    --backdrop: rgb(0 0 0 / 66%);
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 20%);
+    --shadow-sm: 0 8px 24px rgb(0 0 0 / 24%);
+    --shadow-md: 0 18px 42px rgb(0 0 0 / 30%);
+    --shadow-popover: 0 24px 70px rgb(0 0 0 / 38%);
   }
 }
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #F7F9FB;
-  --surface: #FFFFFF;
-  --border: #E3E8EE;
-  --text: #0F1B2D;
-  --text-muted: #5B6B7F;
-  --primary: #0E7C7B;
-  --primary-hover: #0A6463;
-  --primary-tint: #E3F4F3;
-  --on-primary: #FFFFFF;
-  --accent: #F5A524;
-  --success: #16A34A;
-  --danger: #DC2626;
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0B1220;
-  --surface: #131C2E;
-  --border: #24304A;
-  --text: #E8EEF6;
-  --text-muted: #93A1B8;
-  --primary: #2DD4BF;
-  --primary-hover: #5EEAD4;
-  --primary-tint: #0F2A33;
-  --on-primary: #06201F;
-  --accent: #F5B84A;
-  --success: #4ADE80;
-  --danger: #F87171;
+  --bg: #0b1220;
+  --surface: #131c2e;
+  --surface-raised: #18243a;
+  --surface-subtle: #101827;
+  --border: #24304a;
+  --border-strong: #3b4965;
+  --text: #e8eef6;
+  --text-muted: #93a1b8;
+  --primary: #2dd4bf;
+  --primary-hover: #5eead4;
+  --primary-tint: #0f2a33;
+  --on-primary: #06201f;
+  --accent: #f5b84a;
+  --success: #4ade80;
+  --danger: #f87171;
+  --warning: #f5b84a;
+  --backdrop: rgb(0 0 0 / 66%);
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 20%);
+  --shadow-sm: 0 8px 24px rgb(0 0 0 / 24%);
+  --shadow-md: 0 18px 42px rgb(0 0 0 / 30%);
+  --shadow-popover: 0 24px 70px rgb(0 0 0 / 38%);
 }

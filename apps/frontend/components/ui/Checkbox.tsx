@@ -1,35 +1,22 @@
-import React from 'react';
+import type React from "react";
+import { useId } from "react";
 
-export interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
   label: string;
+  description?: string;
 }
 
-export function Checkbox({ label, id, style, className = '', ...props }: CheckboxProps) {
+export function Checkbox({ label, description, id, className = "", ...props }: CheckboxProps) {
+  const generatedId = useId();
+  const checkboxId = id || generatedId;
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-      <input
-        type="checkbox"
-        id={id}
-        style={{
-          width: '1rem',
-          height: '1rem',
-          accentColor: 'var(--primary)',
-          cursor: 'pointer',
-          borderRadius: 'var(--radius)',
-          border: '1px solid var(--border)',
-          ...style,
-        }}
-        className={className}
-        {...props}
-      />
-      {label && (
-        <label 
-          htmlFor={id} 
-          style={{ fontSize: '0.875rem', color: 'var(--foreground)', cursor: 'pointer' }}
-        >
-          {label}
-        </label>
-      )}
-    </div>
+    <label className={["choice-row", className].filter(Boolean).join(" ")} htmlFor={checkboxId}>
+      <input type="checkbox" id={checkboxId} {...props} />
+      <span>
+        <span>{label}</span>
+        {description && <span className="field-hint block">{description}</span>}
+      </span>
+    </label>
   );
 }

@@ -1,51 +1,84 @@
 "use client";
 
+import { Download, Pencil, Save, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
-import { Download, Pencil, Save, Sparkles, X } from "lucide-react";
+import type { FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { ErrorState } from "@/components/common/ErrorState";
+import { LoadingState } from "@/components/common/LoadingState";
+import { PageHeader } from "@/components/common/PageHeader";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { Alert } from "@/components/feedback/Alert";
+import { toast } from "@/components/feedback/Toast";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Textarea } from "@/components/ui/Textarea";
 import type { ResumeData } from "@/components/templates/TemplateOne";
 import { resumeApi } from "../api";
 import type { AIEditProposal, ResumeRecord } from "../types";
 
-export function ResumeViewClient() {
+export function ResumeViewClient({
+  initialResume,
+  resumeId,
+}: {
+  initialResume?: ResumeRecord;
+  resumeId?: string;
+}) {
   const params = useParams<{ id: string }>();
-  const [resume, setResume] = useState<ResumeRecord | null>(null);
+  const activeResumeId = resumeId || params.id;
+  const [resume, setResume] = useState<ResumeRecord | null>(initialResume || null);
+  const [loading, setLoading] = useState(initialResume === undefined);
+  const [loadError, setLoadError] = useState("");
   const [instruction, setInstruction] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [proposal, setProposal] = useState<AIEditProposal | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [busyAction, setBusyAction] = useState<"proposal" | "accept" | "download" | null>(null);
+  const [actionError, setActionError] = useState("");
+
+  const loadResume = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      setResume(await resumeApi.get(activeResumeId));
+    } catch {
+      setLoadError("This resume could not be loaded. It may have been removed, or you may not have access to it.");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeResumeId]);
 
   useEffect(() => {
-    resumeApi.get(params.id).then(setResume).catch((err) => {
-      setError(err instanceof Error ? err.message : "Unable to load resume.");
-    });
-  }, [params.id]);
+    if (initialResume === undefined) void loadResume();
+  }, [initialResume, loadResume]);
 
   const requestAiEdit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!resume) return;
-    setBusy(true);
-    setError("");
+    if (!resume || busyAction) return;
+    setBusyAction("proposal");
+    setActionError("");
     try {
-      setProposal(
-        await resumeApi.aiEdit(resume.id, {
-          instruction,
-          job_description: jobDescription || undefined,
-        })
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to create AI edit.");
+      setProposal(await resumeApi.aiEdit(resume.id, {
+        instruction: instruction.trim(),
+        job_description: jobDescription.trim() || undefined,
+      }));
+      toast.info("Review the proposal before applying it to your resume.", "AI proposal ready");
+    } catch {
+      const message = "We could not create an edit proposal. Your instructions are still available to retry.";
+      setActionError(message);
+      toast.error(message, "AI edit failed");
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   };
 
   const acceptProposal = async () => {
-    if (!resume || !proposal) return;
-    setBusy(true);
+    if (!resume || !proposal || busyAction) return;
+    setBusyAction("accept");
+    setActionError("");
     try {
       const updated = await resumeApi.update(resume.id, {
         resume_data: proposal.resume_data as ResumeData,
@@ -55,117 +88,186 @@ export function ResumeViewClient() {
       setProposal(null);
       setInstruction("");
       setJobDescription("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save AI edit.");
+      toast.success("The AI proposal was saved to your resume.", "Changes saved");
+    } catch {
+      const message = "The proposal could not be saved. It is still open so you can retry.";
+      setActionError(message);
+      toast.error(message, "Save failed");
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   };
 
-  if (!resume) {
-    return (
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-8 text-sm text-[var(--text-muted)]">
-        {error || "Loading resume..."}
-      </div>
-    );
-  }
+  const downloadResume = async () => {
+    if (!resume || busyAction) return;
+    const downloadWindow = window.open("", "_blank");
+    setBusyAction("download");
+    setActionError("");
+    try {
+      const { download_url: downloadUrl } = await resumeApi.getPdf(resume.id);
+      if (downloadWindow) {
+        downloadWindow.opener = null;
+        downloadWindow.location.href = downloadUrl;
+      } else {
+        window.open(downloadUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      downloadWindow?.close();
+      const message = "We could not prepare this PDF. Please try again.";
+      setActionError(message);
+      toast.error(message, "Download failed");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  if (loading) return <LoadingState label="Loading resume..." cards={1} />;
+  if (loadError || !resume) return <ErrorState message={loadError || "Unable to load resume."} onRetry={() => void loadResume()} />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-[var(--text)]">{resume.title}</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            {resume.resume_type.replace("_", " ")} · {resume.editable ? "Editable source saved" : "PDF only"}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {resume.editable && (
-            <Link
-              href={`/resumes/${resume.id}/edit`}
-              className="bg-[var(--primary-tint)] text-[var(--primary)] border border-[var(--primary)]/30 rounded-xl px-4 py-2 text-sm font-bold inline-flex items-center gap-2"
+    <div className="page-stack">
+      <PageHeader
+        eyebrow={resume.resume_type === "ai" ? "AI-generated resume" : resume.resume_type === "legacy_pdf" ? "Uploaded document" : "Template resume"}
+        icon={resume.resume_type === "ai" ? <Sparkles size={15} aria-hidden="true" /> : undefined}
+        title={resume.title}
+        description={resume.editable ? "Your editable source and generated file are saved to your account." : "This uploaded PDF is available to view and download."}
+        actions={
+          <>
+            {resume.editable && (
+              <Link href={`/resumes/${resume.id}/edit`} className="button button-secondary">
+                <Pencil size={16} aria-hidden="true" />
+                Edit resume
+              </Link>
+            )}
+            <Button
+              onClick={() => void downloadResume()}
+              loading={busyAction === "download"}
+              loadingLabel="Preparing..."
+              disabled={Boolean(busyAction)}
             >
-              <Pencil className="w-4 h-4" />
-              Edit
-            </Link>
-          )}
-          <a
-            href={resume.download_url}
-            target="_blank"
-            rel="noreferrer"
-            className="bg-[var(--primary)] text-[var(--on-primary)] rounded-xl px-4 py-2 text-sm font-bold inline-flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            Download PDF
-          </a>
-        </div>
+              <Download size={16} aria-hidden="true" />
+              Download PDF
+            </Button>
+          </>
+        }
+      />
+
+      <div className="flex flex-wrap gap-2">
+        <Badge variant="primary">{resume.resume_type.replace("_", " ")}</Badge>
+        <Badge variant={resume.editable ? "success" : "neutral"}>{resume.editable ? "Editable" : "PDF only"}</Badge>
+        <Badge variant="neutral">Updated {new Date(resume.updated_at).toLocaleDateString()}</Badge>
       </div>
 
-      {error && <div className="rounded-xl bg-rose-50 text-rose-700 px-4 py-3 text-sm font-semibold">{error}</div>}
+      {actionError && <Alert variant="error">{actionError}</Alert>}
 
       {resume.html_content ? (
-        <iframe
-          title={resume.title}
-          sandbox=""
-          srcDoc={resume.html_content}
-          className="w-full min-h-[780px] rounded-xl border border-[var(--border)] bg-white"
-        />
+        <Card padding="none" className="overflow-hidden">
+          <iframe
+            title={`${resume.title} preview`}
+            sandbox=""
+            srcDoc={resume.html_content}
+            className="min-h-[780px] w-full bg-white"
+          />
+        </Card>
       ) : (
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 text-sm text-[var(--text-muted)]">
-          This resume was uploaded as a PDF and can be downloaded, renamed, or deleted from My Resumes.
-        </div>
+        <Card padding="lg">
+          <p className="text-sm text-[var(--text-muted)]">
+            Preview is unavailable for this uploaded PDF. Use Download PDF to open the stored file.
+          </p>
+        </Card>
       )}
 
       {resume.editable && (
-        <form onSubmit={requestAiEdit} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
-          <h2 className="font-extrabold text-[var(--text)] flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[var(--primary)]" />
-            AI Edit
-          </h2>
-          <textarea
-            value={instruction}
-            onChange={(event) => setInstruction(event.target.value)}
-            rows={3}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-            placeholder="Example: Make this stronger for a senior backend engineer role without inventing facts."
-            required
-          />
-          <textarea
-            value={jobDescription}
-            onChange={(event) => setJobDescription(event.target.value)}
-            rows={4}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-            placeholder="Optional job description"
-          />
-          <button disabled={busy} className="bg-[var(--primary)] text-[var(--on-primary)] rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-60">
-            {busy ? "Working..." : "Create AI Proposal"}
-          </button>
-        </form>
+        <Card padding="lg">
+          <form onSubmit={requestAiEdit} className="form-stack">
+            <div>
+              <div className="page-eyebrow"><Sparkles size={15} aria-hidden="true" /> AI edit</div>
+              <h2 className="mt-2 text-xl font-bold">Propose a targeted revision</h2>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">Nothing changes until you review and accept the proposal.</p>
+            </div>
+            <Textarea
+              label="Editing instruction"
+              value={instruction}
+              onChange={(event) => setInstruction(event.target.value)}
+              rows={3}
+              placeholder="Make this stronger for a senior backend engineer role without inventing facts."
+              required
+            />
+            <Textarea
+              label="Job description"
+              optional
+              value={jobDescription}
+              onChange={(event) => setJobDescription(event.target.value)}
+              rows={5}
+              placeholder="Paste the target role for more specific suggestions."
+            />
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                loading={busyAction === "proposal"}
+                loadingLabel="Creating proposal..."
+                disabled={!instruction.trim() || Boolean(busyAction)}
+              >
+                <Sparkles size={16} aria-hidden="true" />
+                Create proposal
+              </Button>
+            </div>
+          </form>
+        </Card>
       )}
 
       {proposal && (
-        <div className="rounded-xl border border-[var(--primary)]/30 bg-[var(--surface)] p-5 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-extrabold text-[var(--text)]">AI Proposal</h2>
-            <div className="flex gap-2">
-              <button onClick={acceptProposal} className="bg-[var(--primary)] text-[var(--on-primary)] rounded-xl px-3 py-2 text-xs font-bold inline-flex items-center gap-1">
-                <Save className="w-3.5 h-3.5" />
-                Accept
-              </button>
-              <button onClick={() => setProposal(null)} className="bg-[var(--bg)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs font-bold inline-flex items-center gap-1">
-                <X className="w-3.5 h-3.5" />
+        <Card padding="lg" className="border-[color-mix(in_srgb,var(--primary)_35%,var(--border))]">
+          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="page-eyebrow">Review required</div>
+              <h2 className="mt-1 text-lg font-bold">AI edit proposal</h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => void acceptProposal()}
+                loading={busyAction === "accept"}
+                loadingLabel="Saving..."
+                disabled={Boolean(busyAction)}
+              >
+                <Save size={15} aria-hidden="true" />
+                Accept and save
+              </Button>
+              <Button variant="secondary" onClick={() => setDiscardOpen(true)} disabled={Boolean(busyAction)}>
+                <X size={15} aria-hidden="true" />
                 Discard
-              </button>
+              </Button>
             </div>
           </div>
           <iframe
-            title="AI proposal"
+            title="AI edit proposal preview"
             sandbox=""
             srcDoc={proposal.html_content}
-            className="w-full min-h-[620px] rounded-xl border border-[var(--border)] bg-white"
+            className="min-h-[620px] w-full rounded-xl border border-[var(--border)] bg-white"
           />
-        </div>
+        </Card>
       )}
+
+      <ConfirmDialog
+        open={discardOpen}
+        title="Discard this proposal?"
+        description="The proposed changes have not been saved and will be lost."
+        onClose={() => setDiscardOpen(false)}
+      >
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep reviewing</Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setProposal(null);
+              setDiscardOpen(false);
+              toast.info("The proposal was discarded.");
+            }}
+          >
+            Discard proposal
+          </Button>
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

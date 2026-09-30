@@ -3,8 +3,8 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "dev": "concurrently \"npm run dev:web\" \"npm run dev:backend\"",
-    "dev:web": "turbo run dev",
+    "dev": "concurrently \"pnpm run dev:web\" \"pnpm run dev:backend\"",
+    "dev:web": "pnpm --filter frontend dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "dev:backend": "cd apps/backend && venv\\Scripts\\python -m uvicorn main:app --reload --port 8000",

@@ -12,7 +12,7 @@ export function Alert({
       role={variant === "error" ? "alert" : "status"}
       className={[
         "alert",
-        variant === "error" ? "alert-error" : "alert-info",
+        `alert-${variant}`,
         className,
       ]
         .filter(Boolean)
