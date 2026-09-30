@@ -11,9 +11,10 @@ export async function apiClient<T = any>(
   options: ApiClientOptions = {}
 ): Promise<T> {
   const { body, headers, ...customOptions } = options;
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
   const requestHeaders: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(headers as Record<string, string>),
   };
 
@@ -25,7 +26,7 @@ export async function apiClient<T = any>(
   };
 
   if (body) {
-    config.body = JSON.stringify(body);
+    config.body = isFormData ? body : JSON.stringify(body);
   }
 
   const response = await fetch(`${API_BASE}${endpoint}`, config);

@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from secrets import token_urlsafe
@@ -61,25 +61,13 @@ class AuthService:
 
     def register(self, payload: RegisterRequest) -> RegisterResponse:
         try:
-            response = self._client_factory().auth.sign_up(
-                {
-                    "email": str(payload.email),
-                    "password": payload.password,
-                    "options": {
-                        "data": {
-                            "name": payload.name,
-                            "phone_number": payload.number,
-                        },
-                        "email_redirect_to": (
-                            f"{settings.frontend_url}/auth/verified"
-                        ),
-                    },
-                }
-            )
+            signup_user = self._sign_up(payload)
+        except AuthApplicationError:
+            raise
         except Exception as exc:
             raise upstream_auth_error(exc) from exc
 
-        if self._get_attr(response, "user") is None:
+        if signup_user is None:
             raise AuthApplicationError(
                 status_code=400,
                 code="registration_failed",
@@ -94,6 +82,39 @@ class AuthService:
             email=str(payload.email),
             email_verification_required=True,
         )
+
+    def _sign_up(self, payload: RegisterRequest) -> Mapping[str, Any] | Any | None:
+        auth_client = self._client_factory().auth
+        response = auth_client._request(
+            "POST",
+            "signup",
+            body={
+                "email": str(payload.email),
+                "password": payload.password,
+                "data": {
+                    "name": payload.name,
+                    "phone_number": payload.number,
+                },
+                "gotrue_meta_security": {
+                    "captcha_token": None,
+                },
+            },
+            redirect_to=f"{settings.frontend_url}/auth/verified",
+        )
+        response_body = response.json()
+        signup_user = self._signup_user_from_response(response_body)
+        if signup_user is None:
+            return None
+
+        identities = self._get_attr(signup_user, "identities")
+        if isinstance(identities, list) and len(identities) == 0:
+            raise AuthApplicationError(
+                status_code=409,
+                code="account_already_exists",
+                message="Unable to complete this request.",
+            )
+
+        return signup_user
 
     def verify_email(self, payload: VerifyEmailOtpRequest) -> AuthResult:
         try:
@@ -328,3 +349,16 @@ class AuthService:
         if isinstance(value, dict):
             return value.get(attr)
         return getattr(value, attr, None)
+
+    def _signup_user_from_response(self, response_body: Any) -> Any | None:
+        if not isinstance(response_body, dict):
+            return None
+
+        user = response_body.get("user")
+        if user is not None:
+            return user
+
+        if response_body.get("id") is not None:
+            return response_body
+
+        return None

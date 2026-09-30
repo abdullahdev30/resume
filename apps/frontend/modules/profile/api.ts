@@ -8,6 +8,10 @@ import type {
 } from "./types";
 
 import { apiClient } from "../../lib/api-client";
+import type { Certificate } from "../certificates/types";
+import type { Education } from "../education/types";
+import type { Experience } from "../experience/types";
+import type { Skill } from "../skills/types";
 
 export const profileApi = {
   async getProfile(): Promise<ProfileResponse> {
@@ -50,97 +54,88 @@ export const profileApi = {
     });
   },
 
+  async listEducation(): Promise<Education[]> {
+    return apiClient("/profile/education", { method: "GET" });
+  },
+
+  async listExperience(): Promise<Experience[]> {
+    return apiClient("/profile/experience", { method: "GET" });
+  },
+
+  async listSkills(): Promise<Skill[]> {
+    return apiClient("/profile/skills", { method: "GET" });
+  },
+
+  async listCertificates(): Promise<Certificate[]> {
+    return apiClient("/profile/certificates", { method: "GET" });
+  },
+
+  async addCertificate(payload: {
+    name: string;
+    issuing_organization?: string;
+    credential_id?: string;
+    credential_url?: string;
+    issue_date?: string;
+    expiration_date?: string;
+  }): Promise<Certificate> {
+    return apiClient("/profile/certificates", {
+      method: "POST",
+      body: payload,
+    });
+  },
+
+  async deleteCertificate(id: string): Promise<{ message: string }> {
+    return apiClient(`/profile/certificates/${id}`, {
+      method: "DELETE",
+    });
+  },
+
   async uploadAvatar(file: File): Promise<{ url: string }> {
-    const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/$/, "");
     const formData = new FormData();
     formData.append("file", file);
 
-    try {
-      const response = await fetch(`${API_BASE}/profile/avatar`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-      if (response.ok) {
-        const res = await response.json();
-        const avatarUrl = res.avatar_url || res.personal?.avatar_url;
-        if (avatarUrl) {
-          localStorage.setItem("user_avatar", avatarUrl);
-          return { url: avatarUrl };
-        }
-      }
-    } catch {
-      // API fallback
+    const res = await apiClient<{ avatar_url?: string; personal?: { avatar_url?: string } }>("/profile/avatar", {
+      method: "POST",
+      body: formData,
+    });
+    const avatarUrl = res.avatar_url || res.personal?.avatar_url;
+    if (avatarUrl) {
+      localStorage.setItem("user_avatar", avatarUrl);
+      return { url: avatarUrl };
     }
 
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string;
-        localStorage.setItem("user_avatar", dataUrl);
-        resolve({ url: dataUrl });
-      };
-      reader.readAsDataURL(file);
-    });
+    throw new Error("Avatar upload did not return a file URL.");
   },
 
   async uploadDocument(file: File): Promise<{ id: string; name: string; url: string; size: string; uploadedAt: string }> {
-    const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/$/, "");
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", file.name);
-    formData.append("category", "Profile Document");
+    formData.append("category", "Certificate");
 
-    try {
-      const response = await fetch(`${API_BASE}/profile/certificates/upload`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-      if (response.ok) {
-        const res = await response.json();
-        return {
-          id: res.id,
-          name: res.file_name || file.name,
-          url: res.file_url || "",
-          size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
-          uploadedAt: new Date(res.created_at || Date.now()).toLocaleDateString(),
-        };
-      }
-    } catch {
-      // API fallback
-    }
-
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string;
-        const docsStr = localStorage.getItem("user_documents") || "[]";
-        let docs = [];
-        try { docs = JSON.parse(docsStr); } catch { docs = []; }
-        
-        const sizeFormatted = (file.size / (1024 * 1024)).toFixed(2) + " MB";
-        const newDoc = {
-          id: "doc_" + Date.now(),
-          name: file.name,
-          url: dataUrl,
-          size: sizeFormatted,
-          uploadedAt: new Date().toLocaleDateString(),
-        };
-        docs.unshift(newDoc);
-        localStorage.setItem("user_documents", JSON.stringify(docs));
-        resolve(newDoc);
-      };
-      reader.readAsDataURL(file);
+    const res = await apiClient<Certificate>("/profile/certificates/upload", {
+      method: "POST",
+      body: formData,
     });
+    return {
+      id: res.id,
+      name: res.file_name || file.name,
+      url: res.file_url || "",
+      size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+      uploadedAt: new Date(res.created_at || Date.now()).toLocaleDateString(),
+    };
   },
 
-  getDocuments(): Array<{ id: string; name: string; url: string; size: string; uploadedAt: string }> {
-    if (typeof window === "undefined") return [];
-    try {
-      return JSON.parse(localStorage.getItem("user_documents") || "[]");
-    } catch {
-      return [];
-    }
+  async getDocuments(): Promise<Array<{ id: string; name: string; url: string; size: string; uploadedAt: string }>> {
+    const certificates = await this.listCertificates();
+    return certificates
+      .filter((certificate) => certificate.file_name || certificate.file_url)
+      .map((certificate) => ({
+        id: certificate.id,
+        name: certificate.file_name || certificate.title,
+        url: certificate.file_url || "",
+        size: "Stored",
+        uploadedAt: certificate.issue_date || "",
+      }));
   },
 };

@@ -9,10 +9,13 @@ export interface PersonalInfoPayload {
   email: string;
   phone: string;
   address: string;
+  city?: string | null;
+  avatar_url?: string | null;
   social_links?: SocialLinkInput[];
 }
 
 export interface PersonalInfo extends PersonalInfoPayload {
+  name?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -47,9 +50,10 @@ export interface OnboardingStatus {
 
 export interface ProfileResponse {
   personal: PersonalInfo;
-  education: unknown[];
-  experience: unknown[];
-  skills: unknown[];
-  certificates: unknown[];
-  projects: unknown[];
+  education: import("../education/types").Education[];
+  experience: import("../experience/types").Experience[];
+  skills: import("../skills/types").Skill[];
+  certificates: import("../certificates/types").Certificate[];
+  projects: import("../projects/types").Project[];
+  social_links: import("../social-links/types").SocialLink[];
 }

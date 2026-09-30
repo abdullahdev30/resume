@@ -96,6 +96,39 @@ class ProfileService:
             ],
         )
 
+    def list_social_links(self, user_id: str) -> list[SocialLinkResponse]:
+        return self._social_links(user_id)
+
+    def list_education(self, user_id: str) -> list[EducationResponse]:
+        return [
+            EducationResponse(**item)
+            for item in self.repository.list_items(EDUCATION_TABLE, user_id)
+        ]
+
+    def list_experience(self, user_id: str) -> list[ExperienceResponse]:
+        return [
+            ExperienceResponse(**item)
+            for item in self.repository.list_items(EXPERIENCE_TABLE, user_id)
+        ]
+
+    def list_skills(self, user_id: str) -> list[SkillResponse]:
+        return [
+            SkillResponse(**item)
+            for item in self.repository.list_items(SKILLS_TABLE, user_id)
+        ]
+
+    def list_certificates(self, user_id: str) -> list[CertificateResponse]:
+        return [
+            CertificateResponse(**item)
+            for item in self.repository.list_items(CERTIFICATES_TABLE, user_id)
+        ]
+
+    def list_projects(self, user_id: str) -> list[ProjectResponse]:
+        return [
+            ProjectResponse(**item)
+            for item in self.repository.list_items(PROJECTS_TABLE, user_id)
+        ]
+
     def onboarding_status(self, user_id: str) -> OnboardingStatusResponse:
         personal = self.repository.get_personal(user_id)
         education_count = len(self.repository.list_items(EDUCATION_TABLE, user_id))

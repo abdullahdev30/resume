@@ -94,6 +94,16 @@ def add_social_link(
         raise_profile_error(exc)
 
 
+@router.get("/social-links", response_model=list[SocialLinkResponse])
+def list_social_links(
+    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+) -> list[SocialLinkResponse]:
+    try:
+        return profile_service.list_social_links(_user_id(current_user))
+    except ProfileApplicationError as exc:
+        raise_profile_error(exc)
+
+
 @router.put("/social-links/{item_id}", response_model=SocialLinkResponse)
 def update_social_link(
     item_id: str,
@@ -129,6 +139,16 @@ def add_education(
 ) -> EducationResponse:
     try:
         return profile_service.add_education(_user_id(current_user), payload)
+    except ProfileApplicationError as exc:
+        raise_profile_error(exc)
+
+
+@router.get("/education", response_model=list[EducationResponse])
+def list_education(
+    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+) -> list[EducationResponse]:
+    try:
+        return profile_service.list_education(_user_id(current_user))
     except ProfileApplicationError as exc:
         raise_profile_error(exc)
 
@@ -172,6 +192,16 @@ def add_experience(
         raise_profile_error(exc)
 
 
+@router.get("/experience", response_model=list[ExperienceResponse])
+def list_experience(
+    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+) -> list[ExperienceResponse]:
+    try:
+        return profile_service.list_experience(_user_id(current_user))
+    except ProfileApplicationError as exc:
+        raise_profile_error(exc)
+
+
 @router.put("/experience/{item_id}", response_model=ExperienceResponse)
 def update_experience(
     item_id: str,
@@ -211,6 +241,16 @@ def add_skill(
         raise_profile_error(exc)
 
 
+@router.get("/skills", response_model=list[SkillResponse])
+def list_skills(
+    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+) -> list[SkillResponse]:
+    try:
+        return profile_service.list_skills(_user_id(current_user))
+    except ProfileApplicationError as exc:
+        raise_profile_error(exc)
+
+
 @router.put("/skills/{item_id}", response_model=SkillResponse)
 def update_skill(
     item_id: str,
@@ -246,6 +286,16 @@ def add_certificate(
 ) -> CertificateResponse:
     try:
         return profile_service.add_certificate(_user_id(current_user), payload)
+    except ProfileApplicationError as exc:
+        raise_profile_error(exc)
+
+
+@router.get("/certificates", response_model=list[CertificateResponse])
+def list_certificates(
+    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+) -> list[CertificateResponse]:
+    try:
+        return profile_service.list_certificates(_user_id(current_user))
     except ProfileApplicationError as exc:
         raise_profile_error(exc)
 
@@ -309,6 +359,16 @@ def add_project(
 ) -> ProjectResponse:
     try:
         return profile_service.add_project(_user_id(current_user), payload)
+    except ProfileApplicationError as exc:
+        raise_profile_error(exc)
+
+
+@router.get("/projects", response_model=list[ProjectResponse])
+def list_projects(
+    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+) -> list[ProjectResponse]:
+    try:
+        return profile_service.list_projects(_user_id(current_user))
     except ProfileApplicationError as exc:
         raise_profile_error(exc)
 

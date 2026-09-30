@@ -71,8 +71,8 @@ def upstream_auth_error(
     *,
     authentication_message: str = "Invalid email or password.",
 ) -> AuthApplicationError:
-    code = getattr(exc, "code", None)
-    upstream_status = getattr(exc, "status", None)
+    code = _error_code(exc)
+    upstream_status = _error_status(exc)
 
     if code in RATE_LIMIT_CODES or upstream_status == status.HTTP_429_TOO_MANY_REQUESTS:
         return AuthApplicationError(
@@ -116,7 +116,16 @@ def upstream_auth_error(
             message="Unable to complete this request.",
         )
 
-    logger.exception("Unexpected Supabase Auth error")
+    logger.exception(
+        "Unexpected Supabase Auth error: type=%s repr=%r message=%s "
+        "code=%r status=%r status_code=%r",
+        type(exc).__name__,
+        exc,
+        str(exc),
+        getattr(exc, "code", None),
+        getattr(exc, "status", None),
+        getattr(exc, "status_code", None),
+    )
     return AuthApplicationError(
         status_code=status.HTTP_502_BAD_GATEWAY,
         code="auth_provider_error",
@@ -131,6 +140,28 @@ def unexpected_auth_error() -> AuthApplicationError:
         code="auth_internal_error",
         message="Unable to complete this request.",
     )
+
+
+def _error_code(exc: Exception) -> str | None:
+    code = getattr(exc, "code", None)
+    if code is None:
+        return None
+    value = getattr(code, "value", code)
+    return str(value)
+
+
+def _error_status(exc: Exception) -> int | None:
+    status_code = (
+        getattr(exc, "status", None)
+        or getattr(exc, "status_code", None)
+        or getattr(getattr(exc, "response", None), "status_code", None)
+    )
+    if status_code is None:
+        return None
+    try:
+        return int(status_code)
+    except (TypeError, ValueError):
+        return None
 
 
 def raise_http_error(error: AuthApplicationError) -> None:

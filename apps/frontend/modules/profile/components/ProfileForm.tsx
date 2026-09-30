@@ -60,8 +60,7 @@ export function ProfileForm({ user }: ProfileSettingsFormProps) {
       const savedAvatar = localStorage.getItem("user_avatar");
       if (savedAvatar) setAvatarUrl(savedAvatar);
       
-      const loadedDocs = profileApi.getDocuments();
-      setDocuments(loadedDocs);
+      profileApi.getDocuments().then(setDocuments).catch(() => setDocuments([]));
     }
 
     profileApi

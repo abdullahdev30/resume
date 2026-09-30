@@ -1,970 +1,434 @@
 "use client";
 
-import React, { useState, useEffect, FormEvent, ChangeEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
-  User as UserIcon,
   Award,
-  GraduationCap,
   Briefcase,
-  Wrench,
   Camera,
-  Upload,
-  Trash2,
-  Plus,
   CheckCircle2,
-  AlertCircle,
-  FileText,
   ExternalLink,
-  Edit3,
-  Sparkles,
+  FileText,
+  GraduationCap,
+  Link as LinkIcon,
+  Plus,
+  Trash2,
+  Upload,
+  User as UserIcon,
+  Wrench,
 } from "lucide-react";
+
+import { ConfirmDialog } from "../../components/common/ConfirmDialog";
+import { Button } from "../../components/ui/Button";
 import type { User as UserType } from "../../modules/auth/types";
+import { profileApi } from "../../modules/profile/api";
+import type { Certificate } from "../../modules/certificates/types";
+import { createEducation, deleteEducation, listEducations } from "../../modules/education/api";
+import type { Education } from "../../modules/education/types";
+import { createExperience, deleteExperience, listExperiences } from "../../modules/experience/api";
+import type { Experience } from "../../modules/experience/types";
+import { createProject, deleteProject, listProjects } from "../../modules/projects/api";
+import type { Project } from "../../modules/projects/types";
+import { createSkill, deleteSkill, listSkills } from "../../modules/skills/api";
+import type { Skill } from "../../modules/skills/types";
+import { createSocialLink, deleteSocialLink, listSocialLinks } from "../../modules/social-links/api";
+import type { SocialLink } from "../../modules/social-links/types";
 
 interface SettingsClientProps {
   user: UserType;
 }
 
-// Sub-page interfaces
-export interface CertificateItem {
-  id: string;
-  title: string;
-  issuer: string;
-  category: string;
-  issueDate: string;
-  expiryDate?: string;
-  credentialUrl?: string;
+type TabId = "profile" | "social" | "education" | "experience" | "skills" | "certificates" | "projects";
+type DeleteTarget = { type: Exclude<TabId, "profile"> | "skill"; id: string; label: string };
+
+const tabs: Array<{ id: TabId; label: string; icon: typeof UserIcon }> = [
+  { id: "profile", label: "Profile", icon: UserIcon },
+  { id: "social", label: "Social", icon: LinkIcon },
+  { id: "education", label: "Education", icon: GraduationCap },
+  { id: "experience", label: "Experience", icon: Briefcase },
+  { id: "skills", label: "Skills", icon: Wrench },
+  { id: "certificates", label: "Certificates", icon: Award },
+  { id: "projects", label: "Projects", icon: FileText },
+];
+
+function splitName(name?: string | null) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  return { firstName: parts[0] || "", lastName: parts.slice(1).join(" ") || "" };
 }
 
-export interface EducationItem {
-  id: string;
-  degree: string;
-  institution: string;
-  fieldOfStudy?: string;
-  period: string;
-  location?: string;
-  grade?: string;
-  description?: string;
-}
-
-export interface ExperienceItem {
-  id: string;
-  role: string;
-  company: string;
-  location?: string;
-  period: string;
-  isCurrent?: boolean;
-  details: string;
-}
-
-export interface SkillItem {
-  id: string;
-  name: string;
-  category: "Frontend" | "Backend" | "Design" | "DevOps & Tools" | "Soft Skills";
-  level: "Beginner" | "Intermediate" | "Advanced" | "Expert";
-  yearsOfExperience?: string;
+function compactDate(value?: string | null) {
+  return value ? value.slice(0, 10) : "";
 }
 
 export default function SettingsClient({ user }: SettingsClientProps) {
-  const [activeTab, setActiveTab] = useState<
-    "profile" | "certificates" | "education" | "experience" | "skills"
-  >("profile");
+  const initialName = splitName(user.name);
+  const [activeTab, setActiveTab] = useState<TabId>("profile");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
-  const [notification, setNotification] = useState("");
-  const [errorNotice, setErrorNotice] = useState("");
-
-  // 1. Profile State
   const [profileForm, setProfileForm] = useState({
-    firstName: user.name?.split(" ")[0] || "Jane",
-    lastName: user.name?.split(" ").slice(1).join(" ") || "Doe",
-    email: user.email || "jane@mail.com",
-    phone: user.number || "+1 555-0192",
-    address: "New York, USA",
-    jobTitle: "Product Designer",
-    summary:
-      "Creative product designer crafting intuitive user interfaces and modern web applications with focus on usability and design systems.",
+    first_name: initialName.firstName,
+    last_name: initialName.lastName,
+    email: user.email,
+    phone: user.number || "",
+    address: "",
+    avatar_url: "",
   });
-  const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
+  const [education, setEducation] = useState<Education[]>([]);
+  const [experience, setExperience] = useState<Experience[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
-  // 2. Certificates State
-  const [certificates, setCertificates] = useState<CertificateItem[]>([
-    {
-      id: "cert-1",
-      title: "AWS Certified Solutions Architect",
-      issuer: "Amazon Web Services",
-      category: "Cloud",
-      issueDate: "2024-01-15",
-      credentialUrl: "https://aws.amazon.com/verification",
-    },
-    {
-      id: "cert-2",
-      title: "Google Professional UX Designer",
-      issuer: "Google Coursera",
-      category: "Design",
-      issueDate: "2023-11-20",
-    },
-  ]);
-  const [newCert, setNewCert] = useState<Partial<CertificateItem>>({
-    title: "",
-    issuer: "",
-    category: "Cloud",
-    issueDate: "",
-    credentialUrl: "",
-  });
+  const [socialForm, setSocialForm] = useState({ platform_name: "", profile_url: "" });
+  const [educationForm, setEducationForm] = useState({ institute_name: "", degree: "", field_of_study: "", start_date: "", end_date: "", description: "", grade: "" });
+  const [experienceForm, setExperienceForm] = useState({ company_name: "", job_title: "", location: "", start_date: "", end_date: "", description: "" });
+  const [skillForm, setSkillForm] = useState({ name: "", category: "", level: "" });
+  const [certificateForm, setCertificateForm] = useState({ title: "", category: "", field: "", file_url: "", issue_date: "", expiration_date: "" });
+  const [certificateFile, setCertificateFile] = useState<File | null>(null);
+  const [projectForm, setProjectForm] = useState({ name: "", description: "", link: "", github_url: "", technologies: "" });
 
-  // 3. Education State
-  const [educationList, setEducationList] = useState<EducationItem[]>([
-    {
-      id: "edu-1",
-      degree: "B.A. Graphic & Digital Design",
-      institution: "New York Design Academy",
-      fieldOfStudy: "Design Systems",
-      period: "2017 - 2021",
-      location: "New York, NY",
-      grade: "3.9 GPA",
-      description: "Specialized in interaction design, typography, and web technology.",
-    },
-  ]);
-  const [newEdu, setNewEdu] = useState<Partial<EducationItem>>({
-    degree: "",
-    institution: "",
-    period: "",
-    location: "",
-    grade: "",
-    description: "",
-  });
+  const notify = (message: string) => {
+    setNotice(message);
+    setTimeout(() => setNotice(""), 3000);
+  };
 
-  // 4. Experience State
-  const [experienceList, setExperienceList] = useState<ExperienceItem[]>([
-    {
-      id: "exp-1",
-      role: "Senior Product Designer",
-      company: "Design Studio Inc.",
-      location: "San Francisco, CA",
-      period: "2023 - Present",
-      isCurrent: true,
-      details: "Leading UI component design systems and cross-platform product design workflows.",
-    },
-    {
-      id: "exp-2",
-      role: "UI Engineer",
-      company: "Creative Cloud Labs",
-      location: "New York, NY",
-      period: "2021 - 2023",
-      isCurrent: false,
-      details: "Created responsive interfaces and design tokens used by over 500k active users.",
-    },
-  ]);
-  const [newExp, setNewExp] = useState<Partial<ExperienceItem>>({
-    role: "",
-    company: "",
-    location: "",
-    period: "",
-    details: "",
-  });
+  const loadProfileData = async () => {
+    setLoading(true);
+    setError("");
+    const listErrors: string[] = [];
 
-  // 5. Skills State
-  const [skillsList, setSkillsList] = useState<SkillItem[]>([
-    { id: "sk-1", name: "UI/UX Design", category: "Design", level: "Expert", yearsOfExperience: "5 yrs" },
-    { id: "sk-2", name: "Figma", category: "Design", level: "Expert", yearsOfExperience: "5 yrs" },
-    { id: "sk-3", name: "React.js", category: "Frontend", level: "Advanced", yearsOfExperience: "3 yrs" },
-    { id: "sk-4", name: "TypeScript", category: "Frontend", level: "Advanced", yearsOfExperience: "3 yrs" },
-    { id: "sk-5", name: "Tailwind CSS", category: "Frontend", level: "Expert", yearsOfExperience: "4 yrs" },
-  ]);
-  const [newSkill, setNewSkill] = useState<Partial<SkillItem>>({
-    name: "",
-    category: "Frontend",
-    level: "Intermediate",
-    yearsOfExperience: "2 yrs",
-  });
+    const profile = await profileApi.getProfile().catch((err) => {
+      listErrors.push(err instanceof Error ? err.message : "Unable to load personal profile.");
+      return null;
+    });
 
-  // Load saved data from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedAvatar = localStorage.getItem("user_avatar");
-      if (savedAvatar) setAvatarUrl(savedAvatar);
-
-      const savedCerts = localStorage.getItem("settings_certificates");
-      if (savedCerts) setCertificates(JSON.parse(savedCerts));
-
-      const savedEdu = localStorage.getItem("settings_education");
-      if (savedEdu) setEducationList(JSON.parse(savedEdu));
-
-      const savedExp = localStorage.getItem("settings_experience");
-      if (savedExp) setExperienceList(JSON.parse(savedExp));
-
-      const savedSkills = localStorage.getItem("settings_skills");
-      if (savedSkills) setSkillsList(JSON.parse(savedSkills));
+    if (profile) {
+      setProfileForm({
+        first_name: profile.personal.first_name || profile.personal.name || "",
+        last_name: profile.personal.last_name || "",
+        email: profile.personal.email || user.email,
+        phone: profile.personal.phone || user.number || "",
+        address: profile.personal.address || "",
+        avatar_url: profile.personal.avatar_url || "",
+      });
+      setAvatarUrl(profile.personal.avatar_url || "");
     }
+
+    const [social, edu, exp, skillItems, certItems, projectItems] = await Promise.allSettled([
+      listSocialLinks(),
+      listEducations(),
+      listExperiences(),
+      listSkills(),
+      profileApi.listCertificates(),
+      listProjects(),
+    ]);
+
+    if (social.status === "fulfilled") setSocialLinks(social.value);
+    if (edu.status === "fulfilled") setEducation(edu.value);
+    if (exp.status === "fulfilled") setExperience(exp.value);
+    if (skillItems.status === "fulfilled") setSkills(skillItems.value);
+    if (certItems.status === "fulfilled") setCertificates(certItems.value);
+    if (projectItems.status === "fulfilled") setProjects(projectItems.value);
+
+    for (const result of [social, edu, exp, skillItems, certItems, projectItems]) {
+      if (result.status === "rejected") {
+        listErrors.push(result.reason instanceof Error ? result.reason.message : "Unable to load a profile list.");
+      }
+    }
+
+    const meaningfulErrors = listErrors.filter((message) => !message.toLowerCase().includes("personal profile"));
+    setError(meaningfulErrors[0] || "");
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadProfileData();
   }, []);
 
-  const notify = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(""), 3500);
-  };
-
-  // Profile Save
-  const handleProfileSave = (e: FormEvent) => {
-    e.preventDefault();
-    if (typeof window !== "undefined") {
-      localStorage.setItem("user_profile_data", JSON.stringify(profileForm));
+  const saveProfile = async (event: FormEvent) => {
+    event.preventDefault();
+    try {
+      await profileApi.upsertPersonal(profileForm);
+      notify("Profile saved.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save profile.");
     }
-    notify("Profile settings updated successfully!");
   };
 
-  const handleAvatarUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const uploadAvatar = async (file: File | undefined) => {
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const url = reader.result as string;
-      setAvatarUrl(url);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("user_avatar", url);
-      }
-      notify("Avatar photo updated!");
-    };
-    reader.readAsDataURL(file);
+    setUploadingAvatar(true);
+    setError("");
+    try {
+      const uploaded = await profileApi.uploadAvatar(file);
+      setAvatarUrl(uploaded.url);
+      setProfileForm((current) => ({ ...current, avatar_url: uploaded.url }));
+      notify("Avatar uploaded.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save your profile first, then upload the avatar.");
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
-  // Certificate Actions
-  const addCertificate = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newCert.title || !newCert.issuer) return;
-
-    const item: CertificateItem = {
-      id: `cert-${Date.now()}`,
-      title: newCert.title,
-      issuer: newCert.issuer,
-      category: newCert.category || "General",
-      issueDate: newCert.issueDate || new Date().toISOString().slice(0, 10),
-      credentialUrl: newCert.credentialUrl,
-    };
-
-    const updated = [item, ...certificates];
-    setCertificates(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("settings_certificates", JSON.stringify(updated));
-    }
-    setNewCert({ title: "", issuer: "", category: "Cloud", issueDate: "", credentialUrl: "" });
-    notify("Certificate added successfully!");
+  const addSocial = async (event: FormEvent) => {
+    event.preventDefault();
+    const created = await createSocialLink(socialForm);
+    setSocialLinks((current) => [created, ...current]);
+    setSocialForm({ platform_name: "", profile_url: "" });
+    notify("Social link added.");
   };
 
-  const deleteCertificate = (id: string) => {
-    const updated = certificates.filter((c) => c.id !== id);
-    setCertificates(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("settings_certificates", JSON.stringify(updated));
-    }
-    notify("Certificate removed!");
+  const addEducation = async (event: FormEvent) => {
+    event.preventDefault();
+    const created = await createEducation({ ...educationForm, end_date: educationForm.end_date || null });
+    setEducation((current) => [created, ...current]);
+    setEducationForm({ institute_name: "", degree: "", field_of_study: "", start_date: "", end_date: "", description: "", grade: "" });
+    notify("Education added.");
   };
 
-  // Education Actions
-  const addEducation = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newEdu.degree || !newEdu.institution) return;
-
-    const item: EducationItem = {
-      id: `edu-${Date.now()}`,
-      degree: newEdu.degree,
-      institution: newEdu.institution,
-      period: newEdu.period || "2020 - 2024",
-      location: newEdu.location,
-      grade: newEdu.grade,
-      description: newEdu.description,
-    };
-
-    const updated = [item, ...educationList];
-    setEducationList(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("settings_education", JSON.stringify(updated));
-    }
-    setNewEdu({ degree: "", institution: "", period: "", location: "", grade: "", description: "" });
-    notify("Education entry added!");
+  const addExperience = async (event: FormEvent) => {
+    event.preventDefault();
+    const created = await createExperience({
+      ...experienceForm,
+      institute_name: experienceForm.company_name,
+      end_date: experienceForm.end_date || null,
+    });
+    setExperience((current) => [created, ...current]);
+    setExperienceForm({ company_name: "", job_title: "", location: "", start_date: "", end_date: "", description: "" });
+    notify("Experience added.");
   };
 
-  const deleteEducation = (id: string) => {
-    const updated = educationList.filter((e) => e.id !== id);
-    setEducationList(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("settings_education", JSON.stringify(updated));
-    }
-    notify("Education entry removed!");
+  const addSkill = async (event: FormEvent) => {
+    event.preventDefault();
+    const created = await createSkill(skillForm);
+    setSkills((current) => [created, ...current]);
+    setSkillForm({ name: "", category: "", level: "" });
+    notify("Skill added.");
   };
 
-  // Experience Actions
-  const addExperience = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newExp.role || !newExp.company) return;
-
-    const item: ExperienceItem = {
-      id: `exp-${Date.now()}`,
-      role: newExp.role,
-      company: newExp.company,
-      location: newExp.location,
-      period: newExp.period || "2024 - Present",
-      details: newExp.details || "Responsibilities & key accomplishments...",
-    };
-
-    const updated = [item, ...experienceList];
-    setExperienceList(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("settings_experience", JSON.stringify(updated));
-    }
-    setNewExp({ role: "", company: "", location: "", period: "", details: "" });
-    notify("Work experience added!");
+  const addCertificate = async (event: FormEvent) => {
+    event.preventDefault();
+    const title = certificateForm.title || certificateFile?.name || "";
+    if (!title) return;
+    const created = certificateFile
+      ? await profileApi.uploadDocument(certificateFile).then((uploaded) => ({
+          id: uploaded.id,
+          title,
+          category: certificateForm.category || "Certificate",
+          field: certificateForm.field || null,
+          file_url: uploaded.url,
+          file_name: uploaded.name,
+        }))
+      : await profileApi.addCertificate({
+          name: title,
+          issuing_organization: certificateForm.category || undefined,
+          credential_id: certificateForm.field || undefined,
+          credential_url: certificateForm.file_url || undefined,
+          issue_date: certificateForm.issue_date || undefined,
+          expiration_date: certificateForm.expiration_date || undefined,
+        });
+    setCertificates((current) => [created, ...current]);
+    setCertificateForm({ title: "", category: "", field: "", file_url: "", issue_date: "", expiration_date: "" });
+    setCertificateFile(null);
+    notify("Certificate added.");
   };
 
-  const deleteExperience = (id: string) => {
-    const updated = experienceList.filter((e) => e.id !== id);
-    setExperienceList(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("settings_experience", JSON.stringify(updated));
-    }
-    notify("Experience entry removed!");
+  const addProject = async (event: FormEvent) => {
+    event.preventDefault();
+    const created = await createProject({
+      name: projectForm.name,
+      description: projectForm.description || null,
+      link: projectForm.link || null,
+      github_url: projectForm.github_url || null,
+      technologies: projectForm.technologies ? projectForm.technologies.split(",").map((item) => item.trim()).filter(Boolean) : null,
+    });
+    setProjects((current) => [created, ...current]);
+    setProjectForm({ name: "", description: "", link: "", github_url: "", technologies: "" });
+    notify("Project added.");
   };
 
-  // Skills Actions
-  const addSkill = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newSkill.name) return;
-
-    const item: SkillItem = {
-      id: `sk-${Date.now()}`,
-      name: newSkill.name,
-      category: newSkill.category || "Frontend",
-      level: newSkill.level || "Intermediate",
-      yearsOfExperience: newSkill.yearsOfExperience || "1 yr",
-    };
-
-    const updated = [...skillsList, item];
-    setSkillsList(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("settings_skills", JSON.stringify(updated));
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === "social") {
+      await deleteSocialLink(deleteTarget.id);
+      setSocialLinks((current) => current.filter((item) => item.id !== deleteTarget.id));
     }
-    setNewSkill({ name: "", category: "Frontend", level: "Intermediate", yearsOfExperience: "2 yrs" });
-    notify("Skill added to profile!");
-  };
-
-  const deleteSkill = (id: string) => {
-    const updated = skillsList.filter((s) => s.id !== id);
-    setSkillsList(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("settings_skills", JSON.stringify(updated));
+    if (deleteTarget.type === "education") {
+      await deleteEducation(deleteTarget.id);
+      setEducation((current) => current.filter((item) => item.id !== deleteTarget.id));
     }
-    notify("Skill removed!");
+    if (deleteTarget.type === "experience") {
+      await deleteExperience(deleteTarget.id);
+      setExperience((current) => current.filter((item) => item.id !== deleteTarget.id));
+    }
+    if (deleteTarget.type === "skill") {
+      await deleteSkill(deleteTarget.id);
+      setSkills((current) => current.filter((item) => item.id !== deleteTarget.id));
+    }
+    if (deleteTarget.type === "certificates") {
+      await profileApi.deleteCertificate(deleteTarget.id);
+      setCertificates((current) => current.filter((item) => item.id !== deleteTarget.id));
+    }
+    if (deleteTarget.type === "projects") {
+      await deleteProject(deleteTarget.id);
+      setProjects((current) => current.filter((item) => item.id !== deleteTarget.id));
+    }
+    setDeleteTarget(null);
+    notify("Item deleted.");
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* 1. Settings Header Banner */}
-      <div className="bg-[var(--surface)] p-6 md:p-8 rounded-2xl border border-[var(--border)] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center space-x-4">
-          <div className="relative group">
-            <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-[var(--primary)] bg-[var(--primary-tint)] text-[var(--primary)] flex items-center justify-center text-xl font-extrabold shadow-xs">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <span>{(profileForm.firstName[0] || "U").toUpperCase()}</span>
-              )}
-            </div>
-            <label className="absolute bottom-0 right-0 bg-[var(--primary)] text-[var(--on-primary)] p-1.5 rounded-full cursor-pointer shadow-md hover:bg-[var(--primary-hover)] transition">
-              <Camera className="w-3.5 h-3.5" />
-              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
-            </label>
-          </div>
-
-          <div>
-            <h1 className="text-2xl font-extrabold text-[var(--text)] tracking-tight">
-              {profileForm.firstName} {profileForm.lastName}
-            </h1>
-            <p className="text-[var(--text-muted)] text-xs mt-0.5">
-              {profileForm.jobTitle} • {profileForm.email}
-            </p>
-          </div>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="flex flex-col gap-4 border-b border-[var(--border)] pb-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-extrabold text-[var(--text)]">Profile Data</h1>
+          <p className="text-sm text-[var(--text-muted)]">Manage the data used by resume templates and recommendations.</p>
         </div>
-
-        {/* 2. Organized Sub-Sections / Tabs Navigation Bar */}
-        <div className="flex flex-wrap gap-1.5 border-t md:border-t-0 border-[var(--border)] pt-4 md:pt-0">
-          {[
-            { id: "profile", label: "Profile", icon: UserIcon },
-            { id: "certificates", label: "Certificates", icon: Award },
-            { id: "education", label: "Education", icon: GraduationCap },
-            { id: "experience", label: "Experience", icon: Briefcase },
-            { id: "skills", label: "Skills Details", icon: Wrench },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
-                  isActive
-                    ? "bg-[var(--primary)] text-[var(--on-primary)] shadow-xs"
-                    : "bg-[var(--bg)] text-[var(--text-muted)] hover:bg-[var(--primary-tint)] hover:text-[var(--primary)] border border-[var(--border)]"
-                }`}
-              >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <button type="button" onClick={loadProfileData} className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold">
+          Refresh
+        </button>
       </div>
 
-      {/* Notifications */}
-      {notification && (
-        <div className="bg-[var(--primary-tint)] border-l-4 border-[var(--primary)] p-4 rounded-xl flex items-center space-x-2 text-[var(--primary)] text-xs font-semibold">
-          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-          <span>{notification}</span>
-        </div>
-      )}
-
-      {/* SUB-SECTION 1: Profile Page */}
-      {activeTab === "profile" && (
-        <form onSubmit={handleProfileSave} className="bg-[var(--surface)] rounded-2xl p-6 md:p-8 border border-[var(--border)] shadow-xs space-y-6">
-          <div className="border-b border-[var(--border)] pb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-[var(--text)]">Personal & Contact Profile</h2>
-              <p className="text-[var(--text-muted)] text-xs mt-0.5">
-                Update your global profile information. Changes here automatically reflect across all resumes.
-              </p>
-            </div>
-            <Sparkles className="w-5 h-5 text-[var(--primary)]" />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div>
-              <label className="text-[var(--text-muted)] font-semibold block mb-1">First Name</label>
-              <input
-                type="text"
-                value={profileForm.firstName}
-                onChange={(e) => setProfileForm({ ...profileForm, firstName: e.target.value })}
-                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-              />
-            </div>
-
-            <div>
-              <label className="text-[var(--text-muted)] font-semibold block mb-1">Last Name</label>
-              <input
-                type="text"
-                value={profileForm.lastName}
-                onChange={(e) => setProfileForm({ ...profileForm, lastName: e.target.value })}
-                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-              />
-            </div>
-
-            <div>
-              <label className="text-[var(--text-muted)] font-semibold block mb-1">Email Address</label>
-              <input
-                type="email"
-                value={profileForm.email}
-                onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-              />
-            </div>
-
-            <div>
-              <label className="text-[var(--text-muted)] font-semibold block mb-1">Phone Number</label>
-              <input
-                type="text"
-                value={profileForm.phone}
-                onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-              />
-            </div>
-
-            <div>
-              <label className="text-[var(--text-muted)] font-semibold block mb-1">Job Title / Headline</label>
-              <input
-                type="text"
-                value={profileForm.jobTitle}
-                onChange={(e) => setProfileForm({ ...profileForm, jobTitle: e.target.value })}
-                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-              />
-            </div>
-
-            <div>
-              <label className="text-[var(--text-muted)] font-semibold block mb-1">Location / Address</label>
-              <input
-                type="text"
-                value={profileForm.address}
-                onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
-                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="text-[var(--text-muted)] font-semibold block mb-1">Professional Summary</label>
-              <textarea
-                rows={4}
-                value={profileForm.summary}
-                onChange={(e) => setProfileForm({ ...profileForm, summary: e.target.value })}
-                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)] resize-none"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-4 border-t border-[var(--border)]">
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
             <button
-              type="submit"
-              className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-primary)] text-xs font-bold px-6 py-2.5 rounded-xl shadow-xs transition"
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-bold ${
+                activeTab === tab.id ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--on-primary)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)]"
+              }`}
             >
-              Save Profile Settings
+              <Icon className="h-4 w-4" />
+              {tab.label}
             </button>
+          );
+        })}
+      </div>
+
+      {notice && <div className="rounded-md bg-[var(--primary-tint)] px-4 py-3 text-sm font-semibold text-[var(--primary)]"><CheckCircle2 className="mr-2 inline h-4 w-4" />{notice}</div>}
+      {error && <div className="rounded-md bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div>}
+      {loading && <div className="text-sm text-[var(--text-muted)]">Loading profile data...</div>}
+
+      {activeTab === "profile" && (
+        <form onSubmit={saveProfile} className="space-y-4">
+          <div className="flex flex-col gap-4 rounded-md border border-[var(--border)] bg-[var(--surface)] p-4 sm:flex-row sm:items-center">
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg)]">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profile avatar" className="h-full w-full object-cover" />
+              ) : (
+                <Camera className="h-7 w-7 text-[var(--text-muted)]" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-sm font-bold text-[var(--text)]">Avatar</h2>
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-bold text-[var(--on-primary)]">
+                <Upload className="h-4 w-4" />
+                {uploadingAvatar ? "Uploading..." : "Upload image"}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  disabled={uploadingAvatar}
+                  onChange={(event) => uploadAvatar(event.target.files?.[0])}
+                />
+              </label>
+              <p className="text-xs text-[var(--text-muted)]">Save your profile once before uploading an avatar.</p>
+            </div>
           </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Field label="First name" value={profileForm.first_name} onChange={(value) => setProfileForm({ ...profileForm, first_name: value })} />
+            <Field label="Last name" value={profileForm.last_name} onChange={(value) => setProfileForm({ ...profileForm, last_name: value })} />
+            <Field label="Email" type="email" value={profileForm.email} onChange={(value) => setProfileForm({ ...profileForm, email: value })} />
+            <Field label="Phone" value={profileForm.phone} onChange={(value) => setProfileForm({ ...profileForm, phone: value })} />
+            <Field label="Address" value={profileForm.address} onChange={(value) => setProfileForm({ ...profileForm, address: value })} />
+          </div>
+          <Button type="submit">Save Profile</Button>
         </form>
       )}
 
-      {/* SUB-SECTION 2: Certificates Page */}
-      {activeTab === "certificates" && (
-        <div className="space-y-6">
-          {/* Add Certificate Form */}
-          <form onSubmit={addCertificate} className="bg-[var(--surface)] rounded-2xl p-6 md:p-8 border border-[var(--border)] shadow-xs space-y-4">
-            <div className="border-b border-[var(--border)] pb-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-[var(--text)]">Add Professional Certificate</h2>
-                <p className="text-[var(--text-muted)] text-xs mt-0.5">Include credentials, licenses, and course certifications.</p>
-              </div>
-              <Award className="w-5 h-5 text-[var(--primary)]" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Certificate Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g. AWS Solutions Architect"
-                  value={newCert.title}
-                  onChange={(e) => setNewCert({ ...newCert, title: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Issuing Organization</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Amazon Web Services"
-                  value={newCert.issuer}
-                  onChange={(e) => setNewCert({ ...newCert, issuer: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Category</label>
-                <select
-                  value={newCert.category}
-                  onChange={(e) => setNewCert({ ...newCert, category: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                >
-                  <option value="Cloud">Cloud & Infrastructure</option>
-                  <option value="Design">UI/UX & Graphic Design</option>
-                  <option value="Development">Software Development</option>
-                  <option value="Security">Cybersecurity</option>
-                  <option value="Management">Project Management</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Issue Date</label>
-                <input
-                  type="date"
-                  value={newCert.issueDate}
-                  onChange={(e) => setNewCert({ ...newCert, issueDate: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Verification URL / Credential Link</label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={newCert.credentialUrl}
-                  onChange={(e) => setNewCert({ ...newCert, credentialUrl: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-primary)] text-xs font-bold px-5 py-2.5 rounded-xl flex items-center space-x-1.5 shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Certificate</span>
-              </button>
-            </div>
-          </form>
-
-          {/* Certificates List */}
-          <div className="bg-[var(--surface)] rounded-2xl p-6 md:p-8 border border-[var(--border)] shadow-xs space-y-4">
-            <h3 className="font-bold text-base text-[var(--text)]">Your Certificates ({certificates.length})</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {certificates.map((cert) => (
-                <div key={cert.id} className="p-4 bg-[var(--bg)] border border-[var(--border)] rounded-xl flex justify-between items-start space-x-3">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary)] bg-[var(--primary-tint)] px-2 py-0.5 rounded-md">
-                      {cert.category}
-                    </span>
-                    <h4 className="font-bold text-sm text-[var(--text)] mt-1">{cert.title}</h4>
-                    <p className="text-xs text-[var(--text-muted)]">{cert.issuer} • Issued {cert.issueDate}</p>
-                    {cert.credentialUrl && (
-                      <a
-                        href={cert.credentialUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[11px] font-semibold text-[var(--primary)] inline-flex items-center space-x-1 hover:underline pt-1"
-                      >
-                        <span>Verify Credential</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => deleteCertificate(cert.id)}
-                    className="p-1.5 text-[var(--text-muted)] hover:text-rose-600 rounded-lg transition"
-                    title="Delete certificate"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+      {activeTab === "social" && (
+        <Section form={<form onSubmit={addSocial} className="grid grid-cols-1 gap-3 md:grid-cols-3"><Field label="Platform" value={socialForm.platform_name} onChange={(value) => setSocialForm({ ...socialForm, platform_name: value })} /><Field label="URL" value={socialForm.profile_url} onChange={(value) => setSocialForm({ ...socialForm, profile_url: value })} /><SubmitButton label="Add Link" /></form>}>
+          {socialLinks.map((item) => <Row key={item.id} title={item.platform_name} meta={item.profile_url} onDelete={() => setDeleteTarget({ type: "social", id: item.id, label: item.platform_name })} />)}
+        </Section>
       )}
 
-      {/* SUB-SECTION 3: Education Page */}
       {activeTab === "education" && (
-        <div className="space-y-6">
-          {/* Add Education Form */}
-          <form onSubmit={addEducation} className="bg-[var(--surface)] rounded-2xl p-6 md:p-8 border border-[var(--border)] shadow-xs space-y-4">
-            <div className="border-b border-[var(--border)] pb-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-[var(--text)]">Add Education Entry</h2>
-                <p className="text-[var(--text-muted)] text-xs mt-0.5">Degrees, diplomas, university qualifications.</p>
-              </div>
-              <GraduationCap className="w-5 h-5 text-[var(--primary)]" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Degree / Qualification</label>
-                <input
-                  type="text"
-                  placeholder="e.g. B.S. Computer Science"
-                  value={newEdu.degree}
-                  onChange={(e) => setNewEdu({ ...newEdu, degree: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Institution / University</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Stanford University"
-                  value={newEdu.institution}
-                  onChange={(e) => setNewEdu({ ...newEdu, institution: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Dates / Period</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 2019 - 2023"
-                  value={newEdu.period}
-                  onChange={(e) => setNewEdu({ ...newEdu, period: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">GPA / Grade / Honors</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 3.8 GPA (Honors)"
-                  value={newEdu.grade}
-                  onChange={(e) => setNewEdu({ ...newEdu, grade: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Description / Key Accomplishments</label>
-                <textarea
-                  rows={3}
-                  placeholder="Major coursework, thesis, academic honors..."
-                  value={newEdu.description}
-                  onChange={(e) => setNewEdu({ ...newEdu, description: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)] resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-primary)] text-xs font-bold px-5 py-2.5 rounded-xl flex items-center space-x-1.5 shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Education</span>
-              </button>
-            </div>
-          </form>
-
-          {/* Education List */}
-          <div className="bg-[var(--surface)] rounded-2xl p-6 md:p-8 border border-[var(--border)] shadow-xs space-y-4">
-            <h3 className="font-bold text-base text-[var(--text)]">Education History ({educationList.length})</h3>
-
-            <div className="space-y-3">
-              {educationList.map((edu) => (
-                <div key={edu.id} className="p-4 bg-[var(--bg)] border border-[var(--border)] rounded-xl flex justify-between items-start">
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <h4 className="font-bold text-sm text-[var(--text)]">{edu.degree}</h4>
-                      {edu.grade && (
-                        <span className="text-[10px] bg-[var(--primary-tint)] text-[var(--primary)] px-2 py-0.5 rounded-md font-bold">
-                          {edu.grade}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-[var(--text-muted)]">{edu.institution} • {edu.period}</p>
-                    {edu.description && <p className="text-xs text-[var(--text)] pt-1">{edu.description}</p>}
-                  </div>
-
-                  <button
-                    onClick={() => deleteEducation(edu.id)}
-                    className="p-1.5 text-[var(--text-muted)] hover:text-rose-600 rounded-lg transition"
-                    title="Delete education"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <Section form={<form onSubmit={addEducation} className="grid grid-cols-1 gap-3 md:grid-cols-3"><Field label="Institution" value={educationForm.institute_name} onChange={(value) => setEducationForm({ ...educationForm, institute_name: value })} /><Field label="Degree" value={educationForm.degree} onChange={(value) => setEducationForm({ ...educationForm, degree: value })} /><Field label="Field" value={educationForm.field_of_study} onChange={(value) => setEducationForm({ ...educationForm, field_of_study: value })} /><Field label="Start" type="date" value={educationForm.start_date} onChange={(value) => setEducationForm({ ...educationForm, start_date: value })} /><Field label="End" type="date" value={educationForm.end_date} onChange={(value) => setEducationForm({ ...educationForm, end_date: value })} /><Field label="Grade" value={educationForm.grade} onChange={(value) => setEducationForm({ ...educationForm, grade: value })} /><SubmitButton label="Add Education" /></form>}>
+          {education.map((item) => <Row key={item.id} title={item.institute_name} meta={`${item.degree || item.field_of_study || "Education"} · ${compactDate(item.start_date)} ${item.end_date ? `- ${compactDate(item.end_date)}` : ""}`} onDelete={() => setDeleteTarget({ type: "education", id: item.id, label: item.institute_name })} />)}
+        </Section>
       )}
 
-      {/* SUB-SECTION 4: Experience Page */}
       {activeTab === "experience" && (
-        <div className="space-y-6">
-          {/* Add Experience Form */}
-          <form onSubmit={addExperience} className="bg-[var(--surface)] rounded-2xl p-6 md:p-8 border border-[var(--border)] shadow-xs space-y-4">
-            <div className="border-b border-[var(--border)] pb-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-[var(--text)]">Add Work Experience</h2>
-                <p className="text-[var(--text-muted)] text-xs mt-0.5">Professional employment history and role responsibilities.</p>
-              </div>
-              <Briefcase className="w-5 h-5 text-[var(--primary)]" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Job Title / Role</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Senior Software Engineer"
-                  value={newExp.role}
-                  onChange={(e) => setNewExp({ ...newExp, role: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Company Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Google / Tech Corp"
-                  value={newExp.company}
-                  onChange={(e) => setNewExp({ ...newExp, company: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Location</label>
-                <input
-                  type="text"
-                  placeholder="e.g. San Francisco, CA (Hybrid)"
-                  value={newExp.location}
-                  onChange={(e) => setNewExp({ ...newExp, location: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Employment Period</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 2022 - Present"
-                  value={newExp.period}
-                  onChange={(e) => setNewExp({ ...newExp, period: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Key Responsibilities & Impact</label>
-                <textarea
-                  rows={3}
-                  placeholder="Describe your accomplishments, technologies used, and team impact..."
-                  value={newExp.details}
-                  onChange={(e) => setNewExp({ ...newExp, details: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)] resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-primary)] text-xs font-bold px-5 py-2.5 rounded-xl flex items-center space-x-1.5 shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Experience</span>
-              </button>
-            </div>
-          </form>
-
-          {/* Experience List */}
-          <div className="bg-[var(--surface)] rounded-2xl p-6 md:p-8 border border-[var(--border)] shadow-xs space-y-4">
-            <h3 className="font-bold text-base text-[var(--text)]">Work History ({experienceList.length})</h3>
-
-            <div className="space-y-4">
-              {experienceList.map((exp) => (
-                <div key={exp.id} className="p-4 bg-[var(--bg)] border border-[var(--border)] rounded-xl flex justify-between items-start">
-                  <div className="space-y-1 max-w-3xl">
-                    <div className="flex items-center space-x-2">
-                      <h4 className="font-bold text-sm text-[var(--text)]">{exp.role}</h4>
-                      <span className="text-[10px] bg-[var(--primary-tint)] text-[var(--primary)] px-2 py-0.5 rounded-md font-bold">
-                        {exp.company}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[var(--text-muted)]">{exp.period} • {exp.location || "Remote"}</p>
-                    <p className="text-xs text-[var(--text)] pt-1 leading-relaxed whitespace-pre-line">{exp.details}</p>
-                  </div>
-
-                  <button
-                    onClick={() => deleteExperience(exp.id)}
-                    className="p-1.5 text-[var(--text-muted)] hover:text-rose-600 rounded-lg transition"
-                    title="Delete experience"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <Section form={<form onSubmit={addExperience} className="grid grid-cols-1 gap-3 md:grid-cols-3"><Field label="Company" value={experienceForm.company_name} onChange={(value) => setExperienceForm({ ...experienceForm, company_name: value })} /><Field label="Job title" value={experienceForm.job_title} onChange={(value) => setExperienceForm({ ...experienceForm, job_title: value })} /><Field label="Location" value={experienceForm.location} onChange={(value) => setExperienceForm({ ...experienceForm, location: value })} /><Field label="Start" type="date" value={experienceForm.start_date} onChange={(value) => setExperienceForm({ ...experienceForm, start_date: value })} /><Field label="End" type="date" value={experienceForm.end_date} onChange={(value) => setExperienceForm({ ...experienceForm, end_date: value })} /><SubmitButton label="Add Experience" /></form>}>
+          {experience.map((item) => <Row key={item.id} title={item.job_title} meta={`${item.company_name || item.institute_name || "Company"} · ${compactDate(item.start_date)} ${item.end_date ? `- ${compactDate(item.end_date)}` : ""}`} onDelete={() => setDeleteTarget({ type: "experience", id: item.id, label: item.job_title })} />)}
+        </Section>
       )}
 
-      {/* SUB-SECTION 5: Skills Details Page */}
       {activeTab === "skills" && (
-        <div className="space-y-6">
-          {/* Add Skill Form */}
-          <form onSubmit={addSkill} className="bg-[var(--surface)] rounded-2xl p-6 md:p-8 border border-[var(--border)] shadow-xs space-y-4">
-            <div className="border-b border-[var(--border)] pb-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-[var(--text)]">Add Professional Skill</h2>
-                <p className="text-[var(--text-muted)] text-xs mt-0.5">Categorize technical skills, tools, and competencies with proficiency levels.</p>
-              </div>
-              <Wrench className="w-5 h-5 text-[var(--primary)]" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-              <div className="md:col-span-2">
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Skill Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. React.js, Python, Figma"
-                  value={newSkill.name}
-                  onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Category</label>
-                <select
-                  value={newSkill.category}
-                  onChange={(e) => setNewSkill({ ...newSkill, category: e.target.value as any })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                >
-                  <option value="Frontend">Frontend Development</option>
-                  <option value="Backend">Backend & Databases</option>
-                  <option value="Design">UI/UX & Design</option>
-                  <option value="DevOps & Tools">DevOps & Tools</option>
-                  <option value="Soft Skills">Soft Skills</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[var(--text-muted)] font-semibold block mb-1">Proficiency Level</label>
-                <select
-                  value={newSkill.level}
-                  onChange={(e) => setNewSkill({ ...newSkill, level: e.target.value as any })}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                >
-                  <option value="Beginner">Beginner</option>
-                  <option value="Intermediate">Intermediate</option>
-                  <option value="Advanced">Advanced</option>
-                  <option value="Expert">Expert</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-primary)] text-xs font-bold px-5 py-2.5 rounded-xl flex items-center space-x-1.5 shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Skill</span>
-              </button>
-            </div>
-          </form>
-
-          {/* Skills Grid */}
-          <div className="bg-[var(--surface)] rounded-2xl p-6 md:p-8 border border-[var(--border)] shadow-xs space-y-4">
-            <h3 className="font-bold text-base text-[var(--text)]">Skill Matrix ({skillsList.length})</h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {skillsList.map((skill) => (
-                <div key={skill.id} className="p-3 bg-[var(--bg)] border border-[var(--border)] rounded-xl flex justify-between items-center">
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--primary)]">
-                      {skill.category}
-                    </span>
-                    <h4 className="font-bold text-xs text-[var(--text)]">{skill.name}</h4>
-                    <span className="text-[10px] font-semibold text-[var(--text-muted)]">
-                      Level: {skill.level}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => deleteSkill(skill.id)}
-                    className="p-1 text-[var(--text-muted)] hover:text-rose-600 rounded-lg transition"
-                    title="Delete skill"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <Section form={<form onSubmit={addSkill} className="grid grid-cols-1 gap-3 md:grid-cols-4"><Field label="Skill" value={skillForm.name} onChange={(value) => setSkillForm({ ...skillForm, name: value })} /><Field label="Category" value={skillForm.category} onChange={(value) => setSkillForm({ ...skillForm, category: value })} /><Field label="Level" value={skillForm.level} onChange={(value) => setSkillForm({ ...skillForm, level: value })} /><SubmitButton label="Add Skill" /></form>}>
+          <div className="flex flex-wrap gap-2">{skills.map((item) => <Row key={item.id} title={item.name} meta={[item.category, item.level].filter(Boolean).join(" · ")} onDelete={() => setDeleteTarget({ type: "skill", id: item.id, label: item.name })} compact />)}</div>
+        </Section>
       )}
+
+      {activeTab === "certificates" && (
+        <Section form={<form onSubmit={addCertificate} className="grid grid-cols-1 gap-3 md:grid-cols-3"><Field label="Name" value={certificateForm.title} onChange={(value) => setCertificateForm({ ...certificateForm, title: value })} /><Field label="Organization" value={certificateForm.category} onChange={(value) => setCertificateForm({ ...certificateForm, category: value })} /><Field label="Credential ID" value={certificateForm.field} onChange={(value) => setCertificateForm({ ...certificateForm, field: value })} /><Field label="Credential URL" value={certificateForm.file_url} onChange={(value) => setCertificateForm({ ...certificateForm, file_url: value })} /><label className="space-y-1 text-xs font-semibold text-[var(--text-muted)]"><span>Upload image or PDF</span><input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(event) => setCertificateFile(event.target.files?.[0] || null)} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]" /></label><SubmitButton label="Add Certificate" /></form>}>
+          {certificates.map((item) => <Row key={item.id} title={item.title} meta={`${item.category || "Certificate"}${item.file_url ? " · uploaded" : ""}`} href={item.file_url || undefined} onDelete={() => setDeleteTarget({ type: "certificates", id: item.id, label: item.title })} />)}
+        </Section>
+      )}
+
+      {activeTab === "projects" && (
+        <Section form={<form onSubmit={addProject} className="grid grid-cols-1 gap-3 md:grid-cols-3"><Field label="Name" value={projectForm.name} onChange={(value) => setProjectForm({ ...projectForm, name: value })} /><Field label="URL" value={projectForm.link} onChange={(value) => setProjectForm({ ...projectForm, link: value })} /><Field label="GitHub" value={projectForm.github_url} onChange={(value) => setProjectForm({ ...projectForm, github_url: value })} /><Field label="Technologies" value={projectForm.technologies} onChange={(value) => setProjectForm({ ...projectForm, technologies: value })} /><Field label="Description" value={projectForm.description} onChange={(value) => setProjectForm({ ...projectForm, description: value })} /><SubmitButton label="Add Project" /></form>}>
+          {projects.map((item) => <Row key={item.id} title={item.name} meta={item.description || item.link || ""} href={item.link || undefined} onDelete={() => setDeleteTarget({ type: "projects", id: item.id, label: item.name })} />)}
+        </Section>
+      )}
+
+      <ConfirmDialog open={Boolean(deleteTarget)} title={`Delete ${deleteTarget?.label || "item"}`} onClose={() => setDeleteTarget(null)}>
+        <p className="text-sm text-[var(--text-muted)]">This item will be permanently removed from your profile.</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+          <Button type="button" variant="danger" onClick={confirmDelete}>Delete</Button>
+        </div>
+      </ConfirmDialog>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+  return (
+    <label className="space-y-1 text-xs font-semibold text-[var(--text-muted)]">
+      <span>{label}</span>
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--primary)]" />
+    </label>
+  );
+}
+
+function SubmitButton({ label }: { label: string }) {
+  return <div className="flex items-end"><Button type="submit" className="w-full"><Plus className="mr-1 inline h-4 w-4" />{label}</Button></div>;
+}
+
+function Section({ form, children }: { form: ReactNode; children: ReactNode }) {
+  return <div className="space-y-5"><div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">{form}</div><div className="space-y-3">{children}</div></div>;
+}
+
+function Row({ title, meta, onDelete, compact, href }: { title: string; meta?: string; onDelete: () => void; compact?: boolean; href?: string }) {
+  return (
+    <div className={`flex items-start justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface)] ${compact ? "px-3 py-2" : "p-4"}`}>
+      <div className="min-w-0">
+        <h3 className="truncate text-sm font-bold text-[var(--text)]">{title}</h3>
+        {meta && <p className="mt-1 text-xs text-[var(--text-muted)]">{meta}</p>}
+        {href && <a href={href} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--primary)]">Open file <ExternalLink className="h-3 w-3" /></a>}
+      </div>
+      <button type="button" onClick={onDelete} className="rounded-md p-2 text-[var(--text-muted)] hover:text-rose-600" title="Delete"><Trash2 className="h-4 w-4" /></button>
     </div>
   );
 }

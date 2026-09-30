@@ -263,6 +263,69 @@ def test_profile_supports_multiple_optional_sections(client):
     assert len(body["projects"]) == 1
 
 
+def test_profile_section_list_endpoints(client):
+    create_personal(client)
+    client.post(
+        "/api/v1/profile/social-links",
+        json={
+            "platform_name": "GitHub",
+            "profile_url": "https://github.com/johndoe",
+        },
+        headers=auth_headers(),
+    )
+    client.post(
+        "/api/v1/profile/education",
+        json={
+            "institute_name": "University",
+            "field_of_study": "Computer Science",
+            "start_date": "2020-01-01",
+            "end_date": "2024-01-01",
+        },
+        headers=auth_headers(),
+    )
+    client.post(
+        "/api/v1/profile/experience",
+        json={
+            "institute_name": "Acme",
+            "job_title": "Frontend Engineer",
+            "start_date": "2024-02-01",
+            "end_date": None,
+        },
+        headers=auth_headers(),
+    )
+    client.post(
+        "/api/v1/profile/skills",
+        json={"name": "React"},
+        headers=auth_headers(),
+    )
+    client.post(
+        "/api/v1/profile/certificates",
+        json={"title": "AWS Certificate", "category": "Cloud"},
+        headers=auth_headers(),
+    )
+    client.post(
+        "/api/v1/profile/projects",
+        json={"name": "Portfolio", "description": "Personal portfolio"},
+        headers=auth_headers(),
+    )
+
+    endpoints = {
+        "/api/v1/profile/social-links": "platform_name",
+        "/api/v1/profile/education": "institute_name",
+        "/api/v1/profile/experience": "job_title",
+        "/api/v1/profile/skills": "name",
+        "/api/v1/profile/certificates": "title",
+        "/api/v1/profile/projects": "name",
+    }
+
+    for endpoint, expected_key in endpoints.items():
+        response = client.get(endpoint, headers=auth_headers())
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body) == 1
+        assert expected_key in body[0]
+
+
 def test_update_and_delete_skill(client):
     create_personal(client)
     created = client.post(

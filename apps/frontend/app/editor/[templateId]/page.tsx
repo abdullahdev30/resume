@@ -43,6 +43,8 @@ import TemplateSix from "../../../components/templates/TemplateSix";
 import type { ResumeData } from "../../../components/templates/TemplateOne";
 import { Camera, Image as ImageIcon, Upload as UploadIcon } from "lucide-react";
 import { resumeApi } from "../../../modules/resume/api";
+import { profileApi } from "../../../modules/profile/api";
+import type { ProfileResponse } from "../../../modules/profile/types";
 
 const initialResumeData: ResumeData = {
   fullName: "Jane Doe",
@@ -118,6 +120,37 @@ const colorShadesColumns = [
   },
 ];
 
+function profileToResumeData(profile: ProfileResponse): Partial<ResumeData> {
+  const personal = profile.personal;
+  const fullName = [personal.first_name || personal.name, personal.last_name].filter(Boolean).join(" ");
+  return {
+    fullName: fullName || undefined,
+    email: personal.email || undefined,
+    phone: personal.phone || undefined,
+    location: personal.city || personal.address || undefined,
+    avatarUrl: personal.avatar_url || undefined,
+    skills: profile.skills.length ? profile.skills.map((skill) => skill.name) : undefined,
+    experience: profile.experience.length
+      ? profile.experience.map((item) => ({
+          id: item.id,
+          role: item.job_title,
+          company: item.company_name || item.institute_name || "",
+          period: `${item.start_date || ""}${item.end_date ? ` - ${item.end_date}` : item.is_current ? " - Present" : ""}`,
+          details: item.description || "",
+        }))
+      : undefined,
+    education: profile.education.length
+      ? profile.education.map((item) => ({
+          id: item.id,
+          degree: item.degree || item.field_of_study || "",
+          institution: item.institute_name,
+          period: `${item.start_date || ""}${item.end_date ? ` - ${item.end_date}` : ""}`,
+          grade: item.grade || undefined,
+        }))
+      : undefined,
+  };
+}
+
 export default function EditorPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -130,6 +163,7 @@ export default function EditorPage() {
   const [activeTab, setActiveTab] = useState<"personal" | "experience" | "education" | "skills">("personal");
   const [saveNotice, setSaveNotice] = useState<string>("");
   const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
+  const [profileSuggestions, setProfileSuggestions] = useState<ProfileResponse | null>(null);
 
   // SELECTIVE CANVAS EDITING STATE
   const [selectedElementId, setSelectedElementId] = useState<string | null>("fullName");
@@ -185,6 +219,31 @@ export default function EditorPage() {
         setResumeData((prev) => ({ ...prev, avatarUrl: avatar }));
       }
     }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("resumeId")) {
+      return;
+    }
+    profileApi
+      .getProfile()
+      .then((profile) => {
+        setProfileSuggestions(profile);
+        const profileData = profileToResumeData(profile);
+        setResumeData((prev) => ({
+          ...prev,
+          ...profileData,
+          fullName: profileData.fullName || prev.fullName,
+          email: profileData.email || prev.email,
+          phone: profileData.phone || prev.phone,
+          location: profileData.location || prev.location,
+          avatarUrl: profileData.avatarUrl || prev.avatarUrl,
+          skills: profileData.skills?.length ? profileData.skills : prev.skills,
+          experience: profileData.experience?.length ? profileData.experience : prev.experience,
+          education: profileData.education?.length ? profileData.education : prev.education,
+        }));
+      })
+      .catch(() => null);
   }, [searchParams]);
 
   const handleFieldChange = (field: keyof ResumeData, value: any) => {
@@ -294,6 +353,58 @@ export default function EditorPage() {
     setResumeData((prev) => ({
       ...prev,
       skills: prev.skills.filter((_, i) => i !== index),
+    }));
+  };
+
+  const applyProfilePersonal = () => {
+    if (!profileSuggestions) return;
+    const profileData = profileToResumeData(profileSuggestions);
+    setResumeData((prev) => ({
+      ...prev,
+      fullName: profileData.fullName || prev.fullName,
+      email: profileData.email || prev.email,
+      phone: profileData.phone || prev.phone,
+      location: profileData.location || prev.location,
+      avatarUrl: profileData.avatarUrl || prev.avatarUrl,
+    }));
+  };
+
+  const addProfileExperience = (item: ProfileResponse["experience"][number]) => {
+    setResumeData((prev) => ({
+      ...prev,
+      experience: [
+        ...prev.experience,
+        {
+          id: item.id,
+          role: item.job_title,
+          company: item.company_name || item.institute_name || "",
+          period: `${item.start_date || ""}${item.end_date ? ` - ${item.end_date}` : item.is_current ? " - Present" : ""}`,
+          details: item.description || "",
+        },
+      ],
+    }));
+  };
+
+  const addProfileEducation = (item: ProfileResponse["education"][number]) => {
+    setResumeData((prev) => ({
+      ...prev,
+      education: [
+        ...(prev.education || []),
+        {
+          id: item.id,
+          degree: item.degree || item.field_of_study || "",
+          institution: item.institute_name,
+          period: `${item.start_date || ""}${item.end_date ? ` - ${item.end_date}` : ""}`,
+          grade: item.grade || undefined,
+        },
+      ],
+    }));
+  };
+
+  const addProfileSkill = (name: string) => {
+    setResumeData((prev) => ({
+      ...prev,
+      skills: prev.skills.includes(name) ? prev.skills : [...prev.skills, name],
     }));
   };
 
@@ -741,6 +852,63 @@ export default function EditorPage() {
               <span>Skills</span>
             </button>
           </div>
+
+          {profileSuggestions && (
+            <div className="border-b border-[var(--border)] bg-[var(--surface)] p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-xs font-extrabold text-[var(--text)]">Profile suggestions</h3>
+                  <p className="text-[10px] text-[var(--text-muted)]">Select saved profile details to add.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={applyProfilePersonal}
+                  className="rounded-lg bg-[var(--primary)] px-2.5 py-1.5 text-[10px] font-bold text-[var(--on-primary)]"
+                >
+                  Fill personal
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {profileSuggestions.experience.slice(0, 2).map((item) => (
+                  <button
+                    key={`profile-exp-${item.id}`}
+                    type="button"
+                    onClick={() => addProfileExperience(item)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-left text-[11px] hover:border-[var(--primary)]"
+                  >
+                    <span className="block font-bold text-[var(--text)]">{item.job_title}</span>
+                    <span className="text-[var(--text-muted)]">{item.company_name || item.institute_name}</span>
+                  </button>
+                ))}
+                {profileSuggestions.education.slice(0, 2).map((item) => (
+                  <button
+                    key={`profile-edu-${item.id}`}
+                    type="button"
+                    onClick={() => addProfileEducation(item)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-left text-[11px] hover:border-[var(--primary)]"
+                  >
+                    <span className="block font-bold text-[var(--text)]">{item.institute_name}</span>
+                    <span className="text-[var(--text-muted)]">{item.degree || item.field_of_study}</span>
+                  </button>
+                ))}
+                {profileSuggestions.skills.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {profileSuggestions.skills.slice(0, 8).map((skill) => (
+                      <button
+                        key={`profile-skill-${skill.id}`}
+                        type="button"
+                        onClick={() => addProfileSkill(skill.name)}
+                        className="rounded-full bg-[var(--primary-tint)] px-2 py-1 text-[10px] font-bold text-[var(--primary)]"
+                      >
+                        + {skill.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Form Inputs */}
           <div className="flex-1 p-6 overflow-y-auto space-y-5 text-xs">
