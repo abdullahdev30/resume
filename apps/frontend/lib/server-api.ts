@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { isSuccessfulHttpStatus } from "./http-status";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"
@@ -12,8 +13,9 @@ export async function serverApi<T>(endpoint: string): Promise<T> {
     headers: { cookie: cookieStore.toString() },
     cache: "no-store",
   });
-  if (!response.ok) {
+  if (!isSuccessfulHttpStatus(response.status)) {
     throw new Error(`Server API request failed with status ${response.status}`);
   }
-  return response.json() as Promise<T>;
+  const text = await response.text();
+  return (text ? JSON.parse(text) : null) as T;
 }

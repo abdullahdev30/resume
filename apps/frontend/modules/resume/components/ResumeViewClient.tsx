@@ -86,7 +86,6 @@ export function ResumeViewClient({
     try {
       const updated = await resumeApi.update(resume.id, {
         resume_data: proposal.resume_data as ResumeData,
-        template_id: proposal.template_id,
         source_version: resume.source_version,
       });
       setResume(updated);
@@ -104,27 +103,15 @@ export function ResumeViewClient({
   };
 
   const downloadResume = async () => {
-    if (!resume || busyAction) return;
-    const downloadWindow = resume.editable ? null : window.open("", "_blank");
+    if (!resume?.editable || busyAction) return;
     setBusyAction("download");
     setActionError("");
     try {
-      if (resume.editable) {
-        await downloadResumePdf(resume.title);
-        return;
-      }
-      const { download_url: downloadUrl } = await resumeApi.getPdf(resume.id);
-      if (downloadWindow) {
-        downloadWindow.opener = null;
-        downloadWindow.location.href = downloadUrl;
-      } else {
-        window.open(downloadUrl, "_blank", "noopener,noreferrer");
-      }
+      await downloadResumePdf(resume.title);
     } catch {
-      downloadWindow?.close();
-      const message = "We could not prepare this PDF. Please try again.";
+      const message = "We could not open the browser print dialog. Please try again.";
       setActionError(message);
-      toast.error(message, "Download failed");
+      toast.error(message, "Print failed");
     } finally {
       setBusyAction(null);
     }
@@ -148,22 +135,22 @@ export function ResumeViewClient({
                 Edit resume
               </Link>
             )}
-            <div className="flex max-w-80 flex-col items-end gap-1">
-              <Button
-                onClick={() => void downloadResume()}
-                loading={busyAction === "download"}
-                loadingLabel="Preparing..."
-                disabled={Boolean(busyAction)}
-              >
-                <Download size={16} aria-hidden="true" />
-                Download PDF
-              </Button>
-              {resume.editable && (
+            {resume.editable && (
+              <div className="flex max-w-80 flex-col items-end gap-1">
+                <Button
+                  onClick={() => void downloadResume()}
+                  loading={busyAction === "download"}
+                  loadingLabel="Preparing..."
+                  disabled={Boolean(busyAction)}
+                >
+                  <Download size={16} aria-hidden="true" />
+                  Print / Save PDF
+                </Button>
                 <p className="text-right text-[10px] leading-tight text-[var(--text-muted)]">
                   In the print window choose <strong>Save as PDF</strong>, Margins: <strong>None</strong>, enable <strong>Background graphics</strong>.
                 </p>
-              )}
-            </div>
+              </div>
+            )}
           </>
         }
       />
@@ -189,7 +176,7 @@ export function ResumeViewClient({
       ) : (
         <Card padding="lg">
           <p className="text-sm text-[var(--text-muted)]">
-            Preview is unavailable for this uploaded PDF. Use Download PDF to open the stored file.
+            Preview and browser printing are available for editable template and AI resumes. This item is an uploaded legacy PDF.
           </p>
         </Card>
       )}
@@ -261,7 +248,7 @@ export function ResumeViewClient({
               <ResumeDocument
                 data={proposal.resume_data}
                 elementStyles={proposal.resume_data.elementStyles}
-                templateId={proposal.template_id}
+                templateId={resume.template_id || "1"}
               />
             </ResumePreview>
           </div>

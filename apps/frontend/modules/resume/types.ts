@@ -14,7 +14,6 @@ export interface ResumeRecord {
   mime_type?: string | null;
   created_at: string;
   updated_at: string;
-  download_url?: string | null;
   source_version: number;
 }
 

@@ -51,9 +51,6 @@ export const resumeApi = {
       timeoutMs: 60000,
     }),
 
-  getPdf: (id: string) =>
-    apiClient<{ download_url: string }>(`/resumes/${id}/pdf`),
-
   remove: (id: string) =>
     apiClient<{ message: string }>(`/resumes/${id}`, {
       method: "DELETE",

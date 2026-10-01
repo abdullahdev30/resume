@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -57,6 +58,8 @@ FILE_SIGNATURES = {
     "image/jpeg": (b"\xff\xd8\xff",),
     "image/webp": (b"RIFF",),
 }
+
+logger = logging.getLogger(__name__)
 
 
 class ProfileService:
@@ -182,7 +185,10 @@ class ProfileService:
         return self._personal_response(user_id, record)
 
     async def upload_avatar(self, user_id: str, file: UploadFile) -> PersonalInfoResponse:
-        self._ensure_personal(user_id)
+        existing = self.repository.get_personal(user_id)
+        if existing is None:
+            raise profile_not_found_error()
+        previous_storage_path = existing.get("avatar_url")
         storage_path = await self._store_file(
             user_id=user_id,
             file=file,
@@ -190,10 +196,32 @@ class ProfileService:
             allowed_extensions=ALLOWED_AVATAR_EXTENSIONS,
             allowed_mime_types=ALLOWED_MIME_TYPES - {"application/pdf"},
         )
-        record = self.repository.update_avatar(user_id, storage_path)
+        try:
+            record = self.repository.update_avatar(user_id, storage_path)
+        except Exception:
+            await self._delete_avatar_object(user_id, storage_path)
+            raise
         if record is None:
+            await self._delete_avatar_object(user_id, storage_path)
             raise profile_not_found_error()
+
+        if previous_storage_path and previous_storage_path != storage_path:
+            await self._delete_avatar_object(user_id, previous_storage_path)
         return self._personal_response(user_id, record)
+
+    async def _delete_avatar_object(self, user_id: str, storage_path: str) -> None:
+        expected_prefix = f"users/{user_id}/avatars/"
+        if not storage_path.startswith(expected_prefix):
+            return
+        try:
+            await self.storage.delete_object(storage_path)
+        except S3StorageError:
+            logger.warning(
+                "Unable to delete replaced avatar object '%s' for user '%s'.",
+                storage_path,
+                user_id,
+                exc_info=True,
+            )
 
     def add_social_link(
         self,

@@ -1,5 +1,7 @@
 "use client";
 
+import { isSuccessfulHttpStatus } from "../../lib/http-status";
+
 const PRINT_ROOT_ID = "resume-print-root";
 
 export function safeFileName(title: string): string {
@@ -89,7 +91,7 @@ async function imageUrlToDataUrl(source: string): Promise<string> {
       { cause: error },
     );
   }
-  if (!response.ok) {
+  if (!isSuccessfulHttpStatus(response.status)) {
     throw new Error("The resume photo could not be loaded for printing.");
   }
 

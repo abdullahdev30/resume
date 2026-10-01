@@ -44,10 +44,14 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      await authApi.register(payload);
-      sessionStorage.setItem(AUTH_EMAIL_STORAGE_KEY, payload.email);
-      toast.success("Account created. Check your email for the verification code.");
-      router.push("/auth/verify-email");
+      const registration = await authApi.register(payload);
+      sessionStorage.setItem(AUTH_EMAIL_STORAGE_KEY, registration.email);
+      toast.success(registration.message);
+      router.replace(
+        registration.email_verification_required
+          ? "/auth/verify-email"
+          : "/auth/login",
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Registration failed.";
       setError(message);

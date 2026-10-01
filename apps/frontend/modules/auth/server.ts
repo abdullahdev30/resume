@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { isSuccessfulHttpStatus } from "../../lib/http-status";
 import type { User } from "./types";
 
 const API_BASE = (
@@ -22,7 +23,7 @@ export async function getCurrentUser(): Promise<User | null> {
       cache: "no-store",
     });
 
-    if (!response.ok) {
+    if (!isSuccessfulHttpStatus(response.status)) {
       return null;
     }
 

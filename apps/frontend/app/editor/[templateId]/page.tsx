@@ -952,10 +952,6 @@ export default function EditorPage() {
     setDownloadStatus("preparing");
     setSaveNotice("");
     try {
-      if (!editingResumeId || saveStatus === "dirty" || saveStatus === "error") {
-        const saved = await handleSaveResume(true);
-        if (!saved) throw new Error("The resume could not be saved before printing.");
-      }
       await downloadResumePdf(resumeTitle);
       toast.success("Print preview opened. Choose Save as PDF to download your resume.");
     } catch (caught) {
@@ -1003,7 +999,6 @@ export default function EditorPage() {
     const proposalData = { ...initialResumeData, ...aiProposal.resume_data } as ResumeData;
     setResumeData(proposalData);
     setElementStyles(proposalData.elementStyles || {});
-    setActiveTemplateId(aiProposal.template_id);
     setAiProposal(null);
     markDirty();
     toast.info("The proposal is applied locally and will autosave. Use Undo to restore the prior version.");
@@ -1147,25 +1142,12 @@ export default function EditorPage() {
           </span>
         </div>
 
-        {/* Center: Template Switcher */}
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-[var(--text-muted)] font-semibold hidden sm:inline">Template:</span>
-          <select
-            value={activeTemplateId}
-            onChange={(e) => {
-              setActiveTemplateId(e.target.value);
-              markDirty();
-            }}
-            className="bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] text-xs font-bold px-3 py-1.5 rounded-xl outline-none cursor-pointer focus:border-[var(--primary)]"
-          >
-            <option value="1">Template #1: Slate Tech Modern (Photo)</option>
-            <option value="2">Template #2: Creative Emerald Avatar</option>
-            <option value="3">Template #3: Minimalist Classic Executive</option>
-            <option value="4">Template #4: Executive Corporate Navy</option>
-            <option value="5">Template #5: Modern Executive Headshot (Photo-First)</option>
-            <option value="6">Template #6: Creative Studio Avatar (Photo-First)</option>
-            {activeTemplateId === "ai" && <option value="ai">AI Studio</option>}
-          </select>
+        {/* The selected layout is fixed for the lifetime of this resume. */}
+        <div className="hidden items-center space-x-2 sm:flex">
+          <span className="text-xs font-semibold text-[var(--text-muted)]">Template:</span>
+          <span className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--text)]">
+            {activeTemplateId === "ai" ? "AI Studio" : `Template #${activeTemplateId}`}
+          </span>
         </div>
 
         {/* Right Side: Save & browser print download */}
@@ -1193,7 +1175,7 @@ export default function EditorPage() {
               type="button"
               size="sm"
               onClick={() => void handleDownloadPDF()}
-              disabled={saveInFlight || downloadStatus !== "idle"}
+              disabled={downloadStatus !== "idle"}
               loading={downloadStatus === "preparing"}
               loadingLabel="Preparing..."
               title="Print this resume as an A4 PDF"
@@ -2186,7 +2168,7 @@ export default function EditorPage() {
                         <ResumeDocument
                           data={aiProposal.resume_data}
                           elementStyles={aiProposal.resume_data.elementStyles}
-                          templateId={aiProposal.template_id}
+                          templateId={activeTemplateId === "ai" ? "1" : activeTemplateId}
                         />
                       </ResumePreview>
                     </div>

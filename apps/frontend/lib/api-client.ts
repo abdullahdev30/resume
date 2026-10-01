@@ -1,3 +1,9 @@
+import {
+  cachedClientRequest,
+  clearClientResponseCache,
+} from "./client-response-cache";
+import { isSuccessfulHttpStatus } from "./http-status";
+
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"
 ).replace(/\/$/, "");
@@ -24,9 +30,32 @@ export class ApiClientError extends Error {
   }
 }
 
-export async function apiClient<T = unknown>(
+export function apiClient<T = unknown>(
   endpoint: string,
   options: ApiClientOptions = {}
+): Promise<T> {
+  const method = (options.method || "GET").toUpperCase();
+  const request = () => executeApiRequest<T>(endpoint, options);
+  const canUseMemoryCache =
+    (method === "GET" || method === "HEAD")
+    && !options.signal
+    && options.cache !== "no-store";
+
+  if (canUseMemoryCache) {
+    return cachedClientRequest(`${method}:${endpoint}`, request);
+  }
+
+  return request().then((result) => {
+    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+      clearClientResponseCache();
+    }
+    return result;
+  });
+}
+
+async function executeApiRequest<T>(
+  endpoint: string,
+  options: ApiClientOptions,
 ): Promise<T> {
   const { retry, ...requestOptions } = options;
   const method = (requestOptions.method || "GET").toUpperCase();
@@ -70,7 +99,7 @@ function refreshSession() {
       credentials: "include",
       headers: { "Content-Type": "application/json" },
     })
-      .then((response) => response.ok)
+      .then((response) => isSuccessfulHttpStatus(response.status))
       .catch(() => false)
       .finally(() => {
         sessionRefreshPromise = null;
@@ -81,6 +110,7 @@ function refreshSession() {
 
 function redirectToLogin() {
   if (typeof window !== "undefined") {
+    clearClientResponseCache();
     window.location.assign("/auth/login?reason=session-expired");
   }
 }
@@ -149,7 +179,7 @@ async function apiClientAttempt<T = unknown>(
     data = null;
   }
 
-  if (!response.ok) {
+  if (!isSuccessfulHttpStatus(response.status)) {
     const parsedError = parseApiError(data);
     throw new ApiClientError(
       parsedError.message || defaultStatusMessage(response.status),
@@ -212,11 +242,15 @@ export async function apiClientUpload<T>(
   } = {},
 ): Promise<T> {
   try {
-    return await apiClientUploadAttempt<T>(endpoint, body, options);
+    const result = await apiClientUploadAttempt<T>(endpoint, body, options);
+    clearClientResponseCache();
+    return result;
   } catch (error) {
     if (shouldRefreshSession(endpoint, error) && !options.signal?.aborted) {
       if (await refreshSession()) {
-        return apiClientUploadAttempt<T>(endpoint, body, options);
+        const result = await apiClientUploadAttempt<T>(endpoint, body, options);
+        clearClientResponseCache();
+        return result;
       }
       redirectToLogin();
     }
@@ -251,7 +285,7 @@ function apiClientUploadAttempt<T>(
       } catch {
         data = null;
       }
-      if (request.status >= 200 && request.status < 300) {
+      if (isSuccessfulHttpStatus(request.status)) {
         options.onProgress?.(100);
         resolve(data as T);
         return;

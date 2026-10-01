@@ -644,6 +644,12 @@ select.field-control {
   transform: translateX(-100%);
 }
 
+/* Avoid flashing page skeletons during fast cached or server-rendered loads. */
+.loading-state-delayed {
+  opacity: 0;
+  animation: loading-state-reveal 1ms step-end 240ms forwards;
+}
+
 .alert {
   border: 1px solid transparent;
   border-radius: var(--radius-control);
@@ -1468,6 +1474,10 @@ select.field-control {
 
 @keyframes shimmer {
   to { transform: translateX(100%); }
+}
+
+@keyframes loading-state-reveal {
+  to { opacity: 1; }
 }
 
 @keyframes fade-in {

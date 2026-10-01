@@ -8,7 +8,11 @@ export function LoadingState({
   cards?: number;
 }) {
   return (
-    <div role="status" aria-label={label} className="grid gap-4">
+    <div
+      role="status"
+      aria-label={label}
+      className="loading-state-delayed grid gap-4"
+    >
       <span className="sr-only">{label}</span>
       <div className="card card-padding-md grid gap-3">
         <Skeleton style={{ width: "32%", height: "1rem" }} />

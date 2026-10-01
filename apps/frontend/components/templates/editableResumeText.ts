@@ -24,9 +24,9 @@ export function getEditableResumeText(data: ResumeData, id: string | null): Edit
   if (direct) return { id, label: direct.label, value: data[direct.field], multiline: direct.multiline };
 
   let match = id.match(/^skill-(\d+)$/);
-  if (match) return arrayValue(id, "Skill", data.skills, match[1]);
+  if (match) return arrayValue(id, "Skill", data.skills, match[1] || "");
   match = id.match(/^language-(\d+)$/);
-  if (match) return arrayValue(id, "Language", data.languages, match[1]);
+  if (match) return arrayValue(id, "Language", data.languages, match[1] || "");
 
   match = id.match(/^exp-(\d+)-(role|company|period|details)$/);
   if (match) {
@@ -95,9 +95,10 @@ export function updateEditableResumeText(data: ResumeData, id: string, value: st
   if (match) {
     const index = Number(match[1]);
     const field = match[2] as "role" | "company" | "period" | "details";
-    if (!data.experience[index]) return data;
+    const item = data.experience[index];
+    if (!item) return data;
     const experience = [...data.experience];
-    experience[index] = { ...experience[index], [field]: value };
+    experience[index] = { ...item, [field]: value };
     return { ...data, experience };
   }
 

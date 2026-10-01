@@ -107,31 +107,16 @@ export function ResumeListClient({
   };
 
   const downloadResume = async (resume: ResumeRecord) => {
-    if (downloadingId) return;
-    const downloadWindow = resume.editable ? null : window.open("", "_blank");
+    if (downloadingId || !resume.editable || !resume.resume_data) return;
     setDownloadingId(resume.id);
     try {
-      if (resume.editable) {
-        if (!resume.resume_data) {
-          throw new Error("This editable resume has no saved source data.");
-        }
-        setPrintResume(resume);
-        await new Promise<void>((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-        });
-        await downloadResumePdf(resume.title);
-        return;
-      }
-      const { download_url: downloadUrl } = await resumeApi.getPdf(resume.id);
-      if (downloadWindow) {
-        downloadWindow.opener = null;
-        downloadWindow.location.href = downloadUrl;
-      } else {
-        window.open(downloadUrl, "_blank", "noopener,noreferrer");
-      }
+      setPrintResume(resume);
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+      await downloadResumePdf(resume.title);
     } catch {
-      downloadWindow?.close();
-      toast.error("We could not prepare this PDF. Please try again.", "Download failed");
+      toast.error("We could not open the browser print dialog. Please try again.", "Print failed");
     } finally {
       setDownloadingId(null);
       setPrintResume(null);
@@ -184,7 +169,7 @@ export function ResumeListClient({
           eyebrow={dashboard ? "Resume library" : "Your documents"}
           icon={<LayoutGrid size={15} aria-hidden="true" />}
           title={dashboard ? "Your Resumes" : "My Resumes"}
-          description="Create, edit, upload, and download resumes securely saved to your account."
+          description="Create, edit, upload, and print resumes securely saved to your account."
           actions={
             <>
               <Button variant="secondary" onClick={() => setUploadOpen(true)}>
@@ -263,16 +248,18 @@ export function ResumeListClient({
                     Edit
                   </Link>
                 )}
-                <Button
-                  size="sm"
-                  onClick={() => void downloadResume(resume)}
-                  loading={downloadingId === resume.id}
-                  loadingLabel="Preparing..."
-                  disabled={Boolean(downloadingId)}
-                >
-                  <Download size={14} aria-hidden="true" />
-                  Download PDF
-                </Button>
+                {resume.editable && (
+                  <Button
+                    size="sm"
+                    onClick={() => void downloadResume(resume)}
+                    loading={downloadingId === resume.id}
+                    loadingLabel="Preparing..."
+                    disabled={Boolean(downloadingId)}
+                  >
+                    <Download size={14} aria-hidden="true" />
+                    Print / Save PDF
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"

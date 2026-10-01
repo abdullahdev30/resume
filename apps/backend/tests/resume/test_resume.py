@@ -349,7 +349,7 @@ def test_create_resume_uploads_pdf_and_stores_metadata(client, resume_overrides)
     assert body["file_name"] == "resume.pdf"
     assert body["file_size"] == len(PDF_BYTES)
     assert body["mime_type"] == "application/pdf"
-    assert body["download_url"]
+    assert body["download_url"] is None
 
     storage_path = f"{USER_A_ID}/resumes/{body['id']}.pdf"
     assert storage_path in resume_overrides.storage.objects
@@ -743,7 +743,7 @@ def test_list_resumes_requires_authentication(client):
     assert response.status_code == 401
 
 
-def test_list_resumes_only_returns_own_resumes(client):
+def test_list_resumes_only_returns_own_resumes(client, resume_overrides):
     first = create_resume(client, title="First resume").json()
     second = create_resume(client, title="Second resume").json()
     create_resume(client, token=USER_B_TOKEN, title="Other user resume")
@@ -754,7 +754,8 @@ def test_list_resumes_only_returns_own_resumes(client):
     assert response.status_code == 200
     body = response.json()
     assert [item["id"] for item in body["resumes"]] == [second["id"], first["id"]]
-    assert all(item["download_url"] for item in body["resumes"])
+    assert all(item["download_url"] is None for item in body["resumes"])
+    assert resume_overrides.storage.signed_paths == []
 
 
 def test_list_resumes_is_scoped_per_user(client):
@@ -773,7 +774,7 @@ def test_list_resumes_is_scoped_per_user(client):
     assert resumes[0]["id"] == other["id"]
 
 
-def test_get_resume_returns_signed_download_url(client, resume_overrides):
+def test_get_resume_does_not_generate_a_signed_download_url(client, resume_overrides):
     created = create_resume(client).json()
 
     response = client.get(f"/api/v1/resumes/{created['id']}")
@@ -782,12 +783,8 @@ def test_get_resume_returns_signed_download_url(client, resume_overrides):
     body = response.json()
     assert body["id"] == created["id"]
     assert body["title"] == created["title"]
-    assert body["download_url"].startswith(
-        "https://storage.example.supabase.co/signed/"
-    )
-    assert f"{USER_A_ID}/resumes/{created['id']}.pdf" in (
-        resume_overrides.storage.signed_paths
-    )
+    assert body["download_url"] is None
+    assert resume_overrides.storage.signed_paths == []
 
 
 def test_pdf_endpoint_signs_only_an_owned_legacy_upload(client, resume_overrides):

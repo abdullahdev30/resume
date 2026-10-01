@@ -729,14 +729,6 @@ class ResumeService:
             "ai" if resume.is_ai_generated else "template" if editable else "legacy_pdf"
         )
         legacy_pdf = self._is_legacy_pdf(resume)
-        download_url = (
-            self._signed_url(
-                resume.storage_path,
-                resume.file_name or f"{self._safe_pdf_stem(resume.title)}.pdf",
-            )
-            if legacy_pdf and resume.storage_path
-            else None
-        )
 
         return ResumeResponse(
             id=resume.id,
@@ -750,6 +742,8 @@ class ResumeService:
             mime_type=resume.mime_type if legacy_pdf else None,
             created_at=created_at,
             updated_at=resume.updated_at or created_at,
-            download_url=download_url,
+            # Listing and detail requests do not spend time generating signed
+            # links. Legacy clients can explicitly request /{id}/pdf.
+            download_url=None,
             source_version=resume.source_version or 1,
         )

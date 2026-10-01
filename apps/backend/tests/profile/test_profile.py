@@ -66,6 +66,14 @@ class FakeProfileRepository:
                 self.add_social_link(user_id, link)
         return record
 
+    def update_avatar(self, user_id, avatar_url):
+        record = self.personal.get(user_id)
+        if record is None:
+            return None
+        record["avatar_url"] = avatar_url
+        record["updated_at"] = self._stamp()
+        return record
+
     def list_social_links(self, user_id):
         return self.list_items("profile_social_links", user_id)
 
@@ -127,12 +135,23 @@ class FakeProfileRepository:
         return record
 
 
+class FakeProfileStorage:
+    def __init__(self):
+        self.deleted_paths = []
+
+    async def delete_object(self, storage_path):
+        self.deleted_paths.append(storage_path)
+
+
 @pytest.fixture(autouse=True)
 def app_overrides():
     app.dependency_overrides[get_auth_service] = lambda: FakeAuthService()
     original_service = profile_router.profile_service
-    profile_router.profile_service = ProfileService(FakeProfileRepository())
-    yield
+    profile_router.profile_service = ProfileService(
+        FakeProfileRepository(),
+        FakeProfileStorage(),
+    )
+    yield profile_router.profile_service
     profile_router.profile_service = original_service
     app.dependency_overrides.clear()
 
@@ -212,6 +231,32 @@ def test_personal_update_cannot_replace_storage_managed_avatar(client):
 
     assert response.status_code == 200
     assert response.json()["avatar_url"] is None
+
+
+def test_avatar_upload_replaces_database_value_and_deletes_previous_object(
+    client,
+    app_overrides,
+):
+    create_personal(client)
+
+    first = client.post(
+        "/api/v1/profile/avatar",
+        files={"file": ("first.png", b"first-image", "image/png")},
+        headers=auth_headers(),
+    )
+    second = client.post(
+        "/api/v1/profile/avatar",
+        files={"file": ("second.webp", b"second-image", "image/webp")},
+        headers=auth_headers(),
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_path = first.json()["avatar_url"]
+    second_path = second.json()["avatar_url"]
+    assert first_path != second_path
+    assert app_overrides.repository.get_personal("user-123")["avatar_url"] == second_path
+    assert app_overrides.storage.deleted_paths == [first_path]
 
 
 def test_profile_supports_multiple_optional_sections(client):
