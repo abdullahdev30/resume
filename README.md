@@ -50,6 +50,8 @@ APP_NAME=Company API
 APP_ENV=development
 FRONTEND_URL=http://localhost:3000
 BACKEND_URL=http://localhost:8000
+CORS_ORIGINS=
+CORS_ORIGIN_REGEX=
 SUPABASE_URL=...
 SUPABASE_PUBLISHABLE_KEY=...
 COOKIE_SECURE=false
@@ -61,8 +63,11 @@ CERTIFICATE_UPLOAD_DIR=uploads/certificates
 ```
 
 For production, set `COOKIE_SECURE=true`, use an explicit allowed frontend
-origin, and replace `RATE_LIMIT_STORAGE_URI=memory://` with shared storage that
-matches the deployment topology.
+origin in `FRONTEND_URL` (plus any additional comma-separated origins in
+`CORS_ORIGINS`), and replace `RATE_LIMIT_STORAGE_URI=memory://` with shared
+storage that matches the deployment topology. Localhost, `127.0.0.1`, and IPv6
+loopback origins are accepted on any port only when `APP_ENV` is a development,
+local, or test environment.
 
 Supabase Dashboard settings to configure manually:
 
@@ -135,6 +140,21 @@ venv\Scripts\python -m ruff check .
 venv\Scripts\python -m pytest
 venv\Scripts\python -m uvicorn main:app --reload --port 8000
 ```
+
+### AI resumes and PDF download
+
+AI generation runs only on the backend. Copy the `AI_*` values from
+`apps/backend/.env.example` into the backend environment and set
+`AI_API_KEY`; never add that key to `NEXT_PUBLIC_*` variables. Generated and
+follow-up AI edits are validated against the same resume schema used by the
+editor.
+
+Editable resumes use the same six fixed-A4 React templates for preview and
+browser printing. Download PDF saves pending editor changes, prepares fonts and
+images, and opens the browser print dialog; choose Save as PDF with no margins
+and background graphics enabled. Editable PDFs are not generated or stored by
+the backend. Uploaded legacy PDFs remain private storage objects downloaded
+through short-lived signed URLs.
 
 ## Using this example
 

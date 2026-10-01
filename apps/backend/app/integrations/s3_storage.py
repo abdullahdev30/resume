@@ -105,12 +105,20 @@ class S3StorageService:
         self,
         storage_path: str,
         expires_in: int | None = None,
+        download_name: str | None = None,
     ) -> str:
         """Create a short-lived pre-signed URL for a private object."""
         try:
+            params = {"Bucket": self.bucket_name, "Key": storage_path}
+            if download_name:
+                safe_name = download_name.replace('"', "").replace("\r", "").replace("\n", "")
+                params.update(
+                    ResponseContentDisposition=f'attachment; filename="{safe_name}"',
+                    ResponseContentType=PDF_CONTENT_TYPE,
+                )
             return self.client.generate_presigned_url(
                 "get_object",
-                Params={"Bucket": self.bucket_name, "Key": storage_path},
+                Params=params,
                 ExpiresIn=(
                     expires_in or settings.resume_signed_url_expires_in_seconds
                 ),

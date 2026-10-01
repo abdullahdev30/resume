@@ -47,6 +47,7 @@ __pycache__/
 
 # Environment
 .env
-apps/backend/.env
+apps/backend/.env*
 apps/backend/profile.sqlite3
 apps/backend/uploads/
+apps/backend/.env.example

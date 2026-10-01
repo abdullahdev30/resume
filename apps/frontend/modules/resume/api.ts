@@ -24,6 +24,7 @@ export const resumeApi = {
     apiClient<ResumeRecord>("/resumes/ai", {
       method: "POST",
       body: payload,
+      timeoutMs: 60000,
     }),
 
   uploadPdf: (
@@ -47,11 +48,7 @@ export const resumeApi = {
     apiClient<AIEditProposal>(`/resumes/${id}/ai-edit`, {
       method: "POST",
       body: payload,
-    }),
-
-  generatePdf: (id: string) =>
-    apiClient<ResumeRecord>(`/resumes/${id}/generate-pdf`, {
-      method: "POST",
+      timeoutMs: 60000,
     }),
 
   getPdf: (id: string) =>

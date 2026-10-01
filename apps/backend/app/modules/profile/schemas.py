@@ -17,7 +17,9 @@ class SocialLinkCreate(ProfileBaseModel):
 
 
 class SocialLinkUpdate(ProfileBaseModel):
-    platform_name: str | None = Field(default=None, alias="platform", min_length=2, max_length=50)
+    platform_name: str | None = Field(
+        default=None, alias="platform", min_length=2, max_length=50
+    )
     profile_url: HttpUrl | None = Field(default=None, alias="url")
 
 
@@ -39,7 +41,8 @@ class PersonalInfoUpsert(ProfileBaseModel):
     phone: str = Field(min_length=7, max_length=20)
     address: str | None = Field(default=None, max_length=1000)
     city: str | None = Field(default=None, max_length=100)
-    avatar_url: str | None = None
+    professional_title: str | None = Field(default=None, max_length=255)
+    summary: str | None = Field(default=None, max_length=4000)
     social_links: list[SocialLinkCreate] | None = None
 
     @field_validator("email", mode="before")
@@ -68,6 +71,8 @@ class PersonalInfoResponse(ProfileBaseModel):
     address: str | None = None
     city: str | None = None
     avatar_url: str | None = None
+    professional_title: str | None = None
+    summary: str | None = None
     onboarding_completed: bool | None = None
     social_links: list[SocialLinkResponse] = Field(default_factory=list)
     created_at: datetime | str | None = None
@@ -97,7 +102,9 @@ class EducationCreate(DateRangeModel):
 
 
 class EducationUpdate(ProfileBaseModel):
-    institute_name: str | None = Field(default=None, alias="institution", min_length=2, max_length=255)
+    institute_name: str | None = Field(
+        default=None, alias="institution", min_length=2, max_length=255
+    )
     degree: str | None = Field(default=None, max_length=255)
     field_of_study: str | None = Field(default=None, max_length=255)
     start_date: date | None = None
@@ -138,7 +145,9 @@ class ExperienceCreate(DateRangeModel):
 class ExperienceUpdate(ProfileBaseModel):
     company_name: str | None = Field(default=None, min_length=2, max_length=255)
     institute_name: str | None = Field(default=None, min_length=2, max_length=255)
-    job_title: str | None = Field(default=None, alias="position", min_length=2, max_length=255)
+    job_title: str | None = Field(
+        default=None, alias="position", min_length=2, max_length=255
+    )
     location: str | None = Field(default=None, max_length=255)
     start_date: date | None = None
     end_date: date | None = None
@@ -183,7 +192,9 @@ class SkillResponse(ProfileBaseModel):
 
 class CertificateCreate(ProfileBaseModel):
     title: str = Field(alias="name", min_length=2, max_length=255)
-    category: str | None = Field(default=None, alias="issuing_organization", max_length=255)
+    category: str | None = Field(
+        default=None, alias="issuing_organization", max_length=255
+    )
     field: str | None = Field(default=None, alias="credential_id", max_length=255)
     file_url: str | None = Field(default=None, alias="credential_url")
     file_name: str | None = None
@@ -193,7 +204,9 @@ class CertificateCreate(ProfileBaseModel):
 
 class CertificateUpdate(ProfileBaseModel):
     title: str | None = Field(default=None, alias="name", min_length=2, max_length=255)
-    category: str | None = Field(default=None, alias="issuing_organization", max_length=255)
+    category: str | None = Field(
+        default=None, alias="issuing_organization", max_length=255
+    )
     field: str | None = Field(default=None, alias="credential_id", max_length=255)
     file_url: str | None = Field(default=None, alias="credential_url")
     file_name: str | None = None

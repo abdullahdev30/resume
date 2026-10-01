@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -14,9 +15,23 @@ from app.modules.auth.router import router as auth_router
 from app.modules.profile.router import router as profile_router
 from app.modules.resume.router import router as resume_router
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    if not settings.ai_api_key or not settings.ai_base_url.strip():
+        logger.warning(
+            "AI resume generation is not configured: set AI_API_KEY and AI_BASE_URL"
+        )
+    else:
+        logger.info(
+            "AI resume configuration provider=%s model=%s base_url=%s timeout_seconds=%s",
+            settings.ai_provider,
+            settings.ai_model,
+            settings.ai_base_url,
+            settings.ai_timeout_seconds,
+        )
     run_migrations()
     yield
 
@@ -39,7 +54,8 @@ app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
+    allow_origins=settings.allowed_cors_origins,
+    allow_origin_regex=settings.allowed_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,33 +1,48 @@
-import html
 import json
 import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
 import httpx
 from fastapi import UploadFile
+from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.integrations.s3_storage import S3StorageError, S3StorageService
+from app.modules.profile.errors import ProfileApplicationError
+from app.modules.profile.service import ProfileService
 from app.modules.resume.errors import (
+    ResumeApplicationError,
     invalid_resume_file_error,
     resume_ai_error,
+    resume_ai_invalid_output_error,
+    resume_ai_not_configured_error,
+    resume_ai_rate_limit_error,
+    resume_ai_timeout_error,
     resume_file_too_large_error,
     resume_not_editable_error,
     resume_not_found_error,
+    resume_pdf_unavailable_error,
     resume_persistence_error,
+    resume_profile_required_error,
     resume_storage_error,
     resume_update_error,
+    resume_version_conflict_error,
 )
 from app.modules.resume.models import Resume
+from app.modules.resume.reference_fetcher import fetch_reference_texts
 from app.modules.resume.repository import ResumeRepository
 from app.modules.resume.schemas import (
+    AIResumeDocument,
     AIResumeRequest,
     ResumeAIEditProposal,
     ResumeAIEditRequest,
+    ResumeData,
     ResumePDFResponse,
     ResumeResponse,
     ResumeUpdateRequest,
@@ -39,18 +54,6 @@ logger = logging.getLogger(__name__)
 PDF_EXTENSION = ".pdf"
 PDF_MIME_TYPE = "application/pdf"
 PDF_SIGNATURE = b"%PDF-"
-SAFE_TAG_RE = re.compile(
-    r"<\s*/?\s*(script|iframe|object|embed|link|meta)[^>]*>",
-    re.IGNORECASE,
-)
-EVENT_ATTR_RE = re.compile(
-    r"\s+on[a-z]+\s*=\s*(['\"]).*?\1",
-    re.IGNORECASE | re.DOTALL,
-)
-JS_URL_RE = re.compile(
-    r"(href|src)\s*=\s*(['\"])\s*javascript:.*?\2",
-    re.IGNORECASE | re.DOTALL,
-)
 
 
 class ResumeService:
@@ -60,9 +63,11 @@ class ResumeService:
         self,
         repository: ResumeRepository,
         storage: S3StorageService | None = None,
+        profile_service: ProfileService | None = None,
     ) -> None:
         self.repository = repository
         self.storage = storage or S3StorageService()
+        self.profile_service = profile_service
 
     async def create_resume(
         self,
@@ -104,16 +109,11 @@ class ResumeService:
         request: TemplateResumeRequest,
     ) -> ResumeResponse:
         resume_data = self._normalize_resume_data(request.resume_data)
-        raw_html = request.html_content or self._render_resume_html(
-            resume_data,
-            request.template_id,
-        )
         return await self._create_editable_resume(
             user_id=user_id,
             title=request.title,
             template_id=request.template_id,
             resume_data=resume_data,
-            html_content=self._sanitize_html(raw_html),
             resume_type="template",
             is_ai_generated=False,
         )
@@ -123,18 +123,23 @@ class ResumeService:
         user_id: str,
         request: AIResumeRequest,
     ) -> ResumeResponse:
+        self._ensure_ai_configured()
+        profile_context = await run_in_threadpool(
+            self._profile_context,
+            user_id,
+            request.selected_sections,
+        )
         proposal = await self._generate_ai_document(
             prompt=request.prompt,
             job_description=request.job_description,
-            profile_context=request.profile_context or {},
-            template_id=request.template_id or "1",
+            profile_context=profile_context,
+            reference_links=request.reference_links,
         )
         return await self._create_editable_resume(
             user_id=user_id,
             title=request.title,
-            template_id=request.template_id or "1",
+            template_id=proposal.template_id,
             resume_data=proposal.resume_data,
-            html_content=proposal.html_content,
             resume_type="ai",
             is_ai_generated=True,
         )
@@ -165,37 +170,20 @@ class ResumeService:
 
         if request and (
             request.resume_data is not None
-            or request.html_content is not None
             or request.template_id is not None
         ):
             if not self._is_editable(resume):
                 raise resume_not_editable_error()
+            if request.source_version != (resume.source_version or 1):
+                raise resume_version_conflict_error()
 
-            resume_data = self._normalize_resume_data(request.resume_data or resume.data or {})
-            template_id = request.template_id or resume.template_id or "1"
-            raw_html = request.html_content or self._render_resume_html(
-                resume_data,
-                template_id,
+            resume_data = self._normalize_resume_data(
+                request.resume_data or resume.data or {}
             )
-            html_content = self._sanitize_html(raw_html)
-            pdf_bytes = self._generate_pdf_bytes(html_content, resume.title)
-
-            try:
-                await self.storage.upload_bytes(
-                    resume.storage_path or self.storage_path(user_id, resume_id),
-                    pdf_bytes,
-                    PDF_MIME_TYPE,
-                )
-            except S3StorageError as exc:
-                raise resume_storage_error() from exc
-
+            template_id = request.template_id or resume.template_id or "1"
             values.update(
                 template_id=template_id,
                 data=resume_data,
-                html_content=html_content,
-                file_name=f"{self._safe_pdf_stem(values.get('title') or resume.title)}.pdf",
-                mime_type=PDF_MIME_TYPE,
-                file_size=len(pdf_bytes),
                 source_version=(resume.source_version or 1) + 1,
             )
 
@@ -203,7 +191,19 @@ class ResumeService:
             raise resume_update_error()
 
         try:
-            updated = self.repository.update(user_id, resume_id, values)
+            if request and "source_version" in values:
+                updated = self.repository.update_if_source_version(
+                    user_id,
+                    resume_id,
+                    request.source_version or 0,
+                    values,
+                )
+                if updated is None:
+                    raise resume_version_conflict_error()
+            else:
+                updated = self.repository.update(user_id, resume_id, values)
+        except ResumeApplicationError:
+            raise
         except Exception as exc:
             logger.exception("Failed to update resume '%s'", resume_id)
             raise resume_persistence_error() from exc
@@ -222,63 +222,32 @@ class ResumeService:
         resume = self._get_owned_resume(user_id, resume_id)
         if not self._is_editable(resume):
             raise resume_not_editable_error()
+        self._ensure_ai_configured()
+        profile_context = await run_in_threadpool(self._profile_context, user_id)
         return await self._generate_ai_document(
             prompt=request.instruction,
             job_description=request.job_description,
-            profile_context=resume.data or {},
-            template_id=resume.template_id or "1",
+            profile_context=profile_context,
+            reference_links=request.reference_links,
             existing_data=resume.data or {},
         )
 
-    async def regenerate_pdf(self, user_id: str, resume_id: str) -> ResumeResponse:
-        resume = self._get_owned_resume(user_id, resume_id)
-        if not self._is_editable(resume):
-            raise resume_not_editable_error()
-
-        html_content = self._sanitize_html(
-            resume.html_content
-            or self._render_resume_html(resume.data or {}, resume.template_id or "1")
-        )
-        pdf_bytes = self._generate_pdf_bytes(html_content, resume.title)
-
-        try:
-            await self.storage.upload_bytes(
-                resume.storage_path or self.storage_path(user_id, resume_id),
-                pdf_bytes,
-                PDF_MIME_TYPE,
-            )
-            updated = self.repository.update(
-                user_id,
-                resume_id,
-                {
-                    "html_content": html_content,
-                    "file_size": len(pdf_bytes),
-                    "mime_type": PDF_MIME_TYPE,
-                    "file_name": f"{self._safe_pdf_stem(resume.title)}.pdf",
-                },
-            )
-        except S3StorageError as exc:
-            raise resume_storage_error() from exc
-        except Exception as exc:
-            logger.exception("Failed to update regenerated PDF metadata '%s'", resume_id)
-            raise resume_persistence_error() from exc
-
-        if updated is None:
-            raise resume_not_found_error()
-        return self._to_response(updated)
-
     def get_pdf(self, user_id: str, resume_id: str) -> ResumePDFResponse:
         resume = self._get_owned_resume(user_id, resume_id)
-        return ResumePDFResponse(download_url=self._signed_url(resume.storage_path or ""))
+        if not self._is_legacy_pdf(resume) or not resume.storage_path:
+            raise resume_pdf_unavailable_error()
+        return ResumePDFResponse(
+            download_url=self._signed_url(
+                resume.storage_path,
+                resume.file_name or f"{self._safe_pdf_stem(resume.title)}.pdf",
+            )
+        )
 
     async def delete_resume(self, user_id: str, resume_id: str) -> None:
         resume = self._get_owned_resume(user_id, resume_id)
-
-        if resume.storage_path:
-            try:
-                await self.storage.delete_object(resume.storage_path)
-            except S3StorageError as exc:
-                raise resume_storage_error() from exc
+        legacy_storage_path = (
+            resume.storage_path if self._is_legacy_pdf(resume) else None
+        )
 
         try:
             deleted = self.repository.delete(user_id, resume_id)
@@ -288,6 +257,26 @@ class ResumeService:
 
         if not deleted:
             raise resume_not_found_error()
+
+        if legacy_storage_path:
+            try:
+                await self.storage.delete_object(legacy_storage_path)
+            except S3StorageError as exc:
+                logger.exception(
+                    "Resume row deleted but storage cleanup failed path=%s",
+                    legacy_storage_path,
+                )
+                try:
+                    self.repository.enqueue_storage_cleanup(
+                        storage_path=legacy_storage_path,
+                        user_id=user_id,
+                        last_error=str(exc),
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to enqueue resume storage cleanup path=%s",
+                        legacy_storage_path,
+                    )
 
     @staticmethod
     def storage_path(user_id: str, resume_id: str) -> str:
@@ -300,19 +289,10 @@ class ResumeService:
         title: str,
         template_id: str | None,
         resume_data: dict[str, Any],
-        html_content: str,
         resume_type: str,
         is_ai_generated: bool,
     ) -> ResumeResponse:
         resume_id = str(uuid4())
-        storage_path = self.storage_path(user_id, resume_id)
-        pdf_bytes = self._generate_pdf_bytes(html_content, title)
-
-        try:
-            await self.storage.upload_bytes(storage_path, pdf_bytes, PDF_MIME_TYPE)
-        except S3StorageError as exc:
-            raise resume_storage_error() from exc
-
         try:
             resume = self.repository.create_document(
                 resume_id=resume_id,
@@ -320,18 +300,12 @@ class ResumeService:
                 title=title.strip(),
                 template_id=template_id,
                 data=resume_data,
-                html_content=html_content,
-                storage_path=storage_path,
-                file_name=f"{self._safe_pdf_stem(title)}.pdf",
-                file_size=len(pdf_bytes),
                 resume_type=resume_type,
                 is_ai_generated=is_ai_generated,
             )
         except Exception as exc:
-            await self._delete_object_quietly(storage_path)
             logger.exception("Failed to persist editable resume for user '%s'", user_id)
             raise resume_persistence_error() from exc
-
         return self._to_response(resume)
 
     async def _replace_uploaded_pdf(
@@ -340,9 +314,11 @@ class ResumeService:
         file: UploadFile,
         title: str | None,
     ) -> ResumeResponse:
+        if not self._is_legacy_pdf(resume) or not resume.storage_path:
+            raise resume_pdf_unavailable_error()
         data, file_name = await self._read_validated_pdf(file)
         try:
-            await self.storage.upload_bytes(resume.storage_path or "", data, PDF_MIME_TYPE)
+            await self.storage.upload_bytes(resume.storage_path, data, PDF_MIME_TYPE)
         except S3StorageError as exc:
             raise resume_storage_error() from exc
 
@@ -398,7 +374,9 @@ class ResumeService:
         try:
             await self.storage.delete_object(storage_path)
         except S3StorageError:
-            logger.warning("Orphaned storage object could not be removed: '%s'", storage_path)
+            logger.warning(
+                "Orphaned storage object could not be removed: '%s'", storage_path
+            )
 
     async def _generate_ai_document(
         self,
@@ -406,80 +384,216 @@ class ResumeService:
         prompt: str,
         job_description: str | None,
         profile_context: dict[str, Any],
-        template_id: str,
+        reference_links: list[str],
         existing_data: dict[str, Any] | None = None,
     ) -> ResumeAIEditProposal:
-        if settings.openai_api_key:
-            try:
-                return await self._generate_with_openai(
-                    prompt=prompt,
-                    job_description=job_description,
-                    profile_context=profile_context,
-                    template_id=template_id,
-                    existing_data=existing_data,
-                )
-            except Exception as exc:
-                logger.exception("OpenAI resume generation failed")
-                raise resume_ai_error() from exc
+        self._ensure_ai_configured()
+        try:
+            document = await self._generate_with_ai_provider(
+                prompt=prompt,
+                job_description=job_description,
+                profile_context=profile_context,
+                reference_links=reference_links,
+                existing_data=existing_data,
+            )
+        except ResumeApplicationError:
+            raise
+        except httpx.TimeoutException as exc:
+            raise resume_ai_timeout_error() from exc
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 429:
+                raise resume_ai_rate_limit_error() from exc
+            logger.warning("AI provider returned HTTP %s", exc.response.status_code)
+            raise resume_ai_error() from exc
+        except Exception as exc:
+            logger.exception("AI resume generation failed")
+            raise resume_ai_error() from exc
+        resume_data, template_id = document.to_storage()
+        return ResumeAIEditProposal(resume_data=resume_data, template_id=template_id)
 
-        resume_data = self._fallback_ai_resume_data(
-            prompt=prompt,
-            job_description=job_description,
-            profile_context=profile_context,
-            existing_data=existing_data,
-        )
-        return ResumeAIEditProposal(
-            resume_data=resume_data,
-            html_content=self._render_resume_html(resume_data, template_id),
-        )
-
-    async def _generate_with_openai(
+    async def _generate_with_ai_provider(
         self,
         *,
         prompt: str,
         job_description: str | None,
         profile_context: dict[str, Any],
-        template_id: str,
+        reference_links: list[str],
         existing_data: dict[str, Any] | None,
-    ) -> ResumeAIEditProposal:
+    ) -> AIResumeDocument:
+        reference_context = await fetch_reference_texts(reference_links)
         input_payload = {
             "prompt": prompt,
             "job_description": job_description,
             "profile_context": profile_context,
+            "reference_links": reference_links,
+            "reference_content": reference_context,
             "existing_resume_data": existing_data,
         }
         instructions = (
-            "Return JSON only with keys resume_data and html_content. "
-            "Use only facts present in profile_context, existing_resume_data, "
-            "prompt, or job_description. Do not invent employers, schools, "
-            "dates, certificates, links, metrics, or degrees. Keep HTML safe: "
-            "inline CSS only, no scripts, no external resources."
+            "You are a resume editor and art director. Return only JSON matching the supplied "
+            "AIResumeDocument schema with separate data and design objects. "
+            "Use facts only from profile_context, existing_resume_data, the user's prompt, "
+            "job_description, and reference_links. Never invent an employer, school, role, "
+            "date, credential, project, URL, metric, degree, skill, or language. You may "
+            "reorganize and rewrite supplied facts for clarity. When existing_resume_data is "
+            "present, preserve manual edits unless the instruction explicitly changes them. "
+            "Use empty strings or arrays when information is unavailable. Pick template_id 1-6 "
+            "and a high-contrast palette appropriate to the job and seniority: conservative for "
+            "finance/legal/executive work and modern for technology/design work. Prefer a one-page "
+            "structure when the supplied content is short. Never output HTML or CSS."
         )
-        body = {
-            "model": settings.openai_model,
-            "input": f"{instructions}\n\n{json.dumps(input_payload, ensure_ascii=False)}",
-        }
-        async with httpx.AsyncClient(timeout=45) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/responses",
-                headers={
-                    "Authorization": f"Bearer {settings.openai_api_key}",
-                    "Content-Type": "application/json",
+        schema = self._strict_json_schema(AIResumeDocument.model_json_schema(by_alias=True))
+        last_validation_error: Exception | None = None
+        provider = settings.ai_provider.lower()
+        endpoint = (
+            f"{settings.ai_base_url.rstrip('/')}/responses"
+            if provider == "openai"
+            else f"{settings.ai_base_url.rstrip('/')}/chat/completions"
+        )
+        async with httpx.AsyncClient(timeout=settings.ai_timeout_seconds) as client:
+            for attempt in range(2):
+                retry_note = (
+                    "\nThe prior response failed schema validation. Correct it exactly."
+                    if attempt
+                    else ""
+                )
+                request_text = (
+                    f"{instructions}{retry_note}\n\n"
+                    f"{json.dumps(input_payload, ensure_ascii=False)}"
+                )
+                body = self._ai_request_body(provider, request_text, schema)
+                started = perf_counter()
+                logger.info(
+                    "AI request started provider=%s model=%s base_url=%s attempt=%d",
+                    provider,
+                    settings.ai_model,
+                    settings.ai_base_url,
+                    attempt + 1,
+                )
+                response = await client.post(
+                    endpoint,
+                    headers={
+                        "Authorization": f"Bearer {settings.ai_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                )
+                duration_ms = round((perf_counter() - started) * 1000)
+                snippet = response.text[:500].replace("\n", " ")
+                logger.info(
+                    "AI response received provider=%s model=%s status=%d duration_ms=%d",
+                    provider,
+                    settings.ai_model,
+                    response.status_code,
+                    duration_ms,
+                )
+                logger.debug("AI response snippet=%s", snippet)
+                if response.status_code >= 400:
+                    logger.error(
+                        "AI provider error provider=%s model=%s status=%d duration_ms=%d body=%s",
+                        provider,
+                        settings.ai_model,
+                        response.status_code,
+                        duration_ms,
+                        snippet,
+                    )
+                response.raise_for_status()
+                try:
+                    payload = response.json()
+                    text = (
+                        self._extract_openai_text(payload)
+                        if provider == "openai"
+                        else self._extract_chat_completion_text(payload)
+                    )
+                    parsed = json.loads(self._strip_json_fence(text))
+                    return AIResumeDocument.model_validate(parsed)
+                except (
+                    json.JSONDecodeError,
+                    TypeError,
+                    ValidationError,
+                    ValueError,
+                ) as exc:
+                    last_validation_error = exc
+                    logger.warning(
+                        "AI resume output failed validation attempt=%d error=%s",
+                        attempt + 1,
+                        exc,
+                    )
+
+        raise resume_ai_invalid_output_error() from last_validation_error
+
+    @staticmethod
+    def _ai_request_body(
+        provider: str,
+        request_text: str,
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        if provider == "openai-compatible":
+            return {
+                "model": settings.ai_model,
+                "messages": [
+                    {"role": "system", "content": "Return only the requested resume JSON."},
+                    {"role": "user", "content": request_text},
+                ],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "resume_document",
+                        "strict": True,
+                        "schema": schema,
+                    },
                 },
-                json=body,
-            )
-            response.raise_for_status()
-        text = self._extract_openai_text(response.json())
-        parsed = json.loads(text)
-        resume_data = self._normalize_resume_data(parsed.get("resume_data") or {})
-        html_content = parsed.get("html_content") or self._render_resume_html(
-            resume_data,
-            template_id,
-        )
-        return ResumeAIEditProposal(
-            resume_data=resume_data,
-            html_content=self._sanitize_html(html_content),
-        )
+            }
+        return {
+            "model": settings.ai_model,
+            "input": request_text,
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "resume_document",
+                    "strict": True,
+                    "schema": schema,
+                }
+            },
+        }
+
+    @classmethod
+    def _strict_json_schema(cls, schema: dict[str, Any]) -> dict[str, Any]:
+        next_schema = dict(schema)
+        # Structured Outputs does not support Pydantic defaults or arbitrary
+        # string-keyed maps. Element styles are intentionally empty in the AI
+        # contract; users can still create per-element styles in the editor.
+        next_schema.pop("default", None)
+        properties = next_schema.get("properties")
+        if isinstance(properties, dict):
+            next_schema["required"] = list(properties)
+            next_schema["additionalProperties"] = False
+            next_schema["properties"] = {
+                key: cls._strict_json_schema(value)
+                if isinstance(value, dict)
+                else value
+                for key, value in properties.items()
+            }
+        if isinstance(next_schema.get("additionalProperties"), dict):
+            next_schema["additionalProperties"] = False
+            next_schema["properties"] = {}
+            next_schema["required"] = []
+        if isinstance(next_schema.get("items"), dict):
+            next_schema["items"] = cls._strict_json_schema(next_schema["items"])
+        if isinstance(next_schema.get("$defs"), dict):
+            next_schema["$defs"] = {
+                key: cls._strict_json_schema(value)
+                if isinstance(value, dict)
+                else value
+                for key, value in next_schema["$defs"].items()
+            }
+        for keyword in ("anyOf", "oneOf", "allOf"):
+            if isinstance(next_schema.get(keyword), list):
+                next_schema[keyword] = [
+                    cls._strict_json_schema(value) if isinstance(value, dict) else value
+                    for value in next_schema[keyword]
+                ]
+        return next_schema
 
     @staticmethod
     def _extract_openai_text(payload: dict[str, Any]) -> str:
@@ -487,182 +601,91 @@ class ResumeService:
             return payload["output_text"]
         for item in payload.get("output", []):
             for content in item.get("content", []):
-                if content.get("type") in {"output_text", "text"} and content.get("text"):
+                if content.get("type") in {"output_text", "text"} and content.get(
+                    "text"
+                ):
                     return content["text"]
         raise ValueError("OpenAI response did not include text output.")
 
-    def _fallback_ai_resume_data(
+    @staticmethod
+    def _extract_chat_completion_text(payload: dict[str, Any]) -> str:
+        choices = payload.get("choices") or []
+        if choices and isinstance(choices[0], dict):
+            content = (choices[0].get("message") or {}).get("content")
+            if isinstance(content, str) and content:
+                return content
+        raise ValueError("Compatible provider response did not include message content.")
+
+    @staticmethod
+    def _strip_json_fence(value: str) -> str:
+        stripped = value.strip()
+        if stripped.startswith("```"):
+            stripped = re.sub(r"^```(?:json)?\s*", "", stripped, flags=re.IGNORECASE)
+            stripped = re.sub(r"\s*```$", "", stripped)
+        return stripped
+
+    @staticmethod
+    def _ensure_ai_configured() -> None:
+        if (
+            not settings.ai_api_key
+            or settings.ai_provider.lower() not in {"openai", "openai-compatible"}
+            or not settings.ai_base_url.strip()
+        ):
+            raise resume_ai_not_configured_error()
+
+    def _profile_context(
         self,
-        *,
-        prompt: str,
-        job_description: str | None,
-        profile_context: dict[str, Any],
-        existing_data: dict[str, Any] | None,
+        user_id: str,
+        selected_sections: list[str] | None = None,
     ) -> dict[str, Any]:
-        source = dict(existing_data or profile_context or {})
-        full_name = (
-            source.get("fullName")
-            or source.get("full_name")
-            or source.get("name")
-            or "Your Name"
-        )
-        headline = source.get("jobTitle") or source.get("headline") or "Professional"
-        summary_bits = [str(prompt).strip()]
-        if job_description:
-            summary_bits.append(f"Target role: {job_description[:260].strip()}")
-        source.setdefault("fullName", full_name)
-        source.setdefault("jobTitle", headline)
-        source.setdefault("email", source.get("email", ""))
-        source.setdefault("phone", source.get("phone", ""))
-        source.setdefault("location", source.get("location") or source.get("city") or "")
-        source.setdefault("summary", " ".join(bit for bit in summary_bits if bit))
-        source.setdefault("skills", source.get("skills") or [])
-        source.setdefault("languages", source.get("languages") or [])
-        source.setdefault("experience", source.get("experience") or [])
-        source.setdefault("education", source.get("education") or [])
-        source.setdefault("primaryColor", source.get("primaryColor") or "#0E7C7B")
-        return self._normalize_resume_data(source)
-
-    @staticmethod
-    def _normalize_resume_data(data: dict[str, Any]) -> dict[str, Any]:
-        normalized = dict(data or {})
-        normalized["skills"] = list(normalized.get("skills") or [])
-        normalized["languages"] = list(normalized.get("languages") or [])
-        normalized["experience"] = list(normalized.get("experience") or [])
-        normalized["education"] = list(normalized.get("education") or [])
-        return normalized
-
-    def _render_resume_html(self, data: dict[str, Any], template_id: str | None) -> str:
-        accent = html.escape(str(data.get("primaryColor") or "#0E7C7B"))
-        name = html.escape(str(data.get("fullName") or data.get("name") or "Your Name"))
-        title = html.escape(str(data.get("jobTitle") or "Professional"))
-        contact = " | ".join(
-            html.escape(str(value))
-            for value in [data.get("email"), data.get("phone"), data.get("location")]
-            if value
-        )
-        summary = html.escape(str(data.get("summary") or ""))
-        skills = "".join(
-            f"<span>{html.escape(str(skill))}</span>"
-            for skill in data.get("skills", [])
-            if str(skill).strip()
-        )
-        experience = "".join(
-            self._render_experience_item(item)
-            for item in data.get("experience", [])
-            if isinstance(item, dict)
-        )
-        education = "".join(
-            self._render_education_item(item)
-            for item in data.get("education", [])
-            if isinstance(item, dict)
-        )
-        return self._sanitize_html(
-            f"""<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body {{ font-family: Arial, sans-serif; color: #172033; margin: 0; }}
-    .page {{ padding: 42px; max-width: 820px; margin: 0 auto; }}
-    h1 {{ color: {accent}; margin: 0; font-size: 34px; }}
-    h2 {{ color: {accent}; border-bottom: 2px solid {accent}; font-size: 15px; padding-bottom: 6px; margin-top: 26px; text-transform: uppercase; }}
-    .title {{ font-weight: 700; margin-top: 6px; }}
-    .contact {{ color: #5f6b7a; font-size: 13px; margin-top: 8px; }}
-    p, li {{ font-size: 13px; line-height: 1.55; }}
-    .skills span {{ display: inline-block; border: 1px solid {accent}; color: {accent}; padding: 5px 8px; margin: 4px; border-radius: 5px; font-size: 12px; }}
-    .item {{ margin: 14px 0; }}
-    .item strong {{ display: block; }}
-    .period {{ color: #718096; font-size: 12px; }}
-  </style>
-</head>
-<body>
-  <main class="page" data-template="{html.escape(str(template_id or '1'))}">
-    <h1>{name}</h1>
-    <div class="title">{title}</div>
-    <div class="contact">{contact}</div>
-    <h2>Profile</h2>
-    <p>{summary}</p>
-    <h2>Skills</h2>
-    <div class="skills">{skills}</div>
-    <h2>Experience</h2>
-    {experience or '<p>No experience added.</p>'}
-    <h2>Education</h2>
-    {education or '<p>No education added.</p>'}
-  </main>
-</body>
-</html>"""
-        )
-
-    @staticmethod
-    def _render_experience_item(item: dict[str, Any]) -> str:
-        role = html.escape(str(item.get("role") or item.get("job_title") or "Role"))
-        company = html.escape(str(item.get("company") or "Company"))
-        period = html.escape(str(item.get("period") or ""))
-        details = html.escape(str(item.get("details") or item.get("description") or ""))
-        return f'<section class="item"><strong>{role} - {company}</strong><div class="period">{period}</div><p>{details}</p></section>'
-
-    @staticmethod
-    def _render_education_item(item: dict[str, Any]) -> str:
-        degree = html.escape(str(item.get("degree") or item.get("field_of_study") or "Education"))
-        institution = html.escape(str(item.get("institution") or "Institution"))
-        period = html.escape(str(item.get("period") or ""))
-        return f'<section class="item"><strong>{degree}</strong><div>{institution}</div><div class="period">{period}</div></section>'
-
-    @staticmethod
-    def _sanitize_html(value: str) -> str:
-        sanitized = SAFE_TAG_RE.sub("", value or "")
-        sanitized = EVENT_ATTR_RE.sub("", sanitized)
-        sanitized = JS_URL_RE.sub(r'\1="#"', sanitized)
-        return sanitized
-
-    @staticmethod
-    def _generate_pdf_bytes(html_content: str, title: str) -> bytes:
+        if self.profile_service is None:
+            self.profile_service = ProfileService()
         try:
-            from weasyprint import HTML  # type: ignore
+            profile = self.profile_service.get_profile(user_id).model_dump(mode="json")
+        except ProfileApplicationError as exc:
+            raise resume_profile_required_error() from exc
+        if selected_sections is None:
+            return profile
 
-            return HTML(string=html_content).write_pdf()
-        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
-            return ResumeService._simple_pdf_bytes(
-                ResumeService._plain_text(html_content) or title
-            )
+        selected = set(selected_sections)
+        context: dict[str, Any] = {}
+        if "personal" in selected:
+            context["personal"] = {
+                key: value
+                for key, value in profile["personal"].items()
+                if key != "summary"
+            }
+        if "summary" in selected:
+            context["summary"] = profile["personal"].get("summary")
+        if "education" in selected:
+            context["education"] = profile["education"]
+        if "experience" in selected:
+            context["experience"] = profile["experience"]
+        if "skills" in selected:
+            context["skills"] = [
+                item
+                for item in profile["skills"]
+                if str(item.get("category") or "").casefold() != "language"
+            ]
+        if "languages" in selected:
+            context["languages"] = [
+                item
+                for item in profile["skills"]
+                if str(item.get("category") or "").casefold() == "language"
+            ]
+        if "certificates" in selected:
+            context["certificates"] = profile["certificates"]
+        if "projects" in selected:
+            context["projects"] = profile["projects"]
+        if "social_links" in selected:
+            context["social_links"] = profile["social_links"]
+        return context
 
     @staticmethod
-    def _plain_text(html_content: str) -> str:
-        text = re.sub(r"<[^>]+>", " ", html_content)
-        return html.unescape(re.sub(r"\s+", " ", text)).strip()
-
-    @staticmethod
-    def _simple_pdf_bytes(text: str) -> bytes:
-        lines = [line[:95] for line in re.findall(r".{1,95}(?:\s+|$)", text[:3000])]
-        content = ["BT", "/F1 11 Tf", "50 780 Td"]
-        for index, line in enumerate(lines[:44]):
-            safe = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-            if index:
-                content.append("0 -16 Td")
-            content.append(f"({safe}) Tj")
-        content.append("ET")
-        stream = "\n".join(content).encode("latin-1", errors="replace")
-        objects = [
-            b"<< /Type /Catalog /Pages 2 0 R >>",
-            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-            b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
-        ]
-        output = [b"%PDF-1.4\n"]
-        offsets = [0]
-        for number, obj in enumerate(objects, start=1):
-            offsets.append(sum(len(part) for part in output))
-            output.append(f"{number} 0 obj\n".encode() + obj + b"\nendobj\n")
-        xref_offset = sum(len(part) for part in output)
-        output.append(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode())
-        for offset in offsets[1:]:
-            output.append(f"{offset:010d} 00000 n \n".encode())
-        output.append(
-            f"trailer << /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode()
-        )
-        return b"".join(output)
+    def _normalize_resume_data(data: dict[str, Any] | ResumeData) -> dict[str, Any]:
+        if isinstance(data, ResumeData):
+            return data.to_storage()
+        return ResumeData.model_validate(data or {}).to_storage()
 
     @staticmethod
     def _resolve_title(title: str | None, file_name: str) -> str:
@@ -677,11 +700,24 @@ class ResumeService:
 
     @staticmethod
     def _is_editable(resume: Resume) -> bool:
-        return bool(resume.data or resume.html_content or resume.resume_type in {"template", "ai"})
+        return bool(
+            resume.data
+            and (
+                resume.resume_type in {"template", "ai"}
+                or resume.template_id in {"1", "2", "3", "4", "5", "6"}
+            )
+        )
 
-    def _signed_url(self, storage_path: str) -> str:
+    @classmethod
+    def _is_legacy_pdf(cls, resume: Resume) -> bool:
+        return bool(
+            resume.resume_type == "legacy_pdf"
+            or (not cls._is_editable(resume) and resume.storage_path)
+        )
+
+    def _signed_url(self, storage_path: str, file_name: str | None = None) -> str:
         try:
-            return self.storage.generate_signed_url(storage_path)
+            return self.storage.generate_signed_url(storage_path, download_name=file_name)
         except S3StorageError as exc:
             raise resume_storage_error() from exc
 
@@ -692,6 +728,15 @@ class ResumeService:
         resume_type = resume.resume_type or (
             "ai" if resume.is_ai_generated else "template" if editable else "legacy_pdf"
         )
+        legacy_pdf = self._is_legacy_pdf(resume)
+        download_url = (
+            self._signed_url(
+                resume.storage_path,
+                resume.file_name or f"{self._safe_pdf_stem(resume.title)}.pdf",
+            )
+            if legacy_pdf and resume.storage_path
+            else None
+        )
 
         return ResumeResponse(
             id=resume.id,
@@ -700,11 +745,11 @@ class ResumeService:
             editable=editable,
             template_id=resume.template_id,
             resume_data=resume.data if editable else None,
-            html_content=resume.html_content if editable else None,
-            file_name=resume.file_name or "",
-            file_size=resume.file_size or 0,
-            mime_type=resume.mime_type or PDF_MIME_TYPE,
+            file_name=resume.file_name if legacy_pdf else None,
+            file_size=resume.file_size if legacy_pdf else None,
+            mime_type=resume.mime_type if legacy_pdf else None,
             created_at=created_at,
             updated_at=resume.updated_at or created_at,
-            download_url=self._signed_url(resume.storage_path or ""),
+            download_url=download_url,
+            source_version=resume.source_version or 1,
         )

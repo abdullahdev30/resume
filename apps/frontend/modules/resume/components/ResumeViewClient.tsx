@@ -17,7 +17,11 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Textarea } from "@/components/ui/Textarea";
 import type { ResumeData } from "@/components/templates/TemplateOne";
+import { ResumeDocument } from "@/components/templates/ResumeDocument";
+import { ResumePrintRoot } from "@/components/templates/ResumePrintRoot";
+import { ResumePreview } from "@/components/templates/ResumePreview";
 import { resumeApi } from "../api";
+import { downloadResumePdf } from "../downloadResumePdf";
 import type { AIEditProposal, ResumeRecord } from "../types";
 
 export function ResumeViewClient({
@@ -82,7 +86,8 @@ export function ResumeViewClient({
     try {
       const updated = await resumeApi.update(resume.id, {
         resume_data: proposal.resume_data as ResumeData,
-        html_content: proposal.html_content,
+        template_id: proposal.template_id,
+        source_version: resume.source_version,
       });
       setResume(updated);
       setProposal(null);
@@ -100,10 +105,14 @@ export function ResumeViewClient({
 
   const downloadResume = async () => {
     if (!resume || busyAction) return;
-    const downloadWindow = window.open("", "_blank");
+    const downloadWindow = resume.editable ? null : window.open("", "_blank");
     setBusyAction("download");
     setActionError("");
     try {
+      if (resume.editable) {
+        await downloadResumePdf(resume.title);
+        return;
+      }
       const { download_url: downloadUrl } = await resumeApi.getPdf(resume.id);
       if (downloadWindow) {
         downloadWindow.opener = null;
@@ -130,7 +139,7 @@ export function ResumeViewClient({
         eyebrow={resume.resume_type === "ai" ? "AI-generated resume" : resume.resume_type === "legacy_pdf" ? "Uploaded document" : "Template resume"}
         icon={resume.resume_type === "ai" ? <Sparkles size={15} aria-hidden="true" /> : undefined}
         title={resume.title}
-        description={resume.editable ? "Your editable source and generated file are saved to your account." : "This uploaded PDF is available to view and download."}
+        description={resume.editable ? "Your editable source is saved to your account and printed directly from this template." : "This uploaded PDF is available to view and download."}
         actions={
           <>
             {resume.editable && (
@@ -139,15 +148,22 @@ export function ResumeViewClient({
                 Edit resume
               </Link>
             )}
-            <Button
-              onClick={() => void downloadResume()}
-              loading={busyAction === "download"}
-              loadingLabel="Preparing..."
-              disabled={Boolean(busyAction)}
-            >
-              <Download size={16} aria-hidden="true" />
-              Download PDF
-            </Button>
+            <div className="flex max-w-80 flex-col items-end gap-1">
+              <Button
+                onClick={() => void downloadResume()}
+                loading={busyAction === "download"}
+                loadingLabel="Preparing..."
+                disabled={Boolean(busyAction)}
+              >
+                <Download size={16} aria-hidden="true" />
+                Download PDF
+              </Button>
+              {resume.editable && (
+                <p className="text-right text-[10px] leading-tight text-[var(--text-muted)]">
+                  In the print window choose <strong>Save as PDF</strong>, Margins: <strong>None</strong>, enable <strong>Background graphics</strong>.
+                </p>
+              )}
+            </div>
           </>
         }
       />
@@ -160,14 +176,15 @@ export function ResumeViewClient({
 
       {actionError && <Alert variant="error">{actionError}</Alert>}
 
-      {resume.html_content ? (
+      {resume.editable && resume.resume_data ? (
         <Card padding="none" className="overflow-hidden">
-          <iframe
-            title={`${resume.title} preview`}
-            sandbox=""
-            srcDoc={resume.html_content}
-            className="min-h-[780px] w-full bg-white"
-          />
+          <ResumePreview>
+            <ResumeDocument
+              data={resume.resume_data as ResumeData}
+              elementStyles={(resume.resume_data as ResumeData).elementStyles}
+              templateId={resume.template_id || "1"}
+            />
+          </ResumePreview>
         </Card>
       ) : (
         <Card padding="lg">
@@ -239,12 +256,15 @@ export function ResumeViewClient({
               </Button>
             </div>
           </div>
-          <iframe
-            title="AI edit proposal preview"
-            sandbox=""
-            srcDoc={proposal.html_content}
-            className="min-h-[620px] w-full rounded-xl border border-[var(--border)] bg-white"
-          />
+          <div className="min-h-[620px] w-full overflow-auto rounded-xl border border-[var(--border)] bg-white">
+            <ResumePreview>
+              <ResumeDocument
+                data={proposal.resume_data}
+                elementStyles={proposal.resume_data.elementStyles}
+                templateId={proposal.template_id}
+              />
+            </ResumePreview>
+          </div>
         </Card>
       )}
 
@@ -268,6 +288,12 @@ export function ResumeViewClient({
           </Button>
         </div>
       </ConfirmDialog>
+      {resume.editable && resume.resume_data && (
+        <ResumePrintRoot
+          data={resume.resume_data as ResumeData}
+          templateId={resume.template_id || "1"}
+        />
+      )}
     </div>
   );
 }

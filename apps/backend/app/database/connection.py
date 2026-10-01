@@ -1,4 +1,3 @@
-import psycopg
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -40,5 +39,7 @@ def get_connection():
     """
     if not settings.database_url:
         raise RuntimeError("DATABASE_URL must be configured to run raw SQL.")
+
+    import psycopg
 
     return psycopg.connect(settings.database_url)

@@ -1,6 +1,8 @@
 import React from "react";
 import { Camera, User as UserIcon } from "lucide-react";
-import type { ResumeData, TemplateProps } from "./TemplateOne";
+import { getResumePageStyle, type ResumeData, type TemplateProps } from "./TemplateOne";
+import { AdditionalSections } from "./AdditionalSections";
+import { ResumePage } from "./ResumePage";
 
 export default function TemplateSix({
   data,
@@ -8,6 +10,7 @@ export default function TemplateSix({
   onSelectElement,
   elementStyles = {},
   onPhotoUpload,
+  indexOffsets = {},
 }: TemplateProps) {
   const primaryColor = data.primaryColor || "#9333ea";
 
@@ -19,6 +22,9 @@ export default function TemplateSix({
       textDecoration: custom?.isUnderline !== undefined ? (custom.isUnderline ? "underline" : "none") : undefined,
       textAlign: custom?.align || undefined,
       color: custom?.color || defaultColor || undefined,
+      fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
+      lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
+      fontFamily: custom?.fontFamily || undefined,
     };
   };
 
@@ -44,9 +50,11 @@ export default function TemplateSix({
   };
 
   return (
-    <div
-      className="bg-white shadow-xl w-full max-w-[210mm] min-h-[297mm] mx-auto font-sans text-slate-800 flex flex-row"
+    <ResumePage
+      data={data}
+      className="bg-white shadow-xl mx-auto font-sans text-slate-800 flex flex-row"
       style={{
+        ...getResumePageStyle(data),
         fontFamily: data.fontFamily || "inherit",
         fontWeight: data.isBold ? "bold" : undefined,
         fontStyle: data.isItalic ? "italic" : undefined,
@@ -65,19 +73,24 @@ export default function TemplateSix({
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-2 text-center bg-slate-800 hover:bg-slate-700 transition">
                   <UserIcon className="w-12 h-12 text-purple-300 mb-1" />
-                  <span className="text-[10px] font-bold text-purple-300 flex items-center">
-                    <Camera className="w-3 h-3 mr-1" />
-                    <span>Upload Photo</span>
-                  </span>
+                  {onPhotoUpload && (
+                    <span className="text-[10px] font-bold text-purple-300 flex items-center">
+                      <Camera className="w-3 h-3 mr-1" />
+                      <span>Upload Photo</span>
+                    </span>
+                  )}
                 </div>
               )}
 
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
-                <Camera className="w-4 h-4 mr-1" />
-                <span>Change</span>
-              </div>
-
-              <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+              {onPhotoUpload && (
+                <>
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
+                    <Camera className="w-4 h-4 mr-1" />
+                    <span>Change</span>
+                  </div>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                </>
+              )}
             </label>
           </div>
 
@@ -117,7 +130,7 @@ export default function TemplateSix({
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Core Skills</h3>
               <div className="flex flex-wrap gap-1.5">
                 {data.skills.map((skill, index) => {
-                  const id = `skill-${index}`;
+                  const id = `skill-${(indexOffsets.skills || 0) + index}`;
                   return (
                     <span
                       key={index}
@@ -173,12 +186,13 @@ export default function TemplateSix({
             </h3>
             <div className="space-y-4">
               {data.experience.map((exp, index) => {
-                const roleId = `exp-${index}-role`;
-                const companyId = `exp-${index}-company`;
-                const detailsId = `exp-${index}-details`;
+                const itemIndex = (indexOffsets.experience || 0) + index;
+                const roleId = `exp-${itemIndex}-role`;
+                const companyId = `exp-${itemIndex}-company`;
+                const detailsId = `exp-${itemIndex}-details`;
 
                 return (
-                  <div key={index} className="space-y-1">
+                  <div key={exp.id || itemIndex} className="resume-item space-y-1">
                     <div className="flex justify-between items-baseline">
                       <h4
                         onClick={(e) => handleSelect(roleId, e)}
@@ -222,11 +236,12 @@ export default function TemplateSix({
             </h3>
             <div className="space-y-3">
               {data.education.map((edu, index) => {
-                const degreeId = `edu-${index}-degree`;
-                const instId = `edu-${index}-inst`;
+                const itemIndex = (indexOffsets.education || 0) + index;
+                const degreeId = `edu-${itemIndex}-degree`;
+                const instId = `edu-${itemIndex}-inst`;
 
                 return (
-                  <div key={index} className="flex justify-between items-start">
+                  <div key={edu.id || itemIndex} className="resume-item flex justify-between items-start">
                     <div>
                       <h4
                         onClick={(e) => handleSelect(degreeId, e)}
@@ -250,7 +265,8 @@ export default function TemplateSix({
             </div>
           </div>
         )}
+        <AdditionalSections data={data} accentColor={primaryColor} selectedElementId={selectedElementId} onSelectElement={onSelectElement} elementStyles={elementStyles} indexOffsets={indexOffsets} />
       </div>
-    </div>
+    </ResumePage>
   );
 }

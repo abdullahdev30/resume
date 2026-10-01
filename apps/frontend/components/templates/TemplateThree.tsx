@@ -1,11 +1,14 @@
 import React from "react";
-import type { ResumeData, TemplateProps } from "./TemplateOne";
+import { getResumePageStyle, type ResumeData, type TemplateProps } from "./TemplateOne";
+import { AdditionalSections } from "./AdditionalSections";
+import { ResumePage } from "./ResumePage";
 
 export default function TemplateThree({
   data,
   selectedElementId,
   onSelectElement,
   elementStyles = {},
+  indexOffsets = {},
 }: TemplateProps) {
   const accentColor = data.primaryColor || "#334155";
 
@@ -17,6 +20,9 @@ export default function TemplateThree({
       textDecoration: custom?.isUnderline !== undefined ? (custom.isUnderline ? "underline" : "none") : undefined,
       textAlign: custom?.align || undefined,
       color: custom?.color || defaultColor || undefined,
+      fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
+      lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
+      fontFamily: custom?.fontFamily || undefined,
     };
   };
 
@@ -35,9 +41,11 @@ export default function TemplateThree({
   };
 
   return (
-    <div
-      className="bg-white shadow-xl w-full max-w-[210mm] min-h-[297mm] mx-auto p-10 font-serif text-slate-800"
+    <ResumePage
+      data={data}
+      className="bg-white shadow-xl mx-auto font-serif text-slate-800"
       style={{
+        ...getResumePageStyle(data),
         fontFamily: data.fontFamily || "Georgia, serif",
         fontWeight: data.isBold ? "bold" : undefined,
         fontStyle: data.isItalic ? "italic" : undefined,
@@ -106,7 +114,7 @@ export default function TemplateThree({
           </h2>
           <div className="flex flex-wrap justify-center gap-2 font-sans text-xs">
             {data.skills.map((skill, index) => {
-              const id = `skill-${index}`;
+              const id = `skill-${(indexOffsets.skills || 0) + index}`;
               return (
                 <span
                   key={index}
@@ -133,11 +141,12 @@ export default function TemplateThree({
           </h2>
           <div className="space-y-4">
             {data.experience.map((exp, index) => {
-              const roleId = `exp-${index}-role`;
-              const detailsId = `exp-${index}-details`;
+              const itemIndex = (indexOffsets.experience || 0) + index;
+              const roleId = `exp-${itemIndex}-role`;
+              const detailsId = `exp-${itemIndex}-details`;
 
               return (
-                <div key={index} className="space-y-1">
+                <div key={exp.id || itemIndex} className="resume-item space-y-1">
                   <div className="flex justify-between items-baseline font-sans">
                     <span
                       onClick={(e) => handleSelect(roleId, e)}
@@ -173,10 +182,11 @@ export default function TemplateThree({
           </h2>
           <div className="space-y-2">
             {data.education.map((edu, index) => {
-              const degreeId = `edu-${index}-degree`;
+              const itemIndex = (indexOffsets.education || 0) + index;
+              const degreeId = `edu-${itemIndex}-degree`;
 
               return (
-                <div key={index} className="flex justify-between items-start font-sans text-xs">
+                <div key={edu.id || itemIndex} className="resume-item flex justify-between items-start font-sans text-xs">
                   <div>
                     <span
                       onClick={(e) => handleSelect(degreeId, e)}
@@ -194,6 +204,7 @@ export default function TemplateThree({
           </div>
         </div>
       )}
-    </div>
+      <AdditionalSections data={data} accentColor={accentColor} selectedElementId={selectedElementId} onSelectElement={onSelectElement} elementStyles={elementStyles} indexOffsets={indexOffsets} />
+    </ResumePage>
   );
 }

@@ -27,8 +27,11 @@ import { Card } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
 import { FileUpload, type FileUploadStatus } from "@/components/ui/FileUpload";
 import { Input } from "@/components/ui/Input";
+import type { ResumeData } from "@/components/templates/TemplateOne";
+import { ResumePrintRoot } from "@/components/templates/ResumePrintRoot";
 import { profileApi } from "@/modules/profile/api";
 import { resumeApi } from "../api";
+import { downloadResumePdf } from "../downloadResumePdf";
 import type { ResumeRecord } from "../types";
 
 export function ResumeListClient({
@@ -48,6 +51,7 @@ export function ResumeListClient({
   const [pendingDelete, setPendingDelete] = useState<ResumeRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [printResume, setPrintResume] = useState<ResumeRecord | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<FileUploadStatus>("idle");
@@ -104,9 +108,20 @@ export function ResumeListClient({
 
   const downloadResume = async (resume: ResumeRecord) => {
     if (downloadingId) return;
-    const downloadWindow = window.open("", "_blank");
+    const downloadWindow = resume.editable ? null : window.open("", "_blank");
     setDownloadingId(resume.id);
     try {
+      if (resume.editable) {
+        if (!resume.resume_data) {
+          throw new Error("This editable resume has no saved source data.");
+        }
+        setPrintResume(resume);
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
+        await downloadResumePdf(resume.title);
+        return;
+      }
       const { download_url: downloadUrl } = await resumeApi.getPdf(resume.id);
       if (downloadWindow) {
         downloadWindow.opener = null;
@@ -119,6 +134,7 @@ export function ResumeListClient({
       toast.error("We could not prepare this PDF. Please try again.", "Download failed");
     } finally {
       setDownloadingId(null);
+      setPrintResume(null);
     }
   };
 
@@ -255,7 +271,7 @@ export function ResumeListClient({
                   disabled={Boolean(downloadingId)}
                 >
                   <Download size={14} aria-hidden="true" />
-                  PDF
+                  Download PDF
                 </Button>
                 <Button
                   variant="ghost"
@@ -311,7 +327,9 @@ export function ResumeListClient({
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title={`Delete ${pendingDelete?.title || "resume"}?`}
-        description="This removes the resume and its generated file from your account. This cannot be undone."
+        description={pendingDelete?.editable
+          ? "This removes the editable resume source from your account. This cannot be undone."
+          : "This removes the resume and its uploaded PDF from your account. This cannot be undone."}
         onClose={() => !deleting && setPendingDelete(null)}
         preventClose={deleting}
       >
@@ -320,6 +338,12 @@ export function ResumeListClient({
           <Button variant="danger" onClick={() => void deleteResume()} loading={deleting} loadingLabel="Deleting...">Delete resume</Button>
         </div>
       </ConfirmDialog>
+      {printResume?.editable && printResume.resume_data && (
+        <ResumePrintRoot
+          data={printResume.resume_data as ResumeData}
+          templateId={printResume.template_id || "1"}
+        />
+      )}
     </div>
   );
 }

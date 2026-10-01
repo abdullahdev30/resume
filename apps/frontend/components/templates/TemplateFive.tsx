@@ -1,6 +1,8 @@
 import React from "react";
 import { Camera, User as UserIcon } from "lucide-react";
-import type { ResumeData, TemplateProps } from "./TemplateOne";
+import { getResumePageStyle, type ResumeData, type TemplateProps } from "./TemplateOne";
+import { AdditionalSections } from "./AdditionalSections";
+import { ResumePage } from "./ResumePage";
 
 export default function TemplateFive({
   data,
@@ -8,6 +10,7 @@ export default function TemplateFive({
   onSelectElement,
   elementStyles = {},
   onPhotoUpload,
+  indexOffsets = {},
 }: TemplateProps) {
   const primaryColor = data.primaryColor || "#0E7C7B";
 
@@ -19,6 +22,9 @@ export default function TemplateFive({
       textDecoration: custom?.isUnderline !== undefined ? (custom.isUnderline ? "underline" : "none") : undefined,
       textAlign: custom?.align || undefined,
       color: custom?.color || defaultColor || undefined,
+      fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
+      lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
+      fontFamily: custom?.fontFamily || undefined,
     };
   };
 
@@ -44,9 +50,11 @@ export default function TemplateFive({
   };
 
   return (
-    <div
-      className="bg-white shadow-xl w-full max-w-[210mm] min-h-[297mm] mx-auto font-sans text-slate-800 flex flex-col"
+    <ResumePage
+      data={data}
+      className="bg-white shadow-xl mx-auto font-sans text-slate-800 flex flex-col"
       style={{
+        ...getResumePageStyle(data),
         fontFamily: data.fontFamily || "inherit",
         fontWeight: data.isBold ? "bold" : undefined,
         fontStyle: data.isItalic ? "italic" : undefined,
@@ -92,20 +100,24 @@ export default function TemplateFive({
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-2 text-center bg-slate-800 hover:bg-slate-700 transition">
                 <UserIcon className="w-10 h-10 text-slate-300 mb-1" />
-                <span className="text-[10px] font-bold text-teal-300 flex items-center space-x-1">
-                  <Camera className="w-3 h-3 mr-0.5" />
-                  <span>Upload Photo</span>
-                </span>
+                {onPhotoUpload && (
+                  <span className="text-[10px] font-bold text-teal-300 flex items-center space-x-1">
+                    <Camera className="w-3 h-3 mr-0.5" />
+                    <span>Upload Photo</span>
+                  </span>
+                )}
               </div>
             )}
 
-            {/* Hover overlay badge */}
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
-              <Camera className="w-4 h-4 mr-1" />
-              <span>Change</span>
-            </div>
-
-            <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+            {onPhotoUpload && (
+              <>
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
+                  <Camera className="w-4 h-4 mr-1" />
+                  <span>Change</span>
+                </div>
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+              </>
+            )}
           </label>
         </div>
       </div>
@@ -146,12 +158,13 @@ export default function TemplateFive({
               </h3>
               <div className="space-y-4">
                 {data.experience.map((exp, index) => {
-                  const roleId = `exp-${index}-role`;
-                  const companyId = `exp-${index}-company`;
-                  const detailsId = `exp-${index}-details`;
+                  const itemIndex = (indexOffsets.experience || 0) + index;
+                  const roleId = `exp-${itemIndex}-role`;
+                  const companyId = `exp-${itemIndex}-company`;
+                  const detailsId = `exp-${itemIndex}-details`;
 
                   return (
-                    <div key={index} className="space-y-1 pl-3 border-l-2" style={{ borderColor: primaryColor }}>
+                    <div key={exp.id || itemIndex} className="resume-item space-y-1 pl-3 border-l-2" style={{ borderColor: primaryColor }}>
                       <div className="flex justify-between items-baseline">
                         <h4
                           onClick={(e) => handleSelect(roleId, e)}
@@ -194,7 +207,7 @@ export default function TemplateFive({
               </h3>
               <div className="flex flex-col space-y-1.5">
                 {data.skills.map((skill, index) => {
-                  const id = `skill-${index}`;
+                  const id = `skill-${(indexOffsets.skills || 0) + index}`;
                   return (
                     <div
                       key={index}
@@ -218,10 +231,11 @@ export default function TemplateFive({
               </h3>
               <div className="space-y-3">
                 {data.education.map((edu, index) => {
-                  const degreeId = `edu-${index}-degree`;
+                  const itemIndex = (indexOffsets.education || 0) + index;
+                  const degreeId = `edu-${itemIndex}-degree`;
 
                   return (
-                    <div key={index}>
+                    <div key={edu.id || itemIndex} className="resume-item">
                       <h4
                         onClick={(e) => handleSelect(degreeId, e)}
                         className={getItemClass(degreeId, "text-xs font-bold text-slate-900")}
@@ -239,6 +253,9 @@ export default function TemplateFive({
           )}
         </div>
       </div>
-    </div>
+      <div className="px-8 pb-8">
+        <AdditionalSections data={data} accentColor={primaryColor} selectedElementId={selectedElementId} onSelectElement={onSelectElement} elementStyles={elementStyles} indexOffsets={indexOffsets} />
+      </div>
+    </ResumePage>
   );
 }

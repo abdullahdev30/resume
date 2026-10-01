@@ -10,7 +10,8 @@ export interface PersonalInfoPayload {
   phone: string;
   address: string;
   city?: string | null;
-  avatar_url?: string | null;
+  professional_title?: string | null;
+  summary?: string | null;
   social_links?: SocialLinkInput[];
 }
 
@@ -25,6 +26,8 @@ export interface PersonalInfo {
   address?: string | null;
   city?: string | null;
   avatar_url?: string | null;
+  professional_title?: string | null;
+  summary?: string | null;
   onboarding_completed?: boolean | null;
   social_links?: import("../social-links/types").SocialLink[];
   created_at?: string | null;

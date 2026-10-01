@@ -1,6 +1,8 @@
 import React from "react";
 import { Camera, User as UserIcon } from "lucide-react";
-import type { ResumeData, TemplateProps } from "./TemplateOne";
+import { getResumePageStyle, type ResumeData, type TemplateProps } from "./TemplateOne";
+import { AdditionalSections } from "./AdditionalSections";
+import { ResumePage } from "./ResumePage";
 
 export default function TemplateTwo({
   data,
@@ -8,6 +10,7 @@ export default function TemplateTwo({
   onSelectElement,
   elementStyles = {},
   onPhotoUpload,
+  indexOffsets = {},
 }: TemplateProps) {
   const primaryColor = data.primaryColor || "#059669";
 
@@ -19,6 +22,9 @@ export default function TemplateTwo({
       textDecoration: custom?.isUnderline !== undefined ? (custom.isUnderline ? "underline" : "none") : undefined,
       textAlign: custom?.align || undefined,
       color: custom?.color || defaultColor || undefined,
+      fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
+      lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
+      fontFamily: custom?.fontFamily || undefined,
     };
   };
 
@@ -37,9 +43,11 @@ export default function TemplateTwo({
   };
 
   return (
-    <div
-      className="bg-white shadow-xl w-full max-w-[210mm] min-h-[297mm] mx-auto p-8 font-sans text-slate-800"
+    <ResumePage
+      data={data}
+      className="bg-white shadow-xl mx-auto font-sans text-slate-800"
       style={{
+        ...getResumePageStyle(data),
         fontFamily: data.fontFamily || "inherit",
         fontWeight: data.isBold ? "bold" : undefined,
         fontStyle: data.isItalic ? "italic" : undefined,
@@ -74,22 +82,28 @@ export default function TemplateTwo({
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-1 text-center bg-slate-100 hover:bg-slate-200 transition">
                 <UserIcon className="w-6 h-6 text-emerald-600 mb-0.5" />
-                <span className="text-[8px] font-bold text-emerald-700 flex items-center">
-                  <Camera className="w-2.5 h-2.5 mr-0.5" />
-                  <span>Photo</span>
-                </span>
+                {onPhotoUpload && (
+                  <span className="text-[8px] font-bold text-emerald-700 flex items-center">
+                    <Camera className="w-2.5 h-2.5 mr-0.5" />
+                    <span>Photo</span>
+                  </span>
+                )}
               </div>
             )}
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[9px] font-bold">
-              <Camera className="w-3 h-3 mr-1" />
-              <span>Upload</span>
-            </div>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && onPhotoUpload?.(e.target.files[0])}
-            />
+            {onPhotoUpload && (
+              <>
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[9px] font-bold">
+                  <Camera className="w-3 h-3 mr-1" />
+                  <span>Upload</span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.[0] && onPhotoUpload(e.target.files[0])}
+                />
+              </>
+            )}
           </label>
         </div>
       </div>
@@ -135,7 +149,7 @@ export default function TemplateTwo({
               </h3>
               <div className="flex flex-wrap gap-1.5">
                 {data.skills.map((skill, i) => {
-                  const id = `skill-${i}`;
+                  const id = `skill-${(indexOffsets.skills || 0) + i}`;
                   return (
                     <span
                       key={i}
@@ -162,12 +176,13 @@ export default function TemplateTwo({
               </h3>
               <div className="space-y-5">
                 {data.experience.map((exp, i) => {
-                  const roleId = `exp-${i}-role`;
-                  const companyId = `exp-${i}-company`;
-                  const detailsId = `exp-${i}-details`;
+                  const itemIndex = (indexOffsets.experience || 0) + i;
+                  const roleId = `exp-${itemIndex}-role`;
+                  const companyId = `exp-${itemIndex}-company`;
+                  const detailsId = `exp-${itemIndex}-details`;
 
                   return (
-                    <div key={i} className="relative pl-4 border-l-2" style={{ borderColor: primaryColor }}>
+                    <div key={exp.id || itemIndex} className="resume-item relative pl-4 border-l-2" style={{ borderColor: primaryColor }}>
                       <div className="flex justify-between items-baseline">
                         <h4
                           onClick={(e) => handleSelect(roleId, e)}
@@ -207,11 +222,12 @@ export default function TemplateTwo({
               </h3>
               <div className="space-y-3">
                 {data.education.map((edu, i) => {
-                  const degreeId = `edu-${i}-degree`;
-                  const instId = `edu-${i}-inst`;
+                  const itemIndex = (indexOffsets.education || 0) + i;
+                  const degreeId = `edu-${itemIndex}-degree`;
+                  const instId = `edu-${itemIndex}-inst`;
 
                   return (
-                    <div key={i} className="flex justify-between items-start">
+                    <div key={edu.id || itemIndex} className="resume-item flex justify-between items-start">
                       <div>
                         <h4
                           onClick={(e) => handleSelect(degreeId, e)}
@@ -237,6 +253,9 @@ export default function TemplateTwo({
           )}
         </div>
       </div>
-    </div>
+      <div className="mt-7">
+        <AdditionalSections data={data} accentColor={primaryColor} selectedElementId={selectedElementId} onSelectElement={onSelectElement} elementStyles={elementStyles} indexOffsets={indexOffsets} />
+      </div>
+    </ResumePage>
   );
 }

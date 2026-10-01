@@ -1,5 +1,8 @@
 import React from "react";
 import { Camera, User as UserIcon } from "lucide-react";
+import { AdditionalSections } from "./AdditionalSections";
+import { ResumePage } from "./ResumePage";
+import type { ResumeItemOffsets } from "./pagination";
 
 export interface ElementStyle {
   isBold?: boolean;
@@ -7,6 +10,33 @@ export interface ElementStyle {
   isUnderline?: boolean;
   align?: "left" | "center" | "right";
   color?: string;
+  fontSize?: number;
+  lineHeight?: number;
+  fontFamily?: string;
+}
+
+export type ResumePageSize = "A4" | "Letter" | "Legal" | "A5" | "B5" | "Tabloid";
+
+export interface ResumeSocialLink {
+  id?: string;
+  platform: string;
+  url: string;
+}
+
+export interface ResumeProject {
+  id?: string;
+  name: string;
+  description: string;
+  url?: string;
+  technologies: string[];
+}
+
+export interface ResumeCertificate {
+  id?: string;
+  title: string;
+  issuer: string;
+  date: string;
+  url?: string;
 }
 
 export interface ResumeData {
@@ -25,6 +55,18 @@ export interface ResumeData {
   textAlign?: "left" | "center" | "right";
   skills: string[];
   languages: string[];
+  socialLinks?: ResumeSocialLink[];
+  projects?: ResumeProject[];
+  certificates?: ResumeCertificate[];
+  elementStyles?: Record<string, ElementStyle>;
+  pageSize?: ResumePageSize;
+  pageMargin?: number;
+  lineSpacing?: number;
+  secondaryColor?: string;
+  fontScale?: number;
+  sectionOrder?: Array<
+    "summary" | "experience" | "skills" | "education" | "projects" | "certificates" | "languages" | "social_links"
+  >;
   experience: {
     id?: string;
     role: string;
@@ -47,6 +89,13 @@ export interface TemplateProps {
   onSelectElement?: (id: string) => void;
   elementStyles?: Record<string, ElementStyle>;
   onPhotoUpload?: (file: File) => void;
+  indexOffsets?: ResumeItemOffsets;
+}
+
+export function getResumePageStyle(data: ResumeData): React.CSSProperties {
+  return {
+    lineHeight: data.lineSpacing || 1.5,
+  };
 }
 
 export default function TemplateOne({
@@ -55,6 +104,7 @@ export default function TemplateOne({
   onSelectElement,
   elementStyles = {},
   onPhotoUpload,
+  indexOffsets = {},
 }: TemplateProps) {
   const accentColor = data.primaryColor || "#0E7C7B";
 
@@ -66,6 +116,9 @@ export default function TemplateOne({
       textDecoration: custom?.isUnderline !== undefined ? (custom.isUnderline ? "underline" : "none") : undefined,
       textAlign: custom?.align || undefined,
       color: custom?.color || defaultColor || undefined,
+      fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
+      lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
+      fontFamily: custom?.fontFamily || undefined,
     };
   };
 
@@ -84,9 +137,11 @@ export default function TemplateOne({
   };
 
   return (
-    <div
-      className="bg-white shadow-xl w-full max-w-[210mm] min-h-[297mm] mx-auto flex flex-row font-sans text-slate-800"
+    <ResumePage
+      data={data}
+      className="bg-white shadow-xl mx-auto flex flex-row font-sans text-slate-800"
       style={{
+        ...getResumePageStyle(data),
         fontFamily: data.fontFamily || "inherit",
         fontWeight: data.isBold ? "bold" : undefined,
         fontStyle: data.isItalic ? "italic" : undefined,
@@ -105,22 +160,28 @@ export default function TemplateOne({
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-2 text-center bg-slate-800 hover:bg-slate-700 transition">
                   <UserIcon className="w-8 h-8 text-teal-300 mb-0.5" />
-                  <span className="text-[9px] font-bold text-teal-300 flex items-center">
-                    <Camera className="w-3 h-3 mr-0.5" />
-                    <span>Upload</span>
-                  </span>
+                  {onPhotoUpload && (
+                    <span className="text-[9px] font-bold text-teal-300 flex items-center">
+                      <Camera className="w-3 h-3 mr-0.5" />
+                      <span>Upload</span>
+                    </span>
+                  )}
                 </div>
               )}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
-                <Camera className="w-3.5 h-3.5 mr-1" />
-                <span>Photo</span>
-              </div>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => e.target.files?.[0] && onPhotoUpload?.(e.target.files[0])}
-              />
+              {onPhotoUpload && (
+                <>
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
+                    <Camera className="w-3.5 h-3.5 mr-1" />
+                    <span>Photo</span>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && onPhotoUpload(e.target.files[0])}
+                  />
+                </>
+              )}
             </label>
           </div>
 
@@ -172,7 +233,7 @@ export default function TemplateOne({
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Core Skills</h3>
               <div className="flex flex-wrap gap-1.5">
                 {data.skills.map((skill, index) => {
-                  const id = `skill-${index}`;
+                  const id = `skill-${(indexOffsets.skills || 0) + index}`;
                   return (
                     <span
                       key={index}
@@ -243,12 +304,13 @@ export default function TemplateOne({
             </h3>
             <div className="space-y-4">
               {data.experience.map((exp, index) => {
-                const roleId = `exp-${index}-role`;
-                const companyId = `exp-${index}-company`;
-                const detailsId = `exp-${index}-details`;
+                const itemIndex = (indexOffsets.experience || 0) + index;
+                const roleId = `exp-${itemIndex}-role`;
+                const companyId = `exp-${itemIndex}-company`;
+                const detailsId = `exp-${itemIndex}-details`;
 
                 return (
-                  <div key={index} className="space-y-1">
+                  <div key={exp.id || itemIndex} className="resume-item space-y-1">
                     <div className="flex justify-between items-baseline">
                       <h4
                         onClick={(e) => handleSelect(roleId, e)}
@@ -292,11 +354,12 @@ export default function TemplateOne({
             </h3>
             <div className="space-y-3">
               {data.education.map((edu, index) => {
-                const degreeId = `edu-${index}-degree`;
-                const instId = `edu-${index}-inst`;
+                const itemIndex = (indexOffsets.education || 0) + index;
+                const degreeId = `edu-${itemIndex}-degree`;
+                const instId = `edu-${itemIndex}-inst`;
 
                 return (
-                  <div key={index} className="flex justify-between items-start">
+                  <div key={edu.id || itemIndex} className="resume-item flex justify-between items-start">
                     <div>
                       <h4
                         onClick={(e) => handleSelect(degreeId, e)}
@@ -320,7 +383,8 @@ export default function TemplateOne({
             </div>
           </div>
         )}
+        <AdditionalSections data={data} accentColor={accentColor} includeLanguages={false} selectedElementId={selectedElementId} onSelectElement={onSelectElement} elementStyles={elementStyles} indexOffsets={indexOffsets} />
       </div>
-    </div>
+    </ResumePage>
   );
 }

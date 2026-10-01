@@ -15,8 +15,16 @@ export async function AppShellServer({
   children: React.ReactNode;
 }) {
   const profile = initialProfile === undefined ? await getProfileOnServer() : initialProfile;
+  const profileName = [
+    profile?.personal.first_name || profile?.personal.name,
+    profile?.personal.last_name,
+  ].filter(Boolean).join(" ");
   return (
-    <AppShell user={user} initialAvatarUrl={profile?.personal.avatar_url || ""}>
+    <AppShell
+      user={user}
+      initialAvatarUrl={profile?.personal.avatar_url || ""}
+      initialDisplayName={profileName || undefined}
+    >
       {children}
     </AppShell>
   );

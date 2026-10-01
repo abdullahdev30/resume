@@ -54,6 +54,8 @@ class FakeProfileRepository:
             "email": payload["email"],
             "phone": payload["phone"],
             "address": payload["address"],
+            "professional_title": payload.get("professional_title"),
+            "summary": payload.get("summary"),
             "created_at": now,
             "updated_at": now,
         }
@@ -129,9 +131,7 @@ class FakeProfileRepository:
 def app_overrides():
     app.dependency_overrides[get_auth_service] = lambda: FakeAuthService()
     original_service = profile_router.profile_service
-    profile_router.profile_service = ProfileService(
-        FakeProfileRepository()
-    )
+    profile_router.profile_service = ProfileService(FakeProfileRepository())
     yield
     profile_router.profile_service = original_service
     app.dependency_overrides.clear()
@@ -153,6 +153,8 @@ def personal_payload():
         "email": "JOHN@EXAMPLE.COM",
         "phone": "03001234567",
         "address": "123 Main Street",
+        "professional_title": "Senior Frontend Engineer",
+        "summary": "Builds accessible, high-performance web applications.",
         "social_links": [
             {
                 "platform_name": "LinkedIn",
@@ -193,7 +195,23 @@ def test_personal_onboarding_is_required_and_normalizes_email(client):
     body = response.json()
     assert body["email"] == "john@example.com"
     assert body["first_name"] == "John"
+    assert body["professional_title"] == "Senior Frontend Engineer"
+    assert body["summary"].startswith("Builds accessible")
     assert body["social_links"][0]["platform_name"] == "LinkedIn"
+
+
+def test_personal_update_cannot_replace_storage_managed_avatar(client):
+    payload = personal_payload()
+    payload["avatar_url"] = "https://storage.example.test/signed-avatar?token=temporary"
+
+    response = client.put(
+        "/api/v1/profile/personal",
+        json=payload,
+        headers=auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["avatar_url"] is None
 
 
 def test_profile_supports_multiple_optional_sections(client):
@@ -352,6 +370,36 @@ def test_update_and_delete_skill(client):
     assert profile.json()["skills"] == []
 
 
+def test_profile_item_mutations_are_scoped_to_authenticated_user(client):
+    create_personal(client)
+    repository = profile_router.profile_service.repository
+    repository.items["profile_skills"]["another-user"] = [
+        {
+            "id": "another-users-skill",
+            "user_id": "another-user",
+            "name": "Private skill",
+            "category": None,
+            "level": None,
+            "created_at": repository._stamp(),
+            "updated_at": repository._stamp(),
+        }
+    ]
+
+    updated = client.put(
+        "/api/v1/profile/skills/another-users-skill",
+        json={"name": "Exposed"},
+        headers=auth_headers(),
+    )
+    deleted = client.delete(
+        "/api/v1/profile/skills/another-users-skill",
+        headers=auth_headers(),
+    )
+
+    assert updated.status_code == 404
+    assert deleted.status_code == 404
+    assert repository.items["profile_skills"]["another-user"][0]["name"] == "Private skill"
+
+
 def test_certificate_upload(client):
     create_personal(client)
 
@@ -369,4 +417,3 @@ def test_certificate_upload(client):
     assert response.status_code == 201
     assert response.json()["file_name"] == "transcript.pdf"
     assert response.json()["category"] == "Education"
-

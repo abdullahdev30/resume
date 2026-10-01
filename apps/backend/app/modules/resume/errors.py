@@ -37,10 +37,7 @@ def resume_file_too_large_error(max_bytes: int) -> ResumeApplicationError:
     return ResumeApplicationError(
         status_code=413,
         code="resume_file_too_large",
-        message=(
-            "Resume file must be "
-            f"{max_bytes // (1024 * 1024)} MB or smaller."
-        ),
+        message=(f"Resume file must be {max_bytes // (1024 * 1024)} MB or smaller."),
     )
 
 
@@ -63,8 +60,48 @@ def resume_not_editable_error() -> ResumeApplicationError:
 def resume_ai_error() -> ResumeApplicationError:
     return ResumeApplicationError(
         status_code=502,
-        code="resume_ai_error",
+        code="AI_PROVIDER_ERROR",
         message="Unable to generate resume content. Please try again.",
+    )
+
+
+def resume_ai_not_configured_error() -> ResumeApplicationError:
+    return ResumeApplicationError(
+        status_code=503,
+        code="AI_NOT_CONFIGURED",
+        message="AI resume generation is not configured. Ask an administrator to set AI_API_KEY.",
+    )
+
+
+def resume_ai_invalid_output_error() -> ResumeApplicationError:
+    return ResumeApplicationError(
+        status_code=502,
+        code="AI_INVALID_OUTPUT",
+        message="The AI returned an invalid resume. Please revise the prompt and try again.",
+    )
+
+
+def resume_ai_timeout_error() -> ResumeApplicationError:
+    return ResumeApplicationError(
+        status_code=504,
+        code="AI_TIMEOUT",
+        message="AI resume generation timed out. Please try again.",
+    )
+
+
+def resume_ai_rate_limit_error() -> ResumeApplicationError:
+    return ResumeApplicationError(
+        status_code=429,
+        code="RATE_LIMITED",
+        message="The AI provider is busy. Please wait and try again.",
+    )
+
+
+def resume_profile_required_error() -> ResumeApplicationError:
+    return ResumeApplicationError(
+        status_code=422,
+        code="resume_profile_required",
+        message="Complete your profile before generating an AI resume.",
     )
 
 
@@ -73,6 +110,22 @@ def resume_storage_error() -> ResumeApplicationError:
         status_code=502,
         code="resume_storage_error",
         message="Unable to store the resume file. Please try again.",
+    )
+
+
+def resume_version_conflict_error() -> ResumeApplicationError:
+    return ResumeApplicationError(
+        status_code=409,
+        code="resume_version_conflict",
+        message="This resume was changed in another tab. Reload before saving again.",
+    )
+
+
+def resume_pdf_unavailable_error() -> ResumeApplicationError:
+    return ResumeApplicationError(
+        status_code=409,
+        code="resume_pdf_unavailable",
+        message="Editable resumes are downloaded directly from the browser.",
     )
 
 

@@ -434,6 +434,7 @@ def test_change_password_valid_session(client):
     assert response.json() == {"message": "Password changed successfully."}
 
 
+
 def test_change_password_accepts_recovery_code_without_session(client):
     response = client.post(
         "/api/v1/auth/change-password",
@@ -446,4 +447,3 @@ def test_change_password_accepts_recovery_code_without_session(client):
 
     assert response.status_code == 200
     assert response.json() == {"message": "Password changed successfully."}
-

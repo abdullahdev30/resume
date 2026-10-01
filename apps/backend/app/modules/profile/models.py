@@ -9,10 +9,10 @@ class PersonalDetail(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, unique=True, index=True)
-    
+
     # Basic Profile & Avatar
     avatar_url = Column(String, nullable=True)
-    
+
     # Merged Onboarding Stages / Sections (Stored flexibly or via structured JSON/Relations)
     education = Column(JSON, nullable=True)     # List of {institution, degree, start_date, end_date, is_current}
     experience = Column(JSON, nullable=True)    # List of {company, role, start_date, end_date, is_current}

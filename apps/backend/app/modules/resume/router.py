@@ -5,8 +5,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.database.connection import get_db
 from app.modules.auth.dependencies import CURRENT_USER_DEPENDENCY
+from app.modules.auth.router import limiter
 from app.modules.auth.schemas import UserResponse
 from app.modules.resume.errors import ResumeApplicationError, raise_resume_error
 from app.modules.resume.repository import ResumeRepository
@@ -82,13 +84,15 @@ async def create_template_resume(
     status_code=status.HTTP_201_CREATED,
     summary="Create an AI generated editable resume",
 )
+@limiter.limit(f"{settings.ai_rate_limit_per_hour}/hour")
 async def create_ai_resume(
-    request: AIResumeRequest,
+    request: Request,
+    payload: AIResumeRequest,
     current_user: UserResponse = CURRENT_USER_DEPENDENCY,
     resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
 ) -> ResumeResponse:
     try:
-        return await resume_service.create_ai_resume(current_user.id, request)
+        return await resume_service.create_ai_resume(current_user.id, payload)
     except ResumeApplicationError as exc:
         raise_resume_error(exc)
         raise RuntimeError("unreachable")
@@ -132,7 +136,10 @@ async def update_resume(
 ) -> ResumeResponse:
     try:
         content_type = request.headers.get("content-type", "")
-        if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+        if (
+            "multipart/form-data" in content_type
+            or "application/x-www-form-urlencoded" in content_type
+        ):
             form = await request.form()
             file_value = form.get("file")
             title_value = form.get("title")
@@ -164,9 +171,11 @@ async def update_resume(
     response_model=ResumeAIEditProposal,
     summary="Create an AI edit proposal without saving it",
 )
+@limiter.limit("10/hour")
 async def create_ai_edit_proposal(
     resume_id: UUID,
-    request: ResumeAIEditRequest,
+    request: Request,
+    payload: ResumeAIEditRequest,
     current_user: UserResponse = CURRENT_USER_DEPENDENCY,
     resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
 ) -> ResumeAIEditProposal:
@@ -174,25 +183,8 @@ async def create_ai_edit_proposal(
         return await resume_service.create_ai_edit_proposal(
             current_user.id,
             str(resume_id),
-            request,
+            payload,
         )
-    except ResumeApplicationError as exc:
-        raise_resume_error(exc)
-        raise RuntimeError("unreachable")
-
-
-@router.post(
-    "/{resume_id}/generate-pdf",
-    response_model=ResumeResponse,
-    summary="Regenerate the PDF from editable resume HTML",
-)
-async def generate_pdf(
-    resume_id: UUID,
-    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
-    resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
-) -> ResumeResponse:
-    try:
-        return await resume_service.regenerate_pdf(current_user.id, str(resume_id))
     except ResumeApplicationError as exc:
         raise_resume_error(exc)
         raise RuntimeError("unreachable")
@@ -201,7 +193,7 @@ async def generate_pdf(
 @router.get(
     "/{resume_id}/pdf",
     response_model=ResumePDFResponse,
-    summary="Get a signed PDF download URL",
+    summary="Get a signed download URL for a legacy uploaded PDF",
 )
 def get_resume_pdf(
     resume_id: UUID,
@@ -215,7 +207,9 @@ def get_resume_pdf(
         raise RuntimeError("unreachable")
 
 
-@router.delete("/{resume_id}", response_model=ResumeMessageResponse, summary="Delete a resume")
+@router.delete(
+    "/{resume_id}", response_model=ResumeMessageResponse, summary="Delete a resume"
+)
 async def delete_resume(
     resume_id: UUID,
     current_user: UserResponse = CURRENT_USER_DEPENDENCY,

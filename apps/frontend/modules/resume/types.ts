@@ -9,13 +9,13 @@ export interface ResumeRecord {
   editable: boolean;
   template_id?: string | null;
   resume_data?: ResumeData | Record<string, unknown> | null;
-  html_content?: string | null;
-  file_name: string;
-  file_size: number;
-  mime_type: string;
+  file_name?: string | null;
+  file_size?: number | null;
+  mime_type?: string | null;
   created_at: string;
   updated_at: string;
-  download_url: string;
+  download_url?: string | null;
+  source_version: number;
 }
 
 export interface ResumeListResponse {
@@ -26,30 +26,40 @@ export interface TemplateResumePayload {
   title: string;
   template_id: string;
   resume_data: ResumeData;
-  html_content?: string;
 }
 
 export interface AIResumePayload {
   title: string;
-  template_id?: string;
   prompt: string;
   job_description?: string;
-  profile_context?: Record<string, unknown>;
+  reference_links?: string[];
+  selected_sections?: Array<
+    | "personal"
+    | "summary"
+    | "skills"
+    | "experience"
+    | "education"
+    | "projects"
+    | "certificates"
+    | "languages"
+    | "social_links"
+  >;
 }
 
 export interface ResumeUpdatePayload {
   title?: string;
   template_id?: string;
   resume_data?: ResumeData;
-  html_content?: string;
+  source_version?: number;
 }
 
 export interface AIEditPayload {
   instruction: string;
   job_description?: string;
+  reference_links?: string[];
 }
 
 export interface AIEditProposal {
   resume_data: ResumeData;
-  html_content: string;
+  template_id: string;
 }

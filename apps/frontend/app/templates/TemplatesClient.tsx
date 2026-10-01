@@ -13,13 +13,15 @@ import { Card } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Tabs } from "@/components/ui/Tabs";
-import { createTemplateResumeFromItem, renderTemplate, TemplateCard } from "@/components/templates/TemplateCard";
+import { blankResumeData, createTemplateResumeFromItem, renderTemplate, TemplateCard } from "@/components/templates/TemplateCard";
 import { templateCatalog, type TemplateItem } from "@/components/templates/catalog";
+import type { ProfileResponse } from "@/modules/profile/types";
+import { profileToResumeData } from "@/modules/resume/profileSnapshot";
 
 type Category = "All" | TemplateItem["category"];
 const categories: Category[] = ["All", "Modern", "Creative", "Minimalist", "Executive"];
 
-export default function TemplatesClient() {
+export default function TemplatesClient({ profile }: { profile: ProfileResponse | null }) {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<Category>("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -29,20 +31,31 @@ export default function TemplatesClient() {
 
   const filteredTemplates = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return templateCatalog.filter((template) => {
-      const categoryMatches = selectedCategory === "All" || template.category === selectedCategory;
-      const queryMatches = !query || `${template.name} ${template.description} ${template.category}`.toLowerCase().includes(query);
-      return categoryMatches && queryMatches;
-    });
-  }, [searchQuery, selectedCategory]);
+    const profileData = profile ? profileToResumeData(profile) : blankResumeData;
+    return templateCatalog
+      .filter((template) => {
+        const categoryMatches = selectedCategory === "All" || template.category === selectedCategory;
+        const queryMatches = !query || `${template.name} ${template.description} ${template.category}`.toLowerCase().includes(query);
+        return categoryMatches && queryMatches;
+      })
+      .map((template) => ({
+        ...template,
+        data: {
+          ...blankResumeData,
+          ...profileData,
+          primaryColor: template.data.primaryColor || blankResumeData.primaryColor,
+          fontFamily: template.data.fontFamily || blankResumeData.fontFamily,
+        },
+      }));
+  }, [profile, searchQuery, selectedCategory]);
 
   const useTemplate = async (item: TemplateItem) => {
     if (creating) return;
     setCreating(true);
     setError("");
     try {
-      const resume = await createTemplateResumeFromItem(item);
-      toast.success("Your profile was copied into a new independent resume.", "Resume created");
+      const resume = await createTemplateResumeFromItem(item, profile);
+      toast.success("A new independent resume was created from this template.", "Resume created");
       router.push(`/editor/${resume.template_id || item.id}?resumeId=${resume.id}`);
     } catch {
       const message = "We could not create the resume. Check your connection and try again.";
@@ -100,7 +113,7 @@ export default function TemplatesClient() {
       ) : (
         <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3" aria-label="Resume templates">
           {filteredTemplates.map((template) => (
-            <TemplateCard key={template.id} item={template} onPreview={setPreview} />
+            <TemplateCard key={template.id} item={template} onPreview={setPreview} profile={profile} />
           ))}
         </section>
       )}

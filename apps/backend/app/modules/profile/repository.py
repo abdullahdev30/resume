@@ -27,6 +27,7 @@ class ProfileRepository:
             """
             SELECT id::text AS user_id, first_name AS name, first_name, last_name,
                    father_name, email, phone, address, city, avatar_url,
+                   professional_title, summary,
                    onboarding_completed, created_at, updated_at
             FROM profiles
             WHERE id = %s
@@ -43,9 +44,10 @@ class ProfileRepository:
             """
             INSERT INTO profiles (
                 id, first_name, last_name, father_name, email, phone, address,
-                city, avatar_url, onboarding_completed, updated_at
+                city, professional_title, summary,
+                onboarding_completed, updated_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, NOW())
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, NOW())
             ON CONFLICT (id)
             DO UPDATE SET
                 first_name = EXCLUDED.first_name,
@@ -55,7 +57,8 @@ class ProfileRepository:
                 phone = EXCLUDED.phone,
                 address = EXCLUDED.address,
                 city = EXCLUDED.city,
-                avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
+                professional_title = EXCLUDED.professional_title,
+                summary = EXCLUDED.summary,
                 onboarding_completed = TRUE,
                 updated_at = NOW()
             RETURNING id
@@ -69,7 +72,8 @@ class ProfileRepository:
                 payload["phone"],
                 payload.get("address"),
                 payload.get("city"),
-                payload.get("avatar_url"),
+                payload.get("professional_title"),
+                payload.get("summary"),
             ),
         )
 
@@ -112,12 +116,12 @@ class ProfileRepository:
             """
             INSERT INTO educations (
                 user_id, institution, degree, field_of_study,
-                start_date, end_date, description
+                start_date, end_date, is_current, description, grade
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id::text AS id, institution AS institute_name, degree, field_of_study,
-                      start_date, end_date, (end_date IS NULL) AS is_current,
-                      description, NULL::text AS grade, created_at, updated_at
+                      start_date, end_date, is_current,
+                      description, grade, created_at, updated_at
             """,
             (
                 user_id,
@@ -126,7 +130,9 @@ class ProfileRepository:
                 payload.get("field_of_study"),
                 payload["start_date"],
                 None if payload.get("is_current") else payload.get("end_date"),
+                payload.get("is_current", False),
                 payload.get("description"),
+                payload.get("grade"),
             ),
         )
         return row or {}
@@ -297,8 +303,8 @@ class ProfileRepository:
             """,
             "educations": """
                 SELECT id::text AS id, institution AS institute_name, degree, field_of_study,
-                       start_date, end_date, (end_date IS NULL) AS is_current,
-                       description, NULL::text AS grade, created_at, updated_at
+                       start_date, end_date, is_current,
+                       description, grade, created_at, updated_at
                 FROM educations
                 WHERE user_id = %s
             """,
@@ -345,7 +351,9 @@ class ProfileRepository:
                 "field_of_study": "field_of_study",
                 "start_date": "start_date",
                 "end_date": "end_date",
+                "is_current": "is_current",
                 "description": "description",
+                "grade": "grade",
             },
             "experiences": {
                 "company_name": "company",
@@ -408,10 +416,7 @@ class ProfileRepository:
         with get_connection() as connection, connection.cursor() as cursor:
             cursor.execute(query, params)
             columns = [column.name for column in cursor.description]
-            return [
-                dict(zip(columns, row, strict=False))
-                for row in cursor.fetchall()
-            ]
+            return [dict(zip(columns, row, strict=False)) for row in cursor.fetchall()]
 
     def _execute(self, query: str, params: tuple[Any, ...]) -> int:
         with get_connection() as connection, connection.cursor() as cursor:

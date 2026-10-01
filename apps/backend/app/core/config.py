@@ -10,6 +10,10 @@ class Settings(BaseSettings):
 
     frontend_url: str = "http://localhost:3000"
     backend_url: str = "http://localhost:8000"
+    # Additional browser origins, as a comma-separated list. FRONTEND_URL is
+    # always included, so existing deployments remain compatible.
+    cors_origins: str = ""
+    cors_origin_regex: str = ""
 
     supabase_url: str
     supabase_publishable_key: str
@@ -37,8 +41,34 @@ class Settings(BaseSettings):
     # Resume PDF uploads.
     resume_max_file_size_bytes: int = 10 * 1024 * 1024
     resume_signed_url_expires_in_seconds: int = 300
-    openai_api_key: str | None = None
-    openai_model: str = "gpt-5-mini"
+    # Server-side AI resume generation. Keys are never returned to clients.
+    ai_api_key: str | None = None
+    ai_provider: str = "openai"
+    ai_model: str = "gpt-5-mini"
+    ai_base_url: str = "https://api.openai.com/v1"
+    ai_timeout_seconds: float = 90.0
+    ai_rate_limit_per_hour: int = 5
+
+    @property
+    def allowed_cors_origins(self) -> list[str]:
+        configured_origins = [self.frontend_url, *self.cors_origins.split(",")]
+        # Origin headers never contain a trailing slash. Normalizing configured
+        # URLs prevents an easy-to-miss exact-match failure in production.
+        return list(dict.fromkeys(
+            origin.strip().rstrip("/")
+            for origin in configured_origins
+            if origin.strip()
+        ))
+
+    @property
+    def allowed_cors_origin_regex(self) -> str | None:
+        if self.cors_origin_regex.strip():
+            return self.cors_origin_regex.strip()
+        if self.app_env.strip().lower() in {"development", "dev", "local", "test"}:
+            # Permit loopback aliases and alternate Next.js development ports,
+            # while keeping non-local origins denied by default.
+            return r"^https?://(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$"
+        return None
 
     model_config = SettingsConfigDict(
         env_file=".env",

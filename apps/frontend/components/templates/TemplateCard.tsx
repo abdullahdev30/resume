@@ -9,21 +9,18 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { ApiClientError } from "@/lib/api-client";
 import { profileApi } from "@/modules/profile/api";
+import type { ProfileResponse } from "@/modules/profile/types";
 import { resumeApi } from "@/modules/resume/api";
 import { profileToResumeData } from "@/modules/resume/profileSnapshot";
 import type { ResumeData } from "./TemplateOne";
-import TemplateOne from "./TemplateOne";
-import TemplateTwo from "./TemplateTwo";
-import TemplateThree from "./TemplateThree";
-import TemplateFour from "./TemplateFour";
-import TemplateFive from "./TemplateFive";
-import TemplateSix from "./TemplateSix";
+import { ResumeTemplateRenderer } from "./ResumeTemplateRenderer";
 import type { TemplateItem } from "./catalog";
 
 export type { TemplateItem } from "./catalog";
 
-const blankResumeData: ResumeData = {
+export const blankResumeData: ResumeData = {
   fullName: "",
   jobTitle: "",
   email: "",
@@ -36,14 +33,23 @@ const blankResumeData: ResumeData = {
   languages: [],
   experience: [],
   education: [],
+  socialLinks: [],
+  projects: [],
+  certificates: [],
+  pageSize: "A4",
+  pageMargin: 18,
+  lineSpacing: 1.5,
+  elementStyles: {},
 };
 
 export function TemplateCard({
   item,
   onPreview,
+  profile,
 }: {
   item: TemplateItem;
   onPreview: (item: TemplateItem) => void;
+  profile?: ProfileResponse | null;
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
@@ -52,8 +58,8 @@ export function TemplateCard({
     if (creating) return;
     setCreating(true);
     try {
-      const resume = await createTemplateResumeFromItem(item);
-      toast.success("Your profile was copied into a new independent resume.", "Resume created");
+      const resume = await createTemplateResumeFromItem(item, profile);
+      toast.success("A new independent resume was created from this template.", "Resume created");
       router.push(`/editor/${resume.template_id || item.id}?resumeId=${resume.id}`);
     } catch {
       toast.error("We could not create the resume. Check your profile connection and try again.", "Creation failed");
@@ -120,8 +126,20 @@ export function TemplateCard({
   );
 }
 
-export async function createTemplateResumeFromItem(item: TemplateItem) {
-  const profileData = profileToResumeData(await profileApi.getProfile());
+export async function createTemplateResumeFromItem(
+  item: TemplateItem,
+  profile?: ProfileResponse | null,
+) {
+  let resolvedProfile = profile;
+  if (resolvedProfile == null) {
+    try {
+      resolvedProfile = await profileApi.getProfile();
+    } catch (error) {
+      if (!(error instanceof ApiClientError) || error.status !== 404) throw error;
+      resolvedProfile = null;
+    }
+  }
+  const profileData = resolvedProfile ? profileToResumeData(resolvedProfile) : blankResumeData;
   const resumeData: ResumeData = {
     ...blankResumeData,
     ...profileData,
@@ -137,14 +155,5 @@ export async function createTemplateResumeFromItem(item: TemplateItem) {
 }
 
 export function renderTemplate(item: TemplateItem) {
-  const data = item.data;
-  switch (item.id) {
-    case "1": return <TemplateOne data={data} />;
-    case "2": return <TemplateTwo data={data} />;
-    case "3": return <TemplateThree data={data} />;
-    case "4": return <TemplateFour data={data} />;
-    case "5": return <TemplateFive data={data} />;
-    case "6": return <TemplateSix data={data} />;
-    default: return <TemplateOne data={data} />;
-  }
+  return <ResumeTemplateRenderer templateId={item.id} data={item.data} />;
 }

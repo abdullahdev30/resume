@@ -23,10 +23,12 @@ import { Tooltip } from "@/components/ui/Tooltip";
 import { authApi } from "../auth/api";
 import type { User } from "../auth/types";
 import { profileApi } from "../profile/api";
+import { PROFILE_UPDATED_EVENT, type ProfileUpdatedDetail } from "../profile/events";
 
 interface AppShellProps {
   user: User;
   initialAvatarUrl?: string;
+  initialDisplayName?: string;
   children: React.ReactNode;
 }
 
@@ -37,13 +39,15 @@ const navItems = [
   { href: "/settings", label: "Profile & Settings", icon: Settings },
 ];
 
-export function AppShell({ user, initialAvatarUrl, children }: AppShellProps) {
+export function AppShell({ user, initialAvatarUrl, initialDisplayName, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl || "");
+  const fallbackDisplayName = user.name || user.email.split("@")[0] || "User";
+  const [displayName, setDisplayName] = useState(initialDisplayName || fallbackDisplayName);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -53,9 +57,26 @@ export function AppShell({ user, initialAvatarUrl, children }: AppShellProps) {
     if (initialAvatarUrl !== undefined) return;
     profileApi
       .getProfile()
-      .then((profile) => setAvatarUrl(profile.personal.avatar_url || ""))
+      .then((profile) => {
+        setAvatarUrl(profile.personal.avatar_url || "");
+        const savedName = [
+          profile.personal.first_name || profile.personal.name,
+          profile.personal.last_name,
+        ].filter(Boolean).join(" ");
+        if (savedName) setDisplayName(savedName);
+      })
       .catch(() => setAvatarUrl(""));
   }, [initialAvatarUrl]);
+
+  useEffect(() => {
+    const updateProfile = (event: Event) => {
+      const detail = (event as CustomEvent<ProfileUpdatedDetail>).detail;
+      if (detail.displayName) setDisplayName(detail.displayName);
+      if (detail.avatarUrl !== undefined) setAvatarUrl(detail.avatarUrl);
+    };
+    window.addEventListener(PROFILE_UPDATED_EVENT, updateProfile);
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, updateProfile);
+  }, []);
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -80,8 +101,6 @@ export function AppShell({ user, initialAvatarUrl, children }: AppShellProps) {
       setLogoutOpen(false);
     }
   };
-
-  const displayName = user.name || user.email.split("@")[0] || "User";
 
   return (
     <div className="app-shell">

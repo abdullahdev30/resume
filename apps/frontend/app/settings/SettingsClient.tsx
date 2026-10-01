@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/Input";
 import { Tabs } from "@/components/ui/Tabs";
 import { Textarea } from "@/components/ui/Textarea";
 import type { User as UserType } from "@/modules/auth/types";
+import { PROFILE_UPDATED_EVENT, type ProfileUpdatedDetail } from "@/modules/profile/events";
 import type { Certificate } from "@/modules/certificates/types";
 import { createCertificate, deleteCertificate, updateCertificate, uploadCertificate } from "@/modules/certificates/api";
 import { createEducation, deleteEducation, updateEducation } from "@/modules/education/api";
@@ -115,6 +116,8 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
     address: initialProfile?.personal.address || "",
     city: initialProfile?.personal.city || "",
     avatar_url: initialProfile?.personal.avatar_url || "",
+    professional_title: initialProfile?.personal.professional_title || "",
+    summary: initialProfile?.personal.summary || "",
   });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarStatus, setAvatarStatus] = useState<FileUploadStatus>("idle");
@@ -169,6 +172,8 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
         address: profile.personal.address || "",
         city: profile.personal.city || "",
         avatar_url: profile.personal.avatar_url || "",
+        professional_title: profile.personal.professional_title || "",
+        summary: profile.personal.summary || "",
       });
       setSocialLinks(profile.social_links);
       setEducation(profile.education);
@@ -219,7 +224,16 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
     setProfileSaveStatus("saving");
     setActionError("");
     try {
-      const saved = await profileApi.upsertPersonal(profileForm);
+      const saved = await profileApi.upsertPersonal({
+        first_name: profileForm.first_name,
+        last_name: profileForm.last_name,
+        email: profileForm.email,
+        phone: profileForm.phone,
+        address: profileForm.address,
+        city: profileForm.city,
+        professional_title: profileForm.professional_title,
+        summary: profileForm.summary,
+      });
       setHasProfile(true);
       setProfileForm((current) => ({
         ...current,
@@ -230,7 +244,16 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
         address: saved.address || "",
         city: saved.city || "",
         avatar_url: saved.avatar_url || current.avatar_url,
+        professional_title: saved.professional_title || "",
+        summary: saved.summary || "",
       }));
+      notifyProfileUpdated({
+        displayName: [
+          saved.first_name || saved.name || profileForm.first_name,
+          saved.last_name || profileForm.last_name,
+        ].filter(Boolean).join(" "),
+        avatarUrl: saved.avatar_url || profileForm.avatar_url,
+      });
       setProfileSaveStatus("success");
       toast.success("Your profile changes are saved.", "Profile updated");
       window.setTimeout(() => setProfileSaveStatus("idle"), 2200);
@@ -262,6 +285,7 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
         signal: controller.signal,
       });
       setProfileForm((current) => ({ ...current, avatar_url: uploaded.url }));
+      notifyProfileUpdated({ avatarUrl: uploaded.url });
       setAvatarStatus("success");
       setAvatarFile(null);
       toast.success("Your profile photo is updated.");
@@ -626,7 +650,9 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
                 <Input label="Phone" type="tel" value={profileForm.phone} onChange={(event) => setProfileForm({ ...profileForm, phone: event.target.value })} required autoComplete="tel" />
                 <Input label="City" value={profileForm.city} onChange={(event) => setProfileForm({ ...profileForm, city: event.target.value })} />
                 <Input label="Address" value={profileForm.address} onChange={(event) => setProfileForm({ ...profileForm, address: event.target.value })} />
+                <Input label="Professional title" value={profileForm.professional_title} onChange={(event) => setProfileForm({ ...profileForm, professional_title: event.target.value })} placeholder="Senior Product Designer" />
               </div>
+              <Textarea label="Professional summary" optional value={profileForm.summary} onChange={(event) => setProfileForm({ ...profileForm, summary: event.target.value })} rows={5} />
               <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] pt-5">
                 <span className="text-xs font-semibold text-[var(--text-muted)]" aria-live="polite">
                   {profileSaveStatus === "success" ? "Saved ✓" : profileSaveStatus === "error" ? "Save failed" : ""}
@@ -850,6 +876,10 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
       </ConfirmDialog>
     </div>
   );
+}
+
+function notifyProfileUpdated(detail: ProfileUpdatedDetail) {
+  window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail }));
 }
 
 function SubmitButton({
