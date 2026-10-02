@@ -118,11 +118,12 @@ At minimum, set these Railway variables (using real values):
 
 ```sh
 APP_ENV=production
-FRONTEND_URL=https://YOUR-VERCEL-DOMAIN
+FRONTEND_URL=https://resume-seven-psi-88.vercel.app
 BACKEND_URL=https://YOUR-RAILWAY-DOMAIN
 SUPABASE_URL=...
 SUPABASE_PUBLISHABLE_KEY=...
 DATABASE_URL=postgresql://...
+CORS_ORIGINS=https://resume-2rp6qj2g0-abdullah-shafiques-projects-2f0cafbc.vercel.app
 COOKIE_SECURE=true
 COOKIE_SAMESITE=none
 RATE_LIMIT_STORAGE_URI=memory://

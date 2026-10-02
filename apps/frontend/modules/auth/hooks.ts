@@ -47,11 +47,7 @@ export function useAuth() {
       const registration = await authApi.register(payload);
       sessionStorage.setItem(AUTH_EMAIL_STORAGE_KEY, registration.email);
       toast.success(registration.message);
-      router.replace(
-        registration.email_verification_required
-          ? "/auth/verify-email"
-          : "/auth/login",
-      );
+      router.replace("/auth/verify-email");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Registration failed.";
       setError(message);

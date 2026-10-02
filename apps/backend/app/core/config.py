@@ -3,6 +3,11 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+TRUSTED_FRONTEND_ORIGINS = (
+    "https://resume-seven-psi-88.vercel.app",
+    "https://resume-2rp6qj2g0-abdullah-shafiques-projects-2f0cafbc.vercel.app",
+)
+
 
 class Settings(BaseSettings):
     app_name: str = "Company API"
@@ -51,7 +56,11 @@ class Settings(BaseSettings):
 
     @property
     def allowed_cors_origins(self) -> list[str]:
-        configured_origins = [self.frontend_url, *self.cors_origins.split(",")]
+        configured_origins = [
+            self.frontend_url,
+            *TRUSTED_FRONTEND_ORIGINS,
+            *self.cors_origins.split(","),
+        ]
         # Origin headers never contain a trailing slash. Normalizing configured
         # URLs prevents an easy-to-miss exact-match failure in production.
         return list(dict.fromkeys(

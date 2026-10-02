@@ -8,6 +8,28 @@ from app.main import app
 @pytest.mark.parametrize(
     "origin",
     [
+        "https://resume-seven-psi-88.vercel.app",
+        "https://resume-2rp6qj2g0-abdullah-shafiques-projects-2f0cafbc.vercel.app",
+    ],
+)
+def test_production_frontend_origins_pass_preflight(origin: str) -> None:
+    response = TestClient(app).options(
+        "/api/v1/auth/register",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    assert response.headers["access-control-allow-credentials"] == "true"
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://[::1]:3000",
@@ -54,5 +76,7 @@ def test_configured_origins_are_normalized_and_deduplicated() -> None:
 
     assert test_settings.allowed_cors_origins == [
         "https://app.example",
+        "https://resume-seven-psi-88.vercel.app",
+        "https://resume-2rp6qj2g0-abdullah-shafiques-projects-2f0cafbc.vercel.app",
         "https://preview.example",
     ]
