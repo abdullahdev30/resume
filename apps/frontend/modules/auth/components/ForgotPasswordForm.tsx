@@ -6,7 +6,8 @@ import { useState } from "react";
 
 import { Alert } from "../../../components/feedback/Alert";
 import { Button } from "../../../components/ui/Button";
-import { Input } from "../../../components/ui/Input";
+import { ValidatedInput } from "../../../components/ui/ValidatedInput";
+import { normalizeEmail, validateEmail } from "../../../lib/validation";
 import { AuthLayout } from "./AuthLayout";
 import { useAuth } from "../hooks";
 
@@ -16,22 +17,25 @@ export function ForgotPasswordForm() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await handleForgotPassword({ email });
+    await handleForgotPassword({ email: normalizeEmail(email) });
   };
 
   return (
     <AuthLayout title="Recover your account" subtitle="Enter your email and we will send recovery instructions.">
       <form className="form-stack" onSubmit={submit}>
         {error && <Alert variant="error">{error}</Alert>}
-        <Input
+        <ValidatedInput
           label="Email"
           type="email"
           autoComplete="email"
           autoFocus
           required
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          onValueChange={setEmail}
+          validate={validateEmail}
+          normalize={normalizeEmail}
           placeholder="user@example.com"
+          maxLength={254}
         />
         <Button type="submit" loading={loading} loadingLabel="Sending..." disabled={!email} fullWidth>
           Send recovery code

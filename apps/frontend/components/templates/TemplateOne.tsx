@@ -94,7 +94,7 @@ export interface TemplateProps {
 
 export function getResumePageStyle(data: ResumeData): React.CSSProperties {
   return {
-    lineHeight: data.lineSpacing || 1.5,
+    lineHeight: data.lineSpacing ?? 1.15,
   };
 }
 

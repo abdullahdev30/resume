@@ -7,6 +7,7 @@ export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & 
   hint?: string;
   error?: string;
   optional?: boolean;
+  showCount?: boolean;
 };
 
 export function Textarea({
@@ -16,18 +17,24 @@ export function Textarea({
   optional,
   id,
   className = "",
+  showCount = false,
   ...props
 }: TextareaProps) {
   const generatedId = useId();
   const textareaId = id || generatedId;
 
+  const valueLength = typeof props.value === "string" ? props.value.length : 0;
+  const countHint = showCount && props.maxLength
+    ? `${valueLength}/${props.maxLength}${hint ? ` · ${hint}` : ""}`
+    : hint;
+
   return (
-    <FormField id={textareaId} label={label} hint={hint} error={error} optional={optional}>
+    <FormField id={textareaId} label={label} hint={countHint} error={error} optional={optional}>
       <textarea
         id={textareaId}
         className={["field-control", className].filter(Boolean).join(" ")}
         aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${textareaId}-error` : hint ? `${textareaId}-hint` : undefined}
+        aria-describedby={error ? `${textareaId}-error` : countHint ? `${textareaId}-hint` : undefined}
         {...props}
       />
     </FormField>

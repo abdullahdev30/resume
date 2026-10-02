@@ -15,6 +15,7 @@ export function FileUpload({
   progress = 0,
   error,
   disabled = false,
+  maxBytes = 10 * 1024 * 1024,
   onFileChange,
   onCancel,
   onRetry,
@@ -27,6 +28,7 @@ export function FileUpload({
   progress?: number;
   error?: string;
   disabled?: boolean;
+  maxBytes?: number;
   onFileChange: (file: File | null) => void;
   onCancel?: () => void;
   onRetry?: () => void;
@@ -34,6 +36,7 @@ export function FileUpload({
   const inputId = useId();
   const [dragging, setDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [selectionError, setSelectionError] = useState("");
 
   useEffect(() => {
     if (!file || !file.type.startsWith("image/")) {
@@ -46,7 +49,23 @@ export function FileUpload({
   }, [file]);
 
   const choose = (nextFile?: File) => {
-    if (nextFile && !disabled && status !== "uploading") onFileChange(nextFile);
+    if (!nextFile || disabled || status === "uploading") return;
+    const acceptedTypes = (accept || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item && !item.startsWith("."));
+    if (acceptedTypes.length && !acceptedTypes.includes(nextFile.type)) {
+      setSelectionError("Choose a supported file type.");
+      onFileChange(null);
+      return;
+    }
+    if (nextFile.size > maxBytes) {
+      setSelectionError(`The file must be ${Math.round(maxBytes / (1024 * 1024))} MB or smaller.`);
+      onFileChange(null);
+      return;
+    }
+    setSelectionError("");
+    onFileChange(nextFile);
   };
 
   return (
@@ -89,8 +108,8 @@ export function FileUpload({
           <p className="mt-2 text-xs">Uploading... {Math.round(progress)}%</p>
         </div>
       )}
-      {error && <p className="field-error" role="alert">{error}</p>}
-      {(file || error) && (
+      {(selectionError || error) && <p className="field-error" role="alert">{selectionError || error}</p>}
+      {(file || selectionError || error) && (
         <div className="flex gap-2">
           {error && onRetry && (
             <Button size="sm" variant="secondary" onClick={onRetry}>
@@ -104,6 +123,7 @@ export function FileUpload({
             disabled={status === "uploading" && !onCancel}
             onClick={() => {
               onCancel?.();
+              setSelectionError("");
               onFileChange(null);
             }}
           >

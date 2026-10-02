@@ -37,8 +37,8 @@ export const blankResumeData: ResumeData = {
   projects: [],
   certificates: [],
   pageSize: "A4",
-  pageMargin: 18,
-  lineSpacing: 1.5,
+  pageMargin: 10,
+  lineSpacing: 1.15,
   elementStyles: {},
 };
 
@@ -85,10 +85,10 @@ export function TemplateCard({
       <button
         type="button"
         onClick={() => onPreview(item)}
-        className="relative h-80 w-full overflow-hidden border-0 border-b border-[var(--border)] bg-white"
+        className="template-card-preview relative aspect-[210/297] w-full overflow-hidden border-0 border-b border-[var(--border)] bg-white"
         aria-label={`Preview ${item.name}`}
       >
-        <div className="pointer-events-none mx-auto mt-1 min-h-[297mm] w-[210mm] origin-top scale-[0.48] bg-white shadow-sm transition-transform duration-200 group-hover:scale-[0.5]">
+        <div className="template-card-preview-sheet pointer-events-none min-h-[297mm] w-[210mm] bg-white shadow-sm">
           {renderTemplate(item)}
         </div>
         <span className="absolute left-3 top-3"><Badge variant="primary">{item.tag}</Badge></span>

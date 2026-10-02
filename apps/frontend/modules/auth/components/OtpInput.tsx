@@ -10,29 +10,42 @@ type OtpInputProps = {
 
 export function OtpInput({ value, onChange, onComplete }: OtpInputProps) {
   const inputs = useRef<Array<HTMLInputElement | null>>([]);
-  const digits = value.padEnd(6, " ").slice(0, 6).split("");
+  const length = 6;
+  const digits = Array.from({ length }, (_, index) => value[index] || "");
 
   function update(nextValue: string, index: number) {
-    const sanitized = nextValue.replace(/\D/g, "").slice(0, 6);
-    const current = value.padEnd(6, " ").slice(0, 6).split("");
+    const sanitized = nextValue.replace(/\D/gu, "").slice(0, length);
+    const current = [...digits];
 
     if (sanitized.length > 1) {
-      onChange(sanitized);
-      if (sanitized.length === 6) {
-        onComplete?.(sanitized);
-      }
+      applyDigits(sanitized, sanitized.length === length ? 0 : index);
       return;
     }
 
-    current[index] = sanitized || " ";
-    const joined = current.join("").replace(/\s/g, "");
+    current[index] = sanitized;
+    const joined = current.join("").slice(0, length);
     onChange(joined);
-    if (sanitized && index < 5) {
+    if (sanitized && index < length - 1) {
       inputs.current[index + 1]?.focus();
     }
-    if (joined.length === 6) {
+    if (joined.length === length) {
       onComplete?.(joined);
     }
+  }
+
+  function applyDigits(pastedValue: string, startIndex: number) {
+    const pastedDigits = pastedValue.replace(/\D/gu, "").slice(0, length);
+    if (!pastedDigits) return;
+    const next = startIndex === 0 ? Array<string>(length).fill("") : [...digits];
+    pastedDigits.slice(0, length - startIndex).split("").forEach((digit, offset) => {
+      next[startIndex + offset] = digit;
+    });
+    const joined = next.join("").slice(0, length);
+    onChange(joined);
+    const nextEmpty = next.findIndex((digit, itemIndex) => itemIndex >= startIndex && !digit);
+    const focusIndex = nextEmpty >= 0 ? nextEmpty : Math.min(startIndex + pastedDigits.length - 1, length - 1);
+    inputs.current[focusIndex]?.focus();
+    if (joined.length === length) onComplete?.(joined);
   }
 
   return (
@@ -44,15 +57,29 @@ export function OtpInput({ value, onChange, onComplete }: OtpInputProps) {
             inputs.current[index] = node;
           }}
           className="field-control otp-input"
-          value={digit.trim()}
+          value={digit}
           inputMode="numeric"
+          pattern="[0-9]*"
           autoFocus={index === 0}
           autoComplete={index === 0 ? "one-time-code" : undefined}
           aria-label={`Digit ${index + 1}`}
-          maxLength={1}
           onChange={(event) => update(event.target.value, index)}
+          onPaste={(event) => {
+            event.preventDefault();
+            applyDigits(event.clipboardData.getData("text"), index);
+          }}
           onKeyDown={(event) => {
-            if (event.key === "Backspace" && !digit.trim() && index > 0) {
+            if (event.key === "ArrowLeft" && index > 0) {
+              event.preventDefault();
+              inputs.current[index - 1]?.focus();
+            } else if (event.key === "ArrowRight" && index < length - 1) {
+              event.preventDefault();
+              inputs.current[index + 1]?.focus();
+            } else if (event.key === "Backspace" && !digit && index > 0) {
+              event.preventDefault();
+              const next = [...digits];
+              next[index - 1] = "";
+              onChange(next.join(""));
               inputs.current[index - 1]?.focus();
             }
           }}

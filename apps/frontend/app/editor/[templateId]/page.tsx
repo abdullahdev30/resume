@@ -36,6 +36,8 @@ import {
   RotateCcw,
   Sparkles,
   Undo2,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 import { ElementStyle } from "../../../components/templates/TemplateOne";
@@ -51,7 +53,10 @@ import { ErrorState } from "../../../components/common/ErrorState";
 import { Alert } from "../../../components/feedback/Alert";
 import { toast } from "../../../components/feedback/Toast";
 import { Button } from "../../../components/ui/Button";
+import { PhoneInput } from "../../../components/ui/PhoneInput";
 import { ThemeToggle } from "../../../components/ui/ThemeToggle";
+import { ValidatedInput } from "../../../components/ui/ValidatedInput";
+import { ValidatedUrlInput } from "../../../components/ui/ValidatedUrlInput";
 import { resumeApi } from "../../../modules/resume/api";
 import { profileToResumeData } from "../../../modules/resume/profileSnapshot";
 import { profileApi } from "../../../modules/profile/api";
@@ -66,6 +71,19 @@ import { createSocialLink } from "../../../modules/social-links/api";
 import { ProfileSectionPicker } from "../../../modules/resume/components/ProfileSectionPicker";
 import type { AIEditProposal } from "../../../modules/resume/types";
 import { downloadResumePdf } from "../../../modules/resume/downloadResumePdf";
+import { analyzePhoneNumber } from "../../../lib/phone";
+import {
+  normalizeEmail,
+  normalizePlainText,
+  normalizeUrl,
+  validateDate,
+  validateDatePeriod,
+  validateEndDate,
+  validateEmail,
+  validateFile,
+  validateName,
+  validateUrl,
+} from "../../../lib/validation";
 
 type SaveStatus = "idle" | "dirty" | "saving" | "success" | "error";
 
@@ -90,8 +108,8 @@ const initialResumeData: ResumeData = {
     jobTitle: { isBold: true, fontSize: 12 },
   },
   pageSize: "A4",
-  pageMargin: 18,
-  lineSpacing: 1.5,
+  pageMargin: 10,
+  lineSpacing: 1.15,
 };
 
 type EditorTab = "personal" | "experience" | "education" | "skills" | "more" | "ai";
@@ -154,6 +172,7 @@ export default function EditorPage() {
   const [resumeData, setResumeData] = useState<ResumeData>(initialResumeData);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [activeTab, setActiveTab] = useState<EditorTab>("personal");
+  const [editorPanelOpen, setEditorPanelOpen] = useState(true);
   const [saveNotice, setSaveNotice] = useState<string>("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveInFlight, setSaveInFlight] = useState(false);
@@ -704,8 +723,10 @@ export default function EditorPage() {
     if (!item || profileSuggestions?.experience.some((entry) => entry.id === item.id)) return;
     const [startDate = "", endValue = ""] = item.period.split(/\s+-\s+/, 2);
     const isCurrent = endValue.toLocaleLowerCase() === "present";
-    if (!item.role.trim() || !item.company.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
-      toast.error("Enter a role, company, and dates as YYYY-MM-DD - YYYY-MM-DD (or Present) before saving to your profile.");
+    const dateError = validateDate(startDate, { label: "Start date", required: true })
+      || validateEndDate(isCurrent ? "" : endValue, startDate, { current: isCurrent });
+    if (!item.role.trim() || !item.company.trim() || dateError) {
+      toast.error(dateError || "Enter a role and company before saving to your profile.");
       return;
     }
     try {
@@ -734,8 +755,10 @@ export default function EditorPage() {
     if (!item || profileSuggestions?.education.some((entry) => entry.id === item.id)) return;
     const [startDate = "", endValue = ""] = item.period.split(/\s+-\s+/, 2);
     const isCurrent = endValue.toLocaleLowerCase() === "present";
-    if (!item.institution.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
-      toast.error("Enter an institution and dates as YYYY-MM-DD - YYYY-MM-DD (or Present) before saving to your profile.");
+    const dateError = validateDate(startDate, { label: "Start date", required: true })
+      || validateEndDate(isCurrent ? "" : endValue, startDate, { current: isCurrent });
+    if (!item.institution.trim() || dateError) {
+      toast.error(dateError || "Enter an institution before saving to your profile.");
       return;
     }
     try {
@@ -764,6 +787,11 @@ export default function EditorPage() {
   const addProjectToResumeAndProfile = async () => {
     const name = newProject.name.trim();
     if (!name || resumeData.projects?.some((item) => item.name.toLocaleLowerCase() === name.toLocaleLowerCase())) return;
+    const urlError = validateUrl(newProject.url);
+    if (urlError) {
+      toast.error(urlError, "Invalid project URL");
+      return;
+    }
     const savedProject = profileSuggestions?.projects.find((item) => item.name.toLocaleLowerCase() === name.toLocaleLowerCase());
     if (savedProject) {
       addProfileProject(savedProject.id);
@@ -776,7 +804,7 @@ export default function EditorPage() {
       id: temporaryId,
       name,
       description: newProject.description.trim(),
-      url: newProject.url.trim() || undefined,
+      url: newProject.url ? normalizeUrl(newProject.url) : undefined,
       technologies: newProject.technologies.split(",").map((item) => item.trim()).filter(Boolean),
     };
     markDirty();
@@ -806,6 +834,12 @@ export default function EditorPage() {
   const addCertificateToResumeAndProfile = async () => {
     const title = newCertificate.title.trim();
     if (!title || resumeData.certificates?.some((item) => item.title.toLocaleLowerCase() === title.toLocaleLowerCase())) return;
+    const urlError = validateUrl(newCertificate.url);
+    const dateError = validateDate(newCertificate.date, { label: "Issue date" });
+    if (urlError || dateError) {
+      toast.error(urlError || dateError || "Check the certificate details.", "Invalid certificate");
+      return;
+    }
     const savedCertificate = profileSuggestions?.certificates.find((item) => item.title.toLocaleLowerCase() === title.toLocaleLowerCase());
     if (savedCertificate) {
       addProfileCertificate(savedCertificate.id);
@@ -814,7 +848,7 @@ export default function EditorPage() {
       return;
     }
     const temporaryId = `pending-${crypto.randomUUID()}`;
-    const optimistic = { id: temporaryId, title, issuer: newCertificate.issuer.trim(), date: newCertificate.date, url: newCertificate.url.trim() || undefined };
+    const optimistic = { id: temporaryId, title, issuer: newCertificate.issuer.trim(), date: newCertificate.date, url: newCertificate.url ? normalizeUrl(newCertificate.url) : undefined };
     markDirty();
     setResumeData((current) => ({ ...current, certificates: [...(current.certificates || []), optimistic] }));
     try {
@@ -841,7 +875,12 @@ export default function EditorPage() {
 
   const addSocialLinkToResumeAndProfile = async () => {
     const platform = newSocialLink.platform.trim();
-    const url = newSocialLink.url.trim();
+    const urlError = validateUrl(newSocialLink.url, { required: true, platform });
+    if (urlError) {
+      toast.error(urlError, "Invalid social link");
+      return;
+    }
+    const url = normalizeUrl(newSocialLink.url);
     if (!platform || !url || resumeData.socialLinks?.some((item) => item.url.toLocaleLowerCase() === url.toLocaleLowerCase())) return;
     const savedLink = profileSuggestions?.social_links.find((item) => item.profile_url.toLocaleLowerCase() === url.toLocaleLowerCase());
     if (savedLink) {
@@ -873,10 +912,51 @@ export default function EditorPage() {
 
   const handleSaveResume = async (silent = false) => {
     if (!resumeTitle.trim() || saveInFlightRef.current) return null;
+    const nameError = validateName(resumeData.fullName, "Full name");
+    const emailError = validateEmail(resumeData.email);
+    const phone = analyzePhoneNumber(resumeData.phone);
+    const phoneError = resumeData.phone && !phone.valid ? "Enter a valid international phone number." : null;
+    const invalidProject = resumeData.projects?.find((item) => item.url && validateUrl(item.url));
+    const invalidCertificate = resumeData.certificates?.find((item) => item.url && validateUrl(item.url));
+    const invalidSocialLink = resumeData.socialLinks?.find((item) => validateUrl(item.url, { required: true, platform: item.platform }));
+    const validationError = nameError || emailError || phoneError
+      || (invalidProject ? "Check the project URLs before saving." : null)
+      || (invalidCertificate ? "Check the credential URLs before saving." : null)
+      || (invalidSocialLink ? "Check the social links before saving." : null);
+    if (validationError) {
+      setSaveStatus("error");
+      setSaveNotice(validationError);
+      if (!silent) toast.error(validationError, "Resume validation failed");
+      return null;
+    }
     saveInFlightRef.current = true;
     setSaveInFlight(true);
     const revisionAtStart = revisionRef.current;
-    const dataAtStart = { ...resumeData, elementStyles };
+    const dataAtStart: ResumeData = {
+      ...resumeData,
+      fullName: normalizePlainText(resumeData.fullName, 100),
+      jobTitle: normalizePlainText(resumeData.jobTitle, 255),
+      email: normalizeEmail(resumeData.email),
+      phone: phone.e164,
+      location: normalizePlainText(resumeData.location, 255),
+      summary: normalizePlainText(resumeData.summary, 4000),
+      projects: resumeData.projects?.map((item) => ({
+        ...item,
+        name: normalizePlainText(item.name, 255),
+        description: normalizePlainText(item.description, 4000),
+        url: item.url ? normalizeUrl(item.url) : undefined,
+      })),
+      certificates: resumeData.certificates?.map((item) => ({
+        ...item,
+        url: item.url ? normalizeUrl(item.url) : undefined,
+      })),
+      socialLinks: resumeData.socialLinks?.map((item) => ({
+        ...item,
+        platform: normalizePlainText(item.platform, 50),
+        url: normalizeUrl(item.url),
+      })),
+      elementStyles,
+    };
     setSaveStatus("saving");
     setSaveNotice("");
     try {
@@ -1037,6 +1117,15 @@ export default function EditorPage() {
   const selectedText = getEditableResumeText(resumeData, selectedElementId);
 
   const handlePhotoUpload = (file: File) => {
+    const fileError = validateFile(file, {
+      allowedTypes: ["image/jpeg", "image/png", "image/webp"],
+      maxBytes: 10 * 1024 * 1024,
+      label: "Profile image",
+    });
+    if (fileError) {
+      toast.error(fileError, "Photo not selected");
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => {
       const url = reader.result as string;
@@ -1109,7 +1198,7 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] flex flex-col font-sans text-[var(--text)]">
+    <div className="resume-print-context min-h-screen bg-[var(--bg)] flex flex-col font-sans text-[var(--text)] lg:h-screen lg:overflow-hidden">
       {/* 1. Editor Navbar Header */}
       <header className="bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2 flex flex-col md:flex-row items-center justify-between gap-3 sticky top-0 z-40 shadow-xs no-print">
         <div className="flex min-w-0 items-center space-x-3">
@@ -1192,6 +1281,20 @@ export default function EditorPage() {
 
       {/* 2. Formatting Toolbar with Text Color Shades Dropdown (Row 2) */}
       <div className="bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2 flex items-center flex-wrap gap-3 overflow-x-auto text-xs text-[var(--text)] relative z-30 shadow-xs no-print">
+        <button
+          type="button"
+          onClick={() => setEditorPanelOpen((current) => !current)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 py-1.5 font-bold text-[var(--text-muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+          aria-controls="resume-editor-panel"
+          aria-expanded={editorPanelOpen}
+          title={editorPanelOpen ? "Hide editor panel" : "Show editor panel"}
+        >
+          {editorPanelOpen
+            ? <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+            : <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />}
+          <span>{editorPanelOpen ? "Hide details" : "Edit details"}</span>
+        </button>
+
         {/* Active Selection Indicator */}
         <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-[var(--primary-tint)] text-[var(--primary)] border border-[var(--primary)]/30 rounded-xl font-bold">
           <Target className="w-3.5 h-3.5" />
@@ -1303,8 +1406,8 @@ export default function EditorPage() {
             Spacing
             <select
               value={selectedElementId
-                ? currentSelectedStyle.lineHeight || resumeData.lineSpacing || 1.5
-                : resumeData.lineSpacing || 1.5}
+                ? currentSelectedStyle.lineHeight ?? resumeData.lineSpacing ?? 1.15
+                : resumeData.lineSpacing ?? 1.15}
               onChange={(event) => selectedElementId
                 ? applyStyleToSelected("lineHeight", Number(event.target.value))
                 : handleFieldChange("lineSpacing", Number(event.target.value))}
@@ -1319,7 +1422,7 @@ export default function EditorPage() {
               type="number"
               min="5"
               max="40"
-              value={resumeData.pageMargin || 18}
+              value={resumeData.pageMargin ?? 10}
               onChange={(event) => handleFieldChange("pageMargin", Number(event.target.value))}
               className="w-14 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1"
               aria-label="Page margin in millimeters"
@@ -1573,7 +1676,12 @@ export default function EditorPage() {
       {/* 3. Main Split Layout: Form Drawer Left + Live Canvas Right */}
       <div className="flex flex-1 flex-col lg:flex-row lg:overflow-hidden">
         {/* Left Form Sidebar Drawer */}
-        <div className="flex max-h-[58vh] w-full flex-shrink-0 flex-col border-b border-[var(--border)] bg-[var(--surface)] lg:max-h-none lg:w-[420px] lg:border-b-0 lg:border-r no-print">
+        <div
+          id="resume-editor-panel"
+          className={["editor-data-panel no-print", editorPanelOpen ? "is-open" : "is-closed"].join(" ")}
+          aria-hidden={!editorPanelOpen}
+          inert={!editorPanelOpen ? true : undefined}
+        >
           {/* Section Tabs */}
           <div className="flex flex-wrap border-b border-[var(--border)] bg-[var(--bg)] p-2 gap-1">
             <button
@@ -1788,16 +1896,16 @@ export default function EditorPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <div>
-                    <label className="text-[var(--text-muted)] block mb-1 font-semibold">Full Name</label>
-                    <input
-                      type="text"
-                      value={resumeData.fullName}
-                      onFocus={() => setSelectedElementId("fullName")}
-                      onChange={(e) => handleFieldChange("fullName", e.target.value)}
-                      className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                    />
-                  </div>
+                  <ValidatedInput
+                    label="Full name"
+                    value={resumeData.fullName}
+                    onFocus={() => setSelectedElementId("fullName")}
+                    onValueChange={(value) => handleFieldChange("fullName", value)}
+                    validate={(value) => validateName(value, "Full name")}
+                    normalize={(value) => normalizePlainText(value, 100)}
+                    required
+                    maxLength={100}
+                  />
 
                   <div>
                     <label className="text-[var(--text-muted)] block mb-1 font-semibold font-sans">Job Title / Headline</label>
@@ -1806,31 +1914,30 @@ export default function EditorPage() {
                       value={resumeData.jobTitle}
                       onFocus={() => setSelectedElementId("jobTitle")}
                       onChange={(e) => handleFieldChange("jobTitle", e.target.value)}
+                      maxLength={255}
                       className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[var(--text-muted)] block mb-1 font-semibold">Email</label>
-                      <input
-                        type="email"
-                        value={resumeData.email}
-                        onFocus={() => setSelectedElementId("contact-email")}
-                        onChange={(e) => handleFieldChange("email", e.target.value)}
-                        className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[var(--text-muted)] block mb-1 font-semibold">Phone</label>
-                      <input
-                        type="text"
-                        value={resumeData.phone}
-                        onFocus={() => setSelectedElementId("contact-phone")}
-                        onChange={(e) => handleFieldChange("phone", e.target.value)}
-                        className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
-                      />
-                    </div>
+                    <ValidatedInput
+                      label="Email"
+                      type="email"
+                      value={resumeData.email}
+                      onFocus={() => setSelectedElementId("contact-email")}
+                      onValueChange={(value) => handleFieldChange("email", value)}
+                      validate={validateEmail}
+                      normalize={normalizeEmail}
+                      required
+                      maxLength={254}
+                    />
+                    <PhoneInput
+                      label="Phone"
+                      value={resumeData.phone}
+                      onFocus={() => setSelectedElementId("contact-phone")}
+                      onValueChange={(value) => handleFieldChange("phone", value)}
+                      required
+                    />
                   </div>
 
                   <div>
@@ -1840,6 +1947,7 @@ export default function EditorPage() {
                       value={resumeData.location}
                       onFocus={() => setSelectedElementId("contact-location")}
                       onChange={(e) => handleFieldChange("location", e.target.value)}
+                      maxLength={255}
                       className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)]"
                     />
                   </div>
@@ -1851,6 +1959,7 @@ export default function EditorPage() {
                       value={resumeData.summary}
                       onFocus={() => setSelectedElementId("summary")}
                       onChange={(e) => handleFieldChange("summary", e.target.value)}
+                      maxLength={4000}
                       className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-[var(--text)] outline-none focus:border-[var(--primary)] resize-none"
                     />
                   </div>
@@ -2077,7 +2186,7 @@ export default function EditorPage() {
                   <h3 className="font-extrabold text-sm text-[var(--text)]">Projects</h3>
                   <input value={newProject.name} onChange={(event) => setNewProject((current) => ({ ...current, name: event.target.value }))} placeholder="Project name" className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
                   <textarea value={newProject.description} onChange={(event) => setNewProject((current) => ({ ...current, description: event.target.value }))} placeholder="Description" rows={2} className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
-                  <input type="url" value={newProject.url} onChange={(event) => setNewProject((current) => ({ ...current, url: event.target.value }))} placeholder="https://project.example" className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
+                  <ValidatedUrlInput value={newProject.url} onValueChange={(url) => setNewProject((current) => ({ ...current, url }))} placeholder="https://project.example" maxLength={2048} aria-label="Project URL" />
                   <input value={newProject.technologies} onChange={(event) => setNewProject((current) => ({ ...current, technologies: event.target.value }))} placeholder="Technologies, comma separated" className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
                   <Button type="button" size="sm" onClick={() => void addProjectToResumeAndProfile()} disabled={!newProject.name.trim()}>Add to resume and profile</Button>
                   {(resumeData.projects || []).map((project, index) => (
@@ -2089,7 +2198,7 @@ export default function EditorPage() {
                       </div>
                       <input value={project.name} onChange={(event) => { const values = [...(resumeData.projects || [])]; values[index] = { ...project, name: event.target.value }; handleFieldChange("projects", values); }} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 font-bold" />
                       <textarea value={project.description} onChange={(event) => { const values = [...(resumeData.projects || [])]; values[index] = { ...project, description: event.target.value }; handleFieldChange("projects", values); }} rows={2} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2" />
-                      <input type="url" value={project.url || ""} onChange={(event) => { const values = [...(resumeData.projects || [])]; values[index] = { ...project, url: event.target.value || undefined }; handleFieldChange("projects", values); }} placeholder="Project URL" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2" />
+                      <ValidatedUrlInput value={project.url || ""} onValueChange={(url) => { const values = [...(resumeData.projects || [])]; values[index] = { ...project, url: url || undefined }; handleFieldChange("projects", values); }} placeholder="Project URL" maxLength={2048} aria-label={`${project.name || "Project"} URL`} />
                       <input value={project.technologies.join(", ")} onChange={(event) => { const values = [...(resumeData.projects || [])]; values[index] = { ...project, technologies: event.target.value.split(",").map((item) => item.trim()).filter(Boolean) }; handleFieldChange("projects", values); }} placeholder="Technologies" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2" />
                     </div>
                   ))}
@@ -2102,7 +2211,7 @@ export default function EditorPage() {
                     <input value={newCertificate.issuer} onChange={(event) => setNewCertificate((current) => ({ ...current, issuer: event.target.value }))} placeholder="Issuer" className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
                     <input type="date" value={newCertificate.date} onChange={(event) => setNewCertificate((current) => ({ ...current, date: event.target.value }))} className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" aria-label="Certificate date" />
                   </div>
-                  <input type="url" value={newCertificate.url} onChange={(event) => setNewCertificate((current) => ({ ...current, url: event.target.value }))} placeholder="Credential URL" className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
+                  <ValidatedUrlInput value={newCertificate.url} onValueChange={(url) => setNewCertificate((current) => ({ ...current, url }))} placeholder="Credential URL" maxLength={2048} aria-label="Credential URL" />
                   <Button type="button" size="sm" onClick={() => void addCertificateToResumeAndProfile()} disabled={!newCertificate.title.trim()}>Add to resume and profile</Button>
                   {(resumeData.certificates || []).map((certificate, index) => (
                     <div key={certificate.id || index} draggable onDragStart={(event) => startItemDrag(event, "certificates", index)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropItem(event, "certificates", index)} className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 cursor-grab">
@@ -2116,7 +2225,7 @@ export default function EditorPage() {
                         <input value={certificate.issuer} onChange={(event) => { const values = [...(resumeData.certificates || [])]; values[index] = { ...certificate, issuer: event.target.value }; handleFieldChange("certificates", values); }} placeholder="Issuer" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2" />
                         <input type="date" value={certificate.date} onChange={(event) => { const values = [...(resumeData.certificates || [])]; values[index] = { ...certificate, date: event.target.value }; handleFieldChange("certificates", values); }} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2" aria-label="Certificate issue date" />
                       </div>
-                      <input type="url" value={certificate.url || ""} onChange={(event) => { const values = [...(resumeData.certificates || [])]; values[index] = { ...certificate, url: event.target.value || undefined }; handleFieldChange("certificates", values); }} placeholder="Credential URL" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2" />
+                      <ValidatedUrlInput value={certificate.url || ""} onValueChange={(url) => { const values = [...(resumeData.certificates || [])]; values[index] = { ...certificate, url: url || undefined }; handleFieldChange("certificates", values); }} placeholder="Credential URL" maxLength={2048} aria-label={`${certificate.title || "Certificate"} credential URL`} />
                     </div>
                   ))}
                 </section>
@@ -2125,7 +2234,7 @@ export default function EditorPage() {
                   <h3 className="font-extrabold text-sm text-[var(--text)]">Social links</h3>
                   <div className="grid grid-cols-[0.8fr_1.2fr] gap-2">
                     <input value={newSocialLink.platform} onChange={(event) => setNewSocialLink((current) => ({ ...current, platform: event.target.value }))} placeholder="Platform" className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
-                    <input type="url" value={newSocialLink.url} onChange={(event) => setNewSocialLink((current) => ({ ...current, url: event.target.value }))} placeholder="https://..." className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
+                    <ValidatedUrlInput value={newSocialLink.url} onValueChange={(url) => setNewSocialLink((current) => ({ ...current, url }))} platform={newSocialLink.platform} placeholder="https://..." required maxLength={2048} aria-label="Social profile URL" />
                   </div>
                   <Button type="button" size="sm" onClick={() => void addSocialLinkToResumeAndProfile()} disabled={!newSocialLink.platform.trim() || !newSocialLink.url.trim()}>Add to resume and profile</Button>
                   {(resumeData.socialLinks || []).map((link, index) => (
@@ -2137,7 +2246,7 @@ export default function EditorPage() {
                       </div>
                       <div className="grid grid-cols-[0.8fr_1.2fr] gap-2">
                         <input value={link.platform} onChange={(event) => { const values = [...(resumeData.socialLinks || [])]; values[index] = { ...link, platform: event.target.value }; handleFieldChange("socialLinks", values); }} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 font-bold" />
-                        <input type="url" value={link.url} onChange={(event) => { const values = [...(resumeData.socialLinks || [])]; values[index] = { ...link, url: event.target.value }; handleFieldChange("socialLinks", values); }} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2" />
+                        <ValidatedUrlInput value={link.url} onValueChange={(url) => { const values = [...(resumeData.socialLinks || [])]; values[index] = { ...link, url }; handleFieldChange("socialLinks", values); }} platform={link.platform} required maxLength={2048} aria-label={`${link.platform || "Social"} profile URL`} />
                       </div>
                     </div>
                   ))}
@@ -2184,7 +2293,7 @@ export default function EditorPage() {
         </div>
 
         {/* Right Live Preview Canvas Area (Isolatable for PDF Download) */}
-        <div className="min-h-[42rem] min-w-0 flex-1 bg-[var(--bg)]">
+        <div className="editor-preview-panel min-h-[42rem] min-w-0 flex-1 bg-[var(--bg)] lg:min-h-0">
           <ResumePreview zoomPercent={zoomLevel}>
             <div id="resume-canvas-container">
             {renderSelectedTemplate()}

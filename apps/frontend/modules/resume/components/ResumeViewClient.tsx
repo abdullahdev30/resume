@@ -121,7 +121,7 @@ export function ResumeViewClient({
   if (loadError || !resume) return <ErrorState message={loadError || "Unable to load resume."} onRetry={() => void loadResume()} />;
 
   return (
-    <div className="page-stack">
+    <div className="resume-print-context page-stack">
       <PageHeader
         eyebrow={resume.resume_type === "ai" ? "AI-generated resume" : resume.resume_type === "legacy_pdf" ? "Uploaded document" : "Template resume"}
         icon={resume.resume_type === "ai" ? <Sparkles size={15} aria-hidden="true" /> : undefined}

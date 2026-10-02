@@ -163,7 +163,7 @@ export function ResumeListClient({
   };
 
   return (
-    <div className="page-stack">
+    <div className="resume-print-context page-stack">
       <Card padding="lg">
         <PageHeader
           eyebrow={dashboard ? "Resume library" : "Your documents"}
@@ -248,7 +248,7 @@ export function ResumeListClient({
                     Edit
                   </Link>
                 )}
-                {resume.editable && (
+                {resume.editable && !dashboard && (
                   <Button
                     size="sm"
                     onClick={() => void downloadResume(resume)}

@@ -29,8 +29,8 @@ export function ResumePage({
         maxHeight: `${A4_HEIGHT_MM}mm`,
         boxSizing: "border-box",
         overflow: "hidden",
-        lineHeight: data.lineSpacing || 1.5,
-        padding: `${data.pageMargin || 18}mm`,
+        lineHeight: data.lineSpacing ?? 1.15,
+        padding: `${data.pageMargin ?? 10}mm`,
         ...style,
       }}
     >

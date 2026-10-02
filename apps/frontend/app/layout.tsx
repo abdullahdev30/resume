@@ -16,11 +16,16 @@ const bricolage = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
+  applicationName: "Resume Builder",
   title: {
     default: "Resume Builder",
     template: "%s | Resume Builder",
   },
   description: "Build, tailor, and manage polished resumes from one secure workspace.",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/resume_logo.png",
+  },
 };
 
 const themeScript = `

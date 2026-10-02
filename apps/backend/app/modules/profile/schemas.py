@@ -3,6 +3,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 
+from app.common.validation import normalize_phone_number
+
 
 class ProfileBaseModel(BaseModel):
     model_config = ConfigDict(
@@ -50,6 +52,13 @@ class PersonalInfoUpsert(ProfileBaseModel):
     def normalize_email(cls, value: Any) -> Any:
         if isinstance(value, str):
             return value.strip().lower()
+        return value
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def normalize_phone(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return normalize_phone_number(value)
         return value
 
     def resolved_first_name(self) -> str:

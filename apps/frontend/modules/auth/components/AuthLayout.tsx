@@ -2,6 +2,7 @@ import { CheckCircle2, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
 
+import { BrandLogo } from "@/components/common/BrandLogo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 type AuthLayoutProps = {
@@ -14,7 +15,9 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
   return (
     <main className="auth-page">
       <section className="auth-brand-panel" aria-label="Resume Builder">
-        <Link className="auth-logo" href="/auth/login" aria-label="Resume Builder home">RB</Link>
+        <Link className="auth-logo" href="/auth/login" aria-label="Resume Builder home">
+          <BrandLogo priority />
+        </Link>
         <div className="auth-brand-copy">
           <div className="page-eyebrow"><Sparkles size={15} aria-hidden="true" /> Your story, clearly told</div>
           <h1>Build a resume that feels unmistakably yours.</h1>
@@ -46,7 +49,9 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
       <section className="auth-form-wrap">
         <div className="auth-form-card">
           <div className="flex items-center justify-between">
-            <Link className="auth-mobile-logo" href="/auth/login" aria-label="Resume Builder home">RB</Link>
+            <Link className="auth-mobile-logo" href="/auth/login" aria-label="Resume Builder home">
+              <BrandLogo priority />
+            </Link>
             <span className="ml-auto"><ThemeToggle /></span>
           </div>
           <div className="form-stack">

@@ -6,7 +6,8 @@ import { useState } from "react";
 
 import { Alert } from "../../../components/feedback/Alert";
 import { Button } from "../../../components/ui/Button";
-import { Input } from "../../../components/ui/Input";
+import { ValidatedInput } from "../../../components/ui/ValidatedInput";
+import { normalizeEmail, validateEmail } from "../../../lib/validation";
 import { AuthLayout } from "./AuthLayout";
 import { PasswordField } from "./PasswordField";
 import { useAuth } from "../hooks";
@@ -24,22 +25,25 @@ export function LoginForm() {
       return;
     }
     setFormError("");
-    void handleLogin({ email, password });
+    void handleLogin({ email: normalizeEmail(email), password });
   };
 
   return (
     <AuthLayout title="Welcome back" subtitle="Log in to continue building your profile.">
       <form className="form-stack" onSubmit={onSubmit}>
         {(formError || error) && <Alert variant="error">{formError || error}</Alert>}
-        <Input
+        <ValidatedInput
           label="Email"
           type="email"
           autoComplete="email"
           autoFocus
           required
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          onValueChange={setEmail}
+          validate={validateEmail}
+          normalize={normalizeEmail}
           placeholder="user@example.com"
+          maxLength={254}
         />
         <PasswordField
           label="Password"
@@ -48,6 +52,7 @@ export function LoginForm() {
           required
           onChange={(event) => setPassword(event.target.value)}
           placeholder="Enter your password"
+          maxLength={128}
         />
         <div className="form-footer">
           <span />

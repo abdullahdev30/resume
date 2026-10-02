@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export interface AvatarProps extends React.HTMLAttributes<HTMLSpanElement> {
   src?: string | null;
@@ -13,6 +13,10 @@ export interface AvatarProps extends React.HTMLAttributes<HTMLSpanElement> {
 export function Avatar({ src, alt, fallback, size = 36, className = "", ...props }: AvatarProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const showImage = Boolean(src && src !== failedSrc);
+
+  useEffect(() => {
+    setFailedSrc(null);
+  }, [src]);
 
   return (
     <span

@@ -12,7 +12,8 @@ from pydantic import (
     model_validator,
 )
 
-PHONE_NUMBER_PATTERN = re.compile(r"^\d{11}$")
+from app.common.validation import normalize_phone_number
+
 OTP_PATTERN = re.compile(r"^\d{6}$")
 
 
@@ -51,8 +52,8 @@ class RegisterRequest(AuthBaseModel):
     name: str = Field(min_length=2, max_length=100, strict=True)
     email: EmailStr
     number: str = Field(
-        min_length=11,
-        max_length=11,
+        min_length=8,
+        max_length=32,
         strict=True,
         validation_alias=AliasChoices("phone", "number"),
     )
@@ -69,12 +70,12 @@ class RegisterRequest(AuthBaseModel):
     def normalize_email(cls, value: Any) -> Any:
         return _normalize_email(value)
 
-    @field_validator("number")
+    @field_validator("number", mode="before")
     @classmethod
     def validate_phone_number(cls, value: str) -> str:
-        if not PHONE_NUMBER_PATTERN.fullmatch(value):
-            raise ValueError("Number must contain exactly 11 digits.")
-        return value
+        if not isinstance(value, str):
+            raise ValueError("Phone number must be text.")
+        return normalize_phone_number(value)
 
     @field_validator("password")
     @classmethod

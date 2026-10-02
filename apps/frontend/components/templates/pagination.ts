@@ -27,10 +27,10 @@ const DEFAULT_SECTION_ORDER: SectionKey[] = [
   "socialLinks",
 ];
 
-// Calibrated against the densest catalog layouts. Keeping this conservative
-// ensures a long experience item moves intact to the next fixed A4 page
-// instead of being hidden by the page's required overflow boundary.
-const PAGE_CAPACITY = 34;
+// Calibrated for the usable area of an A4 page with the default compact
+// margins and spacing. Truly long content still flows to additional pages,
+// while an ordinary profile is not split prematurely by the heuristic.
+const PAGE_CAPACITY = 52;
 
 interface ContentItem {
   section: SectionKey;
@@ -41,6 +41,7 @@ interface ContentItem {
 export function paginateResumeData(data: ResumeData): ResumePageSlice[] {
   const items = contentItems(data);
   if (items.length === 0) return [{ data: emptyPage(data), offsets: {} }];
+  const pageCapacity = getPageCapacity(data);
 
   const pages: ResumePageSlice[] = [];
   let currentItems: ContentItem[] = [];
@@ -54,7 +55,7 @@ export function paginateResumeData(data: ResumeData): ResumePageSlice[] {
   };
 
   for (const item of items) {
-    if (currentItems.length > 0 && currentWeight + item.weight > PAGE_CAPACITY) {
+    if (currentItems.length > 0 && currentWeight + item.weight > pageCapacity) {
       flush();
     }
     currentItems.push(item);
@@ -63,6 +64,15 @@ export function paginateResumeData(data: ResumeData): ResumePageSlice[] {
   flush();
 
   return pages.length > 0 ? pages : [{ data: emptyPage(data), offsets: {} }];
+}
+
+function getPageCapacity(data: ResumeData): number {
+  const margin = data.pageMargin ?? 10;
+  const lineSpacing = data.lineSpacing ?? 1.15;
+  const defaultUsableHeight = 297 - 20;
+  const usableHeight = Math.max(120, 297 - margin * 2);
+  const density = (usableHeight / defaultUsableHeight) * (1.15 / lineSpacing);
+  return Math.max(14, Math.round(PAGE_CAPACITY * density));
 }
 
 /**

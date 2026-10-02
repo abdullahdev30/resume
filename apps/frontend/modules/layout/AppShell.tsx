@@ -6,8 +6,9 @@ import {
   LayoutTemplate,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
-  Sparkles,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -15,6 +16,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { BrandLogo } from "@/components/common/BrandLogo";
 import { toast } from "@/components/feedback/Toast";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -43,6 +45,7 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl || "");
@@ -52,6 +55,26 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    try {
+      setSidebarCollapsed(localStorage.getItem("resume-builder-sidebar-collapsed") === "true");
+    } catch {
+      // The preference is optional when browser storage is unavailable.
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      try {
+        localStorage.setItem("resume-builder-sidebar-collapsed", String(next));
+      } catch {
+        // Keep the in-memory preference when browser storage is unavailable.
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (initialAvatarUrl !== undefined) return;
@@ -118,7 +141,7 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
           </Button>
 
           <Link href="/dashboard" className="app-brand" aria-label="Resume Builder dashboard">
-            <span className="brand-mark">RB</span>
+            <BrandLogo className="app-brand-logo" priority />
             <span className="app-brand-copy">
               <span className="app-brand-name">Resume Builder</span>
               <span className="app-brand-meta">Your career workspace</span>
@@ -135,11 +158,6 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
               <span className="profile-chip-email">{user.email}</span>
             </span>
           </Link>
-          <Tooltip label="Sign out">
-            <Button variant="ghost" iconOnly onClick={() => setLogoutOpen(true)} aria-label="Sign out">
-              <LogOut size={18} aria-hidden="true" />
-            </Button>
-          </Tooltip>
         </div>
       </header>
 
@@ -147,7 +165,31 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
         {mobileOpen && (
           <button className="mobile-backdrop md:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />
         )}
-        <aside className={["app-sidebar", mobileOpen ? "is-open" : ""].filter(Boolean).join(" ")}>
+        <aside
+          className={[
+            "app-sidebar",
+            mobileOpen ? "is-open" : "",
+            sidebarCollapsed ? "is-collapsed" : "",
+          ].filter(Boolean).join(" ")}
+        >
+          <div className="sidebar-toggle-row">
+            <Link href="/dashboard" className="sidebar-brand" aria-label="Resume Builder dashboard">
+              <BrandLogo className="sidebar-brand-logo" />
+              <span>Resume Builder</span>
+            </Link>
+            <Button
+              variant="ghost"
+              iconOnly
+              className="sidebar-toggle"
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={!sidebarCollapsed}
+            >
+              {sidebarCollapsed
+                ? <PanelLeftOpen size={19} aria-hidden="true" />
+                : <PanelLeftClose size={19} aria-hidden="true" />}
+            </Button>
+          </div>
           <nav className="sidebar-nav" aria-label="Main navigation">
             <div className="sidebar-label">Workspace</div>
             {navItems.map((item) => {
@@ -159,6 +201,7 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
                   href={item.href}
                   className={["sidebar-link", active ? "is-active" : ""].filter(Boolean).join(" ")}
                   aria-current={active ? "page" : undefined}
+                  title={sidebarCollapsed ? item.label : undefined}
                 >
                   <Icon size={18} aria-hidden="true" />
                   <span>{item.label}</span>
@@ -168,10 +211,17 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
           </nav>
 
           <div className="sidebar-footer">
-            <Link href="/resumes/create/ai" className="sidebar-tip">
-              <Sparkles size={16} aria-hidden="true" />
-              <span>Create with AI</span>
-            </Link>
+            <Tooltip label="Log out">
+              <button
+                type="button"
+                className="sidebar-logout"
+                onClick={() => setLogoutOpen(true)}
+                aria-label="Log out"
+              >
+                <LogOut size={18} aria-hidden="true" />
+                <span>Log out</span>
+              </button>
+            </Tooltip>
           </div>
         </aside>
 

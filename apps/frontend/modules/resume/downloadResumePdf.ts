@@ -1,7 +1,5 @@
 "use client";
 
-import { isSuccessfulHttpStatus } from "../../lib/http-status";
-
 const PRINT_ROOT_ID = "resume-print-root";
 
 export function safeFileName(title: string): string {
@@ -50,78 +48,58 @@ export async function downloadResumePdf(title: string): Promise<void> {
 
 async function preparePrintImages(root: HTMLElement): Promise<() => void> {
   const images = Array.from(root.querySelectorAll("img"));
-  const originalSources = new Map<HTMLImageElement, string>();
+  const hiddenImages: HTMLImageElement[] = [];
 
-  try {
-    for (const image of images) {
-      const source = image.currentSrc || image.src;
-      if (isCrossOriginHttpUrl(source)) {
-        originalSources.set(image, image.src);
-        image.src = await imageUrlToDataUrl(source);
-      }
+  for (const image of images) {
+    try {
       await waitForImage(image);
+    } catch {
+      // A remote profile photo may have expired. It should not block printing
+      // the rest of the resume, so omit only that unavailable image.
+      image.style.display = "none";
+      hiddenImages.push(image);
     }
-  } catch (error) {
-    restoreImageSources(originalSources);
-    throw error;
   }
 
-  return () => restoreImageSources(originalSources);
-}
-
-function isCrossOriginHttpUrl(source: string): boolean {
-  if (!source || source.startsWith("data:") || source.startsWith("blob:")) {
-    return false;
-  }
-  const url = new URL(source, window.location.href);
-  return url.protocol.startsWith("http") && url.origin !== window.location.origin;
-}
-
-async function imageUrlToDataUrl(source: string): Promise<string> {
-  let response: Response;
-  try {
-    response = await fetch(source, {
-      credentials: "omit",
-      mode: "cors",
-      cache: "no-store",
-    });
-  } catch (error) {
-    throw new Error(
-      "The resume photo could not be prepared for printing because its server does not allow cross-origin access.",
-      { cause: error },
-    );
-  }
-  if (!isSuccessfulHttpStatus(response.status)) {
-    throw new Error("The resume photo could not be loaded for printing.");
-  }
-
-  const blob = await response.blob();
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => resolve(String(reader.result)));
-    reader.addEventListener("error", () => reject(new Error("The resume photo could not be read for printing.")));
-    reader.readAsDataURL(blob);
-  });
+  return () => {
+    for (const image of hiddenImages) image.style.removeProperty("display");
+  };
 }
 
 async function waitForImage(image: HTMLImageElement): Promise<void> {
   if (!image.complete) {
     await new Promise<void>((resolve, reject) => {
-      image.addEventListener("load", () => resolve(), { once: true });
-      image.addEventListener("error", () => reject(new Error("A resume image could not be loaded for printing.")), { once: true });
+      const cleanup = () => {
+        window.clearTimeout(timer);
+        image.removeEventListener("load", loaded);
+        image.removeEventListener("error", failed);
+      };
+      const loaded = () => { cleanup(); resolve(); };
+      const failed = () => { cleanup(); reject(new Error("A resume image could not be loaded for printing.")); };
+      const timer = window.setTimeout(failed, 8000);
+      image.addEventListener("load", loaded, { once: true });
+      image.addEventListener("error", failed, { once: true });
     });
   }
   if (!image.naturalWidth) {
     throw new Error("A resume image could not be loaded for printing.");
   }
   if (typeof image.decode === "function") {
-    await image.decode();
+    await withTimeout(image.decode(), 5000, "A resume image took too long to prepare.");
   }
 }
 
-function restoreImageSources(sources: Map<HTMLImageElement, string>) {
-  for (const [image, source] of sources) {
-    if (image.isConnected) image.src = source;
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer = 0;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    window.clearTimeout(timer);
   }
 }
 

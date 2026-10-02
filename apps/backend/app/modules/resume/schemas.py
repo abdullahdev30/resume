@@ -138,8 +138,8 @@ class ResumeData(ResumeSchema):
         default_factory=dict, alias="elementStyles"
     )
     page_size: ResumePageSize = Field(default="A4", alias="pageSize")
-    page_margin: float = Field(default=18, alias="pageMargin", ge=5, le=40)
-    line_spacing: float = Field(default=1.5, alias="lineSpacing", ge=0.8, le=3)
+    page_margin: float = Field(default=10, alias="pageMargin", ge=5, le=40)
+    line_spacing: float = Field(default=1.15, alias="lineSpacing", ge=0.8, le=3)
     section_order: list[ResumeDesignSection] = Field(
         default_factory=lambda: [
             "summary",

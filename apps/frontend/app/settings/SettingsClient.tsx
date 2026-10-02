@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingState } from "@/components/common/LoadingState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { AvatarCropDialog } from "@/components/profile/AvatarCropDialog";
 import { Alert } from "@/components/feedback/Alert";
 import { toast } from "@/components/feedback/Toast";
 import { Avatar } from "@/components/ui/Avatar";
@@ -31,8 +32,21 @@ import { Card } from "@/components/ui/Card";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { FileUpload, type FileUploadStatus } from "@/components/ui/FileUpload";
 import { Input } from "@/components/ui/Input";
+import { PhoneInput } from "@/components/ui/PhoneInput";
 import { Tabs } from "@/components/ui/Tabs";
 import { Textarea } from "@/components/ui/Textarea";
+import { ValidatedInput } from "@/components/ui/ValidatedInput";
+import { ValidatedUrlInput } from "@/components/ui/ValidatedUrlInput";
+import {
+  normalizeEmail,
+  normalizePlainText,
+  normalizeUrl,
+  validateDate,
+  validateEmail,
+  validateEndDate,
+  validateName,
+  validateText,
+} from "@/lib/validation";
 import type { User as UserType } from "@/modules/auth/types";
 import { PROFILE_UPDATED_EVENT, type ProfileUpdatedDetail } from "@/modules/profile/events";
 import type { Certificate } from "@/modules/certificates/types";
@@ -120,8 +134,10 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
     summary: initialProfile?.personal.summary || "",
   });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
   const [avatarStatus, setAvatarStatus] = useState<FileUploadStatus>("idle");
   const [avatarProgress, setAvatarProgress] = useState(0);
+  const [avatarError, setAvatarError] = useState("");
   const avatarController = useRef<AbortController | null>(null);
 
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(initialProfile?.social_links || []);
@@ -225,14 +241,14 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
     setActionError("");
     try {
       const saved = await profileApi.upsertPersonal({
-        first_name: profileForm.first_name,
-        last_name: profileForm.last_name,
-        email: profileForm.email,
+        first_name: normalizePlainText(profileForm.first_name, 100),
+        last_name: normalizePlainText(profileForm.last_name, 100),
+        email: normalizeEmail(profileForm.email),
         phone: profileForm.phone,
-        address: profileForm.address,
-        city: profileForm.city,
-        professional_title: profileForm.professional_title,
-        summary: profileForm.summary,
+        address: normalizePlainText(profileForm.address, 1000),
+        city: normalizePlainText(profileForm.city, 100),
+        professional_title: normalizePlainText(profileForm.professional_title, 255),
+        summary: normalizePlainText(profileForm.summary, 4000),
       });
       setHasProfile(true);
       setProfileForm((current) => ({
@@ -265,8 +281,8 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
     }
   };
 
-  const uploadAvatar = async () => {
-    if (!avatarFile || avatarStatus === "uploading") return;
+  const uploadAvatar = async (selectedFile: File | null = avatarFile) => {
+    if (!selectedFile || avatarStatus === "uploading") return;
     if (!hasProfile) {
       const message = "Save your personal profile before uploading an avatar.";
       setActionError(message);
@@ -278,9 +294,10 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
     setPendingAction("avatar");
     setAvatarStatus("uploading");
     setAvatarProgress(0);
+    setAvatarError("");
     setActionError("");
     try {
-      const uploaded = await profileApi.uploadAvatar(avatarFile, {
+      const uploaded = await profileApi.uploadAvatar(selectedFile, {
         onProgress: setAvatarProgress,
         signal: controller.signal,
       });
@@ -292,6 +309,8 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
     } catch (error) {
       if (!controller.signal.aborted) {
         setAvatarStatus("error");
+        const message = error instanceof Error ? error.message : "Unable to upload avatar.";
+        setAvatarError(message);
         fail(error, "Unable to upload avatar.");
       }
     } finally {
@@ -306,9 +325,13 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
     setActionError("");
     try {
       const editingId = editingTarget?.type === "social" ? editingTarget.id : null;
+      const payload = {
+        platform_name: normalizePlainText(socialForm.platform_name, 50),
+        profile_url: normalizeUrl(socialForm.profile_url),
+      };
       const saved = editingId
-        ? await updateSocialLink(editingId, socialForm)
-        : await createSocialLink(socialForm);
+        ? await updateSocialLink(editingId, payload)
+        : await createSocialLink(payload);
       setSocialLinks((current) => editingId
         ? current.map((item) => item.id === editingId ? saved : item)
         : [saved, ...current]);
@@ -408,7 +431,7 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
           category: certificateForm.category || null,
           field: certificateForm.field || null,
           file_url: certificateForm.file_url !== editingCertificateOriginalUrl
-            ? certificateForm.file_url || null
+            ? certificateForm.file_url ? normalizeUrl(certificateForm.file_url) : null
             : undefined,
           issue_date: certificateForm.issue_date || null,
           expiration_date: certificateForm.expiration_date || null,
@@ -433,7 +456,7 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
           title,
           category: certificateForm.category || undefined,
           field: certificateForm.field || undefined,
-          file_url: certificateForm.file_url || undefined,
+          file_url: certificateForm.file_url ? normalizeUrl(certificateForm.file_url) : undefined,
           issue_date: certificateForm.issue_date || undefined,
           expiration_date: certificateForm.expiration_date || undefined,
         });
@@ -464,8 +487,8 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
       const payload = {
         name: projectForm.name,
         description: projectForm.description || null,
-        link: projectForm.link || null,
-        github_url: projectForm.github_url || null,
+        link: projectForm.link ? normalizeUrl(projectForm.link) : null,
+        github_url: projectForm.github_url ? normalizeUrl(projectForm.github_url) : null,
         technologies: projectForm.technologies
           ? projectForm.technologies.split(",").map((item) => item.trim()).filter(Boolean)
           : null,
@@ -644,15 +667,15 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
                 <p className="mt-1 text-sm text-[var(--text-muted)]">These fields become the starting point for new resumes.</p>
               </div>
               <div className="form-grid">
-                <Input label="First name" value={profileForm.first_name} onChange={(event) => setProfileForm({ ...profileForm, first_name: event.target.value })} required autoFocus />
-                <Input label="Last name" value={profileForm.last_name} onChange={(event) => setProfileForm({ ...profileForm, last_name: event.target.value })} />
-                <Input label="Email" type="email" value={profileForm.email} onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })} required autoComplete="email" />
-                <Input label="Phone" type="tel" value={profileForm.phone} onChange={(event) => setProfileForm({ ...profileForm, phone: event.target.value })} required autoComplete="tel" />
-                <Input label="City" value={profileForm.city} onChange={(event) => setProfileForm({ ...profileForm, city: event.target.value })} />
-                <Input label="Address" value={profileForm.address} onChange={(event) => setProfileForm({ ...profileForm, address: event.target.value })} />
-                <Input label="Professional title" value={profileForm.professional_title} onChange={(event) => setProfileForm({ ...profileForm, professional_title: event.target.value })} placeholder="Senior Product Designer" />
+                <ValidatedInput label="First name" value={profileForm.first_name} onValueChange={(first_name) => setProfileForm({ ...profileForm, first_name })} validate={(value) => validateName(value, "First name")} normalize={(value) => normalizePlainText(value, 100)} required autoFocus maxLength={100} />
+                <ValidatedInput label="Last name" value={profileForm.last_name} onValueChange={(last_name) => setProfileForm({ ...profileForm, last_name })} validate={(value) => validateName(value, "Last name", false)} normalize={(value) => normalizePlainText(value, 100)} optional maxLength={100} />
+                <ValidatedInput label="Email" type="email" value={profileForm.email} onValueChange={(email) => setProfileForm({ ...profileForm, email })} validate={validateEmail} normalize={normalizeEmail} required autoComplete="email" maxLength={254} />
+                <PhoneInput label="Phone" value={profileForm.phone} onValueChange={(phone) => setProfileForm({ ...profileForm, phone })} required />
+                <Input label="City" value={profileForm.city} onChange={(event) => setProfileForm({ ...profileForm, city: event.target.value })} maxLength={100} />
+                <Input label="Address" value={profileForm.address} onChange={(event) => setProfileForm({ ...profileForm, address: event.target.value })} maxLength={1000} />
+                <Input label="Professional title" value={profileForm.professional_title} onChange={(event) => setProfileForm({ ...profileForm, professional_title: event.target.value })} placeholder="Senior Product Designer" maxLength={255} />
               </div>
-              <Textarea label="Professional summary" optional value={profileForm.summary} onChange={(event) => setProfileForm({ ...profileForm, summary: event.target.value })} rows={5} />
+              <Textarea label="Professional summary" optional value={profileForm.summary} onChange={(event) => setProfileForm({ ...profileForm, summary: event.target.value })} rows={5} maxLength={4000} showCount />
               <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] pt-5">
                 <span className="text-xs font-semibold text-[var(--text-muted)]" aria-live="polite">
                   {profileSaveStatus === "success" ? "Saved ✓" : profileSaveStatus === "error" ? "Save failed" : ""}
@@ -672,6 +695,14 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
           <Card padding="md">
             <h2 className="text-base font-bold">Profile photo</h2>
             <p className="mt-1 text-xs text-[var(--text-muted)]">Used only by templates that support a headshot.</p>
+            <div className="mt-4 flex justify-center">
+              <Avatar
+                src={profileForm.avatar_url}
+                alt={`${profileForm.first_name} ${profileForm.last_name}`.trim() || "Profile photo"}
+                fallback={`${profileForm.first_name.slice(0, 1)}${profileForm.last_name.slice(0, 1)}`.toUpperCase()}
+                size={88}
+              />
+            </div>
             <div className="mt-4">
               <FileUpload
                 label="Choose a profile image"
@@ -680,9 +711,33 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
                 file={avatarFile}
                 status={avatarStatus}
                 progress={avatarProgress}
+                error={avatarError}
                 onFileChange={(file) => {
-                  setAvatarFile(file);
+                  if (!file) {
+                    setAvatarFile(null);
+                    setAvatarError("");
+                    setAvatarStatus("idle");
+                    return;
+                  }
+                  const validTypes = ["image/jpeg", "image/png", "image/webp"];
+                  if (!validTypes.includes(file.type)) {
+                    setAvatarError("Choose a JPG, PNG, or WEBP image.");
+                    setAvatarStatus("error");
+                    return;
+                  }
+                  if (file.size > 10 * 1024 * 1024) {
+                    setAvatarError("The profile image must be 10 MB or smaller.");
+                    setAvatarStatus("error");
+                    return;
+                  }
+                  if (!hasProfile) {
+                    setAvatarError("Save your personal profile before uploading a photo.");
+                    setAvatarStatus("error");
+                    return;
+                  }
+                  setAvatarError("");
                   setAvatarStatus("idle");
+                  setAvatarCropFile(file);
                 }}
                 onCancel={() => avatarController.current?.abort()}
                 onRetry={() => void uploadAvatar()}
@@ -693,6 +748,15 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
               Upload photo
             </Button>
           </Card>
+          <AvatarCropDialog
+            file={avatarCropFile}
+            onClose={() => setAvatarCropFile(null)}
+            onConfirm={(croppedFile) => {
+              setAvatarCropFile(null);
+              setAvatarFile(croppedFile);
+              void uploadAvatar(croppedFile);
+            }}
+          />
         </div>
       )}
 
@@ -702,8 +766,8 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
           description="Add the professional profiles you want available when building a resume."
           form={
             <form onSubmit={addSocial} className="form-grid">
-              <Input label="Platform" value={socialForm.platform_name} onChange={(event) => setSocialForm({ ...socialForm, platform_name: event.target.value })} placeholder="LinkedIn" required autoFocus />
-              <Input label="Profile URL" type="url" value={socialForm.profile_url} onChange={(event) => setSocialForm({ ...socialForm, profile_url: event.target.value })} placeholder="https://..." required />
+              <ValidatedInput label="Platform" value={socialForm.platform_name} onValueChange={(platform_name) => setSocialForm({ ...socialForm, platform_name })} validate={(value) => validateText(value, { label: "Platform", required: true, minLength: 2, maxLength: 50 })} normalize={(value) => normalizePlainText(value, 50)} placeholder="LinkedIn" required autoFocus maxLength={50} />
+              <ValidatedUrlInput label="Profile URL" value={socialForm.profile_url} onValueChange={(profile_url) => setSocialForm({ ...socialForm, profile_url })} platform={socialForm.platform_name} placeholder="https://..." required maxLength={2048} />
               <SubmitButton label={editingTarget?.type === "social" ? "Save link" : "Add link"} loading={pendingAction === "social"} editing={editingTarget?.type === "social"} onCancel={cancelEditing} />
             </form>
           }
@@ -722,15 +786,15 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
           form={
             <form onSubmit={addEducation} className="form-stack">
               <div className="form-grid">
-                <Input label="Institution" value={educationForm.institute_name} onChange={(event) => setEducationForm({ ...educationForm, institute_name: event.target.value })} required autoFocus />
-                <Input label="Degree" value={educationForm.degree} onChange={(event) => setEducationForm({ ...educationForm, degree: event.target.value })} />
-                <Input label="Field of study" value={educationForm.field_of_study} onChange={(event) => setEducationForm({ ...educationForm, field_of_study: event.target.value })} />
-                <Input label="Grade" value={educationForm.grade} onChange={(event) => setEducationForm({ ...educationForm, grade: event.target.value })} />
-                <Input label="Start date" type="date" value={educationForm.start_date} onChange={(event) => setEducationForm({ ...educationForm, start_date: event.target.value })} required />
-                <Input label="End date" type="date" value={educationForm.end_date} onChange={(event) => setEducationForm({ ...educationForm, end_date: event.target.value })} disabled={educationForm.is_current} />
+                <ValidatedInput label="Institution" value={educationForm.institute_name} onValueChange={(institute_name) => setEducationForm({ ...educationForm, institute_name })} validate={(value) => validateText(value, { label: "Institution", required: true, minLength: 2, maxLength: 255 })} normalize={(value) => normalizePlainText(value, 255)} required autoFocus maxLength={255} />
+                <Input label="Degree" value={educationForm.degree} onChange={(event) => setEducationForm({ ...educationForm, degree: event.target.value })} maxLength={255} />
+                <Input label="Field of study" value={educationForm.field_of_study} onChange={(event) => setEducationForm({ ...educationForm, field_of_study: event.target.value })} maxLength={255} />
+                <Input label="Grade" value={educationForm.grade} onChange={(event) => setEducationForm({ ...educationForm, grade: event.target.value })} maxLength={100} />
+                <ValidatedInput label="Start date" type="date" value={educationForm.start_date} onValueChange={(start_date) => setEducationForm({ ...educationForm, start_date })} validate={(value) => validateDate(value, { label: "Start date", required: true })} normalize={(value) => value} required />
+                <ValidatedInput label="End date" type="date" value={educationForm.end_date} onValueChange={(end_date) => setEducationForm({ ...educationForm, end_date })} validate={(value) => validateEndDate(value, educationForm.start_date, { current: educationForm.is_current })} normalize={(value) => value} disabled={educationForm.is_current} />
               </div>
               <Checkbox label="I am currently studying here" checked={educationForm.is_current} onChange={(event) => setEducationForm({ ...educationForm, is_current: event.target.checked, end_date: event.target.checked ? "" : educationForm.end_date })} />
-              <Textarea label="Description" optional value={educationForm.description} onChange={(event) => setEducationForm({ ...educationForm, description: event.target.value })} rows={3} />
+              <Textarea label="Description" optional value={educationForm.description} onChange={(event) => setEducationForm({ ...educationForm, description: event.target.value })} rows={3} maxLength={2000} showCount />
               <div className="flex justify-end"><SubmitButton label={editingTarget?.type === "education" ? "Save education" : "Add education"} loading={pendingAction === "education"} editing={editingTarget?.type === "education"} onCancel={cancelEditing} /></div>
             </form>
           }
@@ -749,14 +813,14 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
           form={
             <form onSubmit={addExperience} className="form-stack">
               <div className="form-grid">
-                <Input label="Company" value={experienceForm.company_name} onChange={(event) => setExperienceForm({ ...experienceForm, company_name: event.target.value })} required autoFocus />
-                <Input label="Job title" value={experienceForm.job_title} onChange={(event) => setExperienceForm({ ...experienceForm, job_title: event.target.value })} required />
-                <Input label="Location" value={experienceForm.location} onChange={(event) => setExperienceForm({ ...experienceForm, location: event.target.value })} />
-                <Input label="Start date" type="date" value={experienceForm.start_date} onChange={(event) => setExperienceForm({ ...experienceForm, start_date: event.target.value })} required />
-                <Input label="End date" type="date" value={experienceForm.end_date} onChange={(event) => setExperienceForm({ ...experienceForm, end_date: event.target.value })} disabled={experienceForm.is_current} />
+                <ValidatedInput label="Company" value={experienceForm.company_name} onValueChange={(company_name) => setExperienceForm({ ...experienceForm, company_name })} validate={(value) => validateText(value, { label: "Company", required: true, minLength: 2, maxLength: 255 })} normalize={(value) => normalizePlainText(value, 255)} required autoFocus maxLength={255} />
+                <ValidatedInput label="Job title" value={experienceForm.job_title} onValueChange={(job_title) => setExperienceForm({ ...experienceForm, job_title })} validate={(value) => validateText(value, { label: "Job title", required: true, minLength: 2, maxLength: 255 })} normalize={(value) => normalizePlainText(value, 255)} required maxLength={255} />
+                <Input label="Location" value={experienceForm.location} onChange={(event) => setExperienceForm({ ...experienceForm, location: event.target.value })} maxLength={255} />
+                <ValidatedInput label="Start date" type="date" value={experienceForm.start_date} onValueChange={(start_date) => setExperienceForm({ ...experienceForm, start_date })} validate={(value) => validateDate(value, { label: "Start date", required: true })} normalize={(value) => value} required />
+                <ValidatedInput label="End date" type="date" value={experienceForm.end_date} onValueChange={(end_date) => setExperienceForm({ ...experienceForm, end_date })} validate={(value) => validateEndDate(value, experienceForm.start_date, { current: experienceForm.is_current })} normalize={(value) => value} disabled={experienceForm.is_current} />
               </div>
               <Checkbox label="I currently work here" checked={experienceForm.is_current} onChange={(event) => setExperienceForm({ ...experienceForm, is_current: event.target.checked, end_date: event.target.checked ? "" : experienceForm.end_date })} />
-              <Textarea label="Highlights and responsibilities" optional value={experienceForm.description} onChange={(event) => setExperienceForm({ ...experienceForm, description: event.target.value })} rows={4} />
+              <Textarea label="Highlights and responsibilities" optional value={experienceForm.description} onChange={(event) => setExperienceForm({ ...experienceForm, description: event.target.value })} rows={4} maxLength={4000} showCount />
               <div className="flex justify-end"><SubmitButton label={editingTarget?.type === "experience" ? "Save experience" : "Add experience"} loading={pendingAction === "experience"} editing={editingTarget?.type === "experience"} onCancel={cancelEditing} /></div>
             </form>
           }
@@ -774,9 +838,9 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
           description="Build a reusable skills library for tailored resumes."
           form={
             <form onSubmit={addSkill} className="form-grid">
-              <Input label="Skill" value={skillForm.name} onChange={(event) => setSkillForm({ ...skillForm, name: event.target.value })} required autoFocus />
-              <Input label="Category" optional value={skillForm.category} onChange={(event) => setSkillForm({ ...skillForm, category: event.target.value })} placeholder="Technical" />
-              <Input label="Level" optional value={skillForm.level} onChange={(event) => setSkillForm({ ...skillForm, level: event.target.value })} placeholder="Advanced" />
+              <ValidatedInput label="Skill" value={skillForm.name} onValueChange={(name) => setSkillForm({ ...skillForm, name })} validate={(value) => validateText(value, { label: "Skill", required: true, maxLength: 150 })} normalize={(value) => normalizePlainText(value, 150)} required autoFocus maxLength={150} />
+              <Input label="Category" optional value={skillForm.category} onChange={(event) => setSkillForm({ ...skillForm, category: event.target.value })} placeholder="Technical" maxLength={100} />
+              <Input label="Level" optional value={skillForm.level} onChange={(event) => setSkillForm({ ...skillForm, level: event.target.value })} placeholder="Advanced" maxLength={50} />
               <SubmitButton label={editingTarget?.type === "skills" ? "Save skill" : "Add skill"} loading={pendingAction === "skills"} editing={editingTarget?.type === "skills"} onCancel={cancelEditing} />
             </form>
           }
@@ -806,12 +870,12 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
           form={
             <form onSubmit={addCertificate} className="form-stack">
               <div className="form-grid">
-                <Input label="Certificate name" value={certificateForm.title} onChange={(event) => setCertificateForm({ ...certificateForm, title: event.target.value })} required={!certificateFile} autoFocus />
-                <Input label="Issuing organization" value={certificateForm.category} onChange={(event) => setCertificateForm({ ...certificateForm, category: event.target.value })} />
-                <Input label="Credential ID" value={certificateForm.field} onChange={(event) => setCertificateForm({ ...certificateForm, field: event.target.value })} />
-                <Input label="Credential URL" type="url" optional value={certificateForm.file_url} onChange={(event) => setCertificateForm({ ...certificateForm, file_url: event.target.value })} />
-                <Input label="Issue date" type="date" value={certificateForm.issue_date} onChange={(event) => setCertificateForm({ ...certificateForm, issue_date: event.target.value })} />
-                <Input label="Expiration date" type="date" value={certificateForm.expiration_date} onChange={(event) => setCertificateForm({ ...certificateForm, expiration_date: event.target.value })} />
+                <ValidatedInput label="Certificate name" value={certificateForm.title} onValueChange={(title) => setCertificateForm({ ...certificateForm, title })} validate={(value) => validateText(value, { label: "Certificate name", required: !certificateFile, minLength: 2, maxLength: 255 })} normalize={(value) => normalizePlainText(value, 255)} required={!certificateFile} autoFocus maxLength={255} />
+                <Input label="Issuing organization" value={certificateForm.category} onChange={(event) => setCertificateForm({ ...certificateForm, category: event.target.value })} maxLength={255} />
+                <Input label="Credential ID" value={certificateForm.field} onChange={(event) => setCertificateForm({ ...certificateForm, field: event.target.value })} maxLength={255} />
+                <ValidatedUrlInput label="Credential URL" optional value={certificateForm.file_url} onValueChange={(file_url) => setCertificateForm({ ...certificateForm, file_url })} maxLength={2048} />
+                <ValidatedInput label="Issue date" type="date" value={certificateForm.issue_date} onValueChange={(issue_date) => setCertificateForm({ ...certificateForm, issue_date })} validate={(value) => validateDate(value, { label: "Issue date" })} normalize={(value) => value} />
+                <ValidatedInput label="Expiration date" type="date" value={certificateForm.expiration_date} onValueChange={(expiration_date) => setCertificateForm({ ...certificateForm, expiration_date })} validate={(value) => validateEndDate(value, certificateForm.issue_date, { label: "Expiration date", allowFuture: true })} normalize={(value) => value} />
               </div>
               {editingTarget?.type !== "certificates" && <FileUpload
                 label="Attach a certificate file"
@@ -845,12 +909,12 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
           form={
             <form onSubmit={addProject} className="form-stack">
               <div className="form-grid">
-                <Input label="Project name" value={projectForm.name} onChange={(event) => setProjectForm({ ...projectForm, name: event.target.value })} required autoFocus />
-                <Input label="Project URL" type="url" optional value={projectForm.link} onChange={(event) => setProjectForm({ ...projectForm, link: event.target.value })} />
-                <Input label="GitHub URL" type="url" optional value={projectForm.github_url} onChange={(event) => setProjectForm({ ...projectForm, github_url: event.target.value })} />
-                <Input label="Technologies" value={projectForm.technologies} onChange={(event) => setProjectForm({ ...projectForm, technologies: event.target.value })} hint="Separate technologies with commas." />
+                <ValidatedInput label="Project name" value={projectForm.name} onValueChange={(name) => setProjectForm({ ...projectForm, name })} validate={(value) => validateText(value, { label: "Project name", required: true, minLength: 2, maxLength: 255 })} normalize={(value) => normalizePlainText(value, 255)} required autoFocus maxLength={255} />
+                <ValidatedUrlInput label="Project URL" optional value={projectForm.link} onValueChange={(link) => setProjectForm({ ...projectForm, link })} maxLength={2048} />
+                <ValidatedUrlInput label="GitHub URL" optional value={projectForm.github_url} onValueChange={(github_url) => setProjectForm({ ...projectForm, github_url })} platform="GitHub" maxLength={2048} />
+                <Input label="Technologies" value={projectForm.technologies} onChange={(event) => setProjectForm({ ...projectForm, technologies: event.target.value })} hint="Separate technologies with commas." maxLength={1000} />
               </div>
-              <Textarea label="Description" optional value={projectForm.description} onChange={(event) => setProjectForm({ ...projectForm, description: event.target.value })} rows={4} />
+              <Textarea label="Description" optional value={projectForm.description} onChange={(event) => setProjectForm({ ...projectForm, description: event.target.value })} rows={4} maxLength={4000} showCount />
               <div className="flex justify-end"><SubmitButton label={editingTarget?.type === "projects" ? "Save project" : "Add project"} loading={pendingAction === "projects"} editing={editingTarget?.type === "projects"} onCancel={cancelEditing} /></div>
             </form>
           }

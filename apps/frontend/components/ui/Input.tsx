@@ -9,6 +9,8 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   leading?: React.ReactNode;
   trailing?: React.ReactNode;
   optional?: boolean;
+  inputRef?: React.Ref<HTMLInputElement>;
+  showCount?: boolean;
 }
 
 export function Input({
@@ -20,20 +22,27 @@ export function Input({
   leading,
   trailing,
   optional,
+  inputRef,
+  showCount = false,
   ...props
 }: InputProps) {
   const generatedId = useId();
   const inputId = id || generatedId;
-  const hintId = hint ? `${inputId}-hint` : undefined;
   const errorId = error ? `${inputId}-error` : undefined;
 
-  const describedBy = error ? errorId : hintId;
+  const valueLength = typeof props.value === "string" ? props.value.length : 0;
+  const countHint = showCount && props.maxLength
+    ? `${valueLength}/${props.maxLength}${hint ? ` - ${hint}` : ""}`
+    : hint;
+  const countHintId = countHint ? `${inputId}-hint` : undefined;
+  const describedBy = error ? errorId : countHintId;
 
   return (
-    <FormField id={inputId} label={label} hint={hint} error={error} optional={optional}>
+    <FormField id={inputId} label={label} hint={countHint} error={error} optional={optional}>
       <div className="field-control-wrap">
         {leading && <div className="field-leading">{leading}</div>}
         <input
+          ref={inputRef}
           id={inputId}
           className={[
             "field-control",
