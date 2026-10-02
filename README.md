@@ -54,11 +54,11 @@ CORS_ORIGINS=
 CORS_ORIGIN_REGEX=
 SUPABASE_URL=...
 SUPABASE_PUBLISHABLE_KEY=...
+DATABASE_URL=postgresql://...
 COOKIE_SECURE=false
 COOKIE_DOMAIN=
 COOKIE_SAMESITE=lax
 RATE_LIMIT_STORAGE_URI=memory://
-PROFILE_DATABASE_PATH=profile.sqlite3
 CERTIFICATE_UPLOAD_DIR=uploads/certificates
 ```
 
@@ -79,6 +79,58 @@ Supabase Dashboard settings to configure manually:
   password recovery UI uses manual OTP entry.
 - Authentication -> URL Configuration: add the local and production frontend
   and backend URLs used by this project.
+
+## Production deployment
+
+This repository is a pnpm monorepo. Deploy the Next.js frontend to Vercel and
+the FastAPI backend to Railway as separate services.
+
+### Vercel frontend
+
+In the Vercel project settings, configure:
+
+- Root Directory: `apps/frontend`
+- Framework Preset: `Next.js`
+- Install Command: leave it at the detected/default pnpm command
+- Build Command: leave it at the repository value (`pnpm build`)
+- Output Directory: leave it at the Next.js default
+
+Remove any old `npm install --prefix=../..` override. The app-level
+`apps/frontend/vercel.json` pins the framework and build command, while Vercel
+uses the root `pnpm-lock.yaml` and workspace metadata for installation.
+
+Set this Vercel environment variable for Production, Preview, and Development
+as appropriate:
+
+```sh
+NEXT_PUBLIC_API_URL=https://YOUR-RAILWAY-DOMAIN/api/v1
+```
+
+### Railway backend
+
+Connect the same repository to a Railway service and keep its Root Directory
+at the repository root. The root `railway.json` selects `Dockerfile.railway`,
+so Railpack will not incorrectly treat the monorepo root as a Node service.
+The container starts Uvicorn on Railway's injected `PORT` and Railway checks
+`/health` before marking the deployment healthy.
+
+At minimum, set these Railway variables (using real values):
+
+```sh
+APP_ENV=production
+FRONTEND_URL=https://YOUR-VERCEL-DOMAIN
+BACKEND_URL=https://YOUR-RAILWAY-DOMAIN
+SUPABASE_URL=...
+SUPABASE_PUBLISHABLE_KEY=...
+DATABASE_URL=postgresql://...
+COOKIE_SECURE=true
+COOKIE_SAMESITE=none
+RATE_LIMIT_STORAGE_URI=memory://
+```
+
+Use a shared rate-limit store instead of `memory://` if the backend runs more
+than one replica. `DATABASE_URL` is required at startup because the API applies
+its PostgreSQL migrations during application startup.
 
 Auth endpoints:
 
