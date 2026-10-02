@@ -4,9 +4,10 @@ import {
 } from "./client-response-cache";
 import { isSuccessfulHttpStatus } from "./http-status";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"
-).replace(/\/$/, "");
+// Browser requests stay on the Next.js origin. The Route Handler forwards
+// them to the backend and converts backend session cookies to host-only
+// cookies that are visible to the frontend route guard and Server Components.
+const API_BASE = "/api/v1";
 
 type ApiClientOptions = Omit<RequestInit, "body"> & {
   body?: unknown;

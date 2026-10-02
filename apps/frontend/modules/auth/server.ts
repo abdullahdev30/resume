@@ -1,11 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { BACKEND_API_BASE } from "../../lib/backend-api-url";
 import { isSuccessfulHttpStatus } from "../../lib/http-status";
 import type { User } from "./types";
-
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"
-).replace(/\/$/, "");
 
 export async function getCurrentUser(): Promise<User | null> {
   const cookieStore = await cookies();
@@ -16,7 +13,7 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 
   try {
-    const response = await fetch(`${API_BASE}/auth/me`, {
+    const response = await fetch(`${BACKEND_API_BASE}/auth/me`, {
       headers: {
         cookie: cookieHeader,
       },

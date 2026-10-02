@@ -99,12 +99,20 @@ Remove any old `npm install --prefix=../..` override. The app-level
 `apps/frontend/vercel.json` pins the framework and build command, while Vercel
 uses the root `pnpm-lock.yaml` and workspace metadata for installation.
 
-Set this Vercel environment variable for Production, Preview, and Development
-as appropriate:
+Set this private Vercel environment variable for Production, Preview, and
+Development as appropriate:
 
 ```sh
-NEXT_PUBLIC_API_URL=https://YOUR-RAILWAY-DOMAIN/api/v1
+BACKEND_API_URL=https://YOUR-RAILWAY-DOMAIN/api/v1
 ```
+
+Browser API requests use the same-origin `/api/v1` Next.js gateway. This is
+required because Railway cannot set an authentication cookie for a Vercel
+domain. The gateway relays requests to `BACKEND_API_URL` and returns the
+backend's HttpOnly cookies on the Vercel domain, allowing protected routes and
+server-rendered pages to see the authenticated session. The old
+`NEXT_PUBLIC_API_URL` variable is accepted as a server-side fallback during
+migration, but it should be replaced with `BACKEND_API_URL`.
 
 ### Railway backend
 
