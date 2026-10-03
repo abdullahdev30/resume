@@ -32,20 +32,24 @@ import { ResumePrintRoot } from "@/components/templates/ResumePrintRoot";
 import { profileApi } from "@/modules/profile/api";
 import { resumeApi } from "../api";
 import { downloadResumePdf } from "../downloadResumePdf";
+import { useGuestResumes } from "../GuestResumeProvider";
 import type { ResumeRecord } from "../types";
 
 export function ResumeListClient({
   dashboard = false,
   initialResumes,
   initialProfileIncomplete,
+  isAuthenticated,
 }: {
   dashboard?: boolean;
   initialResumes?: ResumeRecord[];
   initialProfileIncomplete?: boolean;
+  isAuthenticated: boolean;
 }) {
+  const guestResumes = useGuestResumes();
   const [resumes, setResumes] = useState<ResumeRecord[]>(initialResumes || []);
   const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(initialResumes === undefined);
+  const [loading, setLoading] = useState(isAuthenticated && initialResumes === undefined);
   const [loadError, setLoadError] = useState("");
   const [profileIncomplete, setProfileIncomplete] = useState(initialProfileIncomplete || false);
   const [pendingDelete, setPendingDelete] = useState<ResumeRecord | null>(null);
@@ -60,6 +64,7 @@ export function ResumeListClient({
   const uploadController = useRef<AbortController | null>(null);
 
   const loadResumes = async () => {
+    if (!isAuthenticated) return;
     setLoading(true);
     setLoadError("");
     try {
@@ -73,31 +78,37 @@ export function ResumeListClient({
   };
 
   useEffect(() => {
-    if (initialResumes === undefined) void loadResumes();
-    if (dashboard && initialProfileIncomplete === undefined) {
+    if (isAuthenticated && initialResumes === undefined) void loadResumes();
+    if (isAuthenticated && dashboard && initialProfileIncomplete === undefined) {
       profileApi
         .getProfile()
         .then((profile) => setProfileIncomplete(!profile.personal.phone || !profile.personal.email))
         .catch(() => setProfileIncomplete(true));
     }
     return () => uploadController.current?.abort();
-  }, [dashboard, initialProfileIncomplete, initialResumes]);
+  }, [dashboard, initialProfileIncomplete, initialResumes, isAuthenticated]);
+
+  const availableResumes = isAuthenticated ? resumes : guestResumes.resumes;
 
   const filteredResumes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return resumes;
-    return resumes.filter((resume) =>
+    if (!query) return availableResumes;
+    return availableResumes.filter((resume) =>
       `${resume.title} ${resume.resume_type}`.toLowerCase().includes(query),
     );
-  }, [resumes, searchQuery]);
+  }, [availableResumes, searchQuery]);
 
   const deleteResume = async () => {
     if (!pendingDelete) return;
     setDeleting(true);
     try {
-      await resumeApi.remove(pendingDelete.id);
-      setResumes((current) => current.filter((resume) => resume.id !== pendingDelete.id));
-      toast.success("Resume deleted.");
+      if (isAuthenticated) {
+        await resumeApi.remove(pendingDelete.id);
+        setResumes((current) => current.filter((resume) => resume.id !== pendingDelete.id));
+      } else {
+        guestResumes.removeResume(pendingDelete.id);
+      }
+      toast.success(isAuthenticated ? "Resume deleted." : "Resume removed from this tab.");
       setPendingDelete(null);
     } catch {
       toast.error("The resume could not be deleted. It is still in your library.", "Delete failed");
@@ -169,13 +180,17 @@ export function ResumeListClient({
           eyebrow={dashboard ? "Resume library" : "Your documents"}
           icon={<LayoutGrid size={15} aria-hidden="true" />}
           title={dashboard ? "Your Resumes" : "My Resumes"}
-          description="Create, edit, upload, and print resumes securely saved to your account."
+          description={isAuthenticated
+            ? "Create, edit, upload, and print resumes securely saved to your account."
+            : "Build and print for free. Guest resumes stay only in this tab and are never sent to the server."}
           actions={
             <>
-              <Button variant="secondary" onClick={() => setUploadOpen(true)}>
-                <Upload size={16} aria-hidden="true" />
-                Upload PDF
-              </Button>
+              {isAuthenticated && (
+                <Button variant="secondary" onClick={() => setUploadOpen(true)}>
+                  <Upload size={16} aria-hidden="true" />
+                  Upload PDF
+                </Button>
+              )}
               <Link href="/resumes/create" className="button button-primary">
                 <Plus size={16} aria-hidden="true" />
                 New resume
@@ -194,7 +209,18 @@ export function ResumeListClient({
         </div>
       </Card>
 
-      {profileIncomplete && (
+      {!isAuthenticated && (
+        <Alert variant="warning" className="items-center justify-between">
+          <span>
+            Guest mode is private and temporary: closing or refreshing this tab removes your resumes.
+          </span>
+          <Link href="/auth/register" className="button button-secondary button-sm shrink-0">
+            Sign up to save
+          </Link>
+        </Alert>
+      )}
+
+      {isAuthenticated && profileIncomplete && (
         <Alert variant="info" className="items-center justify-between">
           <span>Add your contact details to your profile so new resumes can start with your real information.</span>
           <Link href="/settings" className="button button-primary button-sm">Complete profile</Link>
@@ -241,9 +267,19 @@ export function ResumeListClient({
               </div>
 
               <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-4">
-                <Link href={`/resumes/${resume.id}`} className="button button-secondary button-sm">Open</Link>
+                <Link
+                  href={`/resumes/${resume.id}${isAuthenticated ? "" : "?guest=1"}`}
+                  className="button button-secondary button-sm"
+                >
+                  Open
+                </Link>
                 {resume.editable && (
-                  <Link href={`/resumes/${resume.id}/edit`} className="button button-ghost button-sm">
+                  <Link
+                    href={isAuthenticated
+                      ? `/resumes/${resume.id}/edit`
+                      : `/editor/${resume.template_id || "1"}?resumeId=${resume.id}&guest=1`}
+                    className="button button-ghost button-sm"
+                  >
                     <Pencil size={14} aria-hidden="true" />
                     Edit
                   </Link>
@@ -276,7 +312,7 @@ export function ResumeListClient({
         </section>
       )}
 
-      <Dialog
+      {isAuthenticated && <Dialog
         open={uploadOpen}
         title="Upload an existing resume"
         description="PDF files are stored in your account and remain download-only."
@@ -309,14 +345,16 @@ export function ResumeListClient({
             Upload resume
           </Button>
         </div>
-      </Dialog>
+      </Dialog>}
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title={`Delete ${pendingDelete?.title || "resume"}?`}
-        description={pendingDelete?.editable
-          ? "This removes the editable resume source from your account. This cannot be undone."
-          : "This removes the resume and its uploaded PDF from your account. This cannot be undone."}
+        description={isAuthenticated
+          ? pendingDelete?.editable
+            ? "This removes the editable resume source from your account. This cannot be undone."
+            : "This removes the resume and its uploaded PDF from your account. This cannot be undone."
+          : "This removes the temporary resume from this tab. This cannot be undone."}
         onClose={() => !deleting && setPendingDelete(null)}
         preventClose={deleting}
       >

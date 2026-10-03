@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, type DragEvent } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   Save,
@@ -45,6 +46,7 @@ import type { ResumeData } from "../../../components/templates/TemplateOne";
 import { ResumeDocument } from "../../../components/templates/ResumeDocument";
 import { ResumePrintRoot } from "../../../components/templates/ResumePrintRoot";
 import { ResumePreview } from "../../../components/templates/ResumePreview";
+import { templateCatalog } from "../../../components/templates/catalog";
 import { getEditableResumeText, updateEditableResumeText } from "../../../components/templates/editableResumeText";
 import { paginateResumeData, removeResumePage } from "../../../components/templates/pagination";
 import { ConfirmDialog } from "../../../components/common/ConfirmDialog";
@@ -58,6 +60,7 @@ import { ThemeToggle } from "../../../components/ui/ThemeToggle";
 import { ValidatedInput } from "../../../components/ui/ValidatedInput";
 import { ValidatedUrlInput } from "../../../components/ui/ValidatedUrlInput";
 import { resumeApi } from "../../../modules/resume/api";
+import { useGuestResumes } from "../../../modules/resume/GuestResumeProvider";
 import { profileToResumeData } from "../../../modules/resume/profileSnapshot";
 import { profileApi } from "../../../modules/profile/api";
 import type { ProfileResponse } from "../../../modules/profile/types";
@@ -166,10 +169,24 @@ export default function EditorPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const {
+    createResume: createGuestResume,
+    getResume: getGuestResume,
+    updateResume: updateGuestResume,
+  } = useGuestResumes();
+  const isGuest = searchParams.get("guest") === "1";
+  const resumeIdParam = searchParams.get("resumeId");
+  const templateIdParam = (params.templateId as string) || "1";
+  const guestTemplateData = isGuest
+    ? templateCatalog.find((template) => template.id === templateIdParam)?.data
+    : null;
+  const editorStartingData: ResumeData = guestTemplateData
+    ? { ...initialResumeData, ...structuredClone(guestTemplateData) }
+    : { ...initialResumeData };
 
-  const [activeTemplateId, setActiveTemplateId] = useState<string>((params.templateId as string) || "1");
+  const [activeTemplateId, setActiveTemplateId] = useState<string>(templateIdParam);
   const [resumeTitle, setResumeTitle] = useState<string>("My Resume Document");
-  const [resumeData, setResumeData] = useState<ResumeData>(initialResumeData);
+  const [resumeData, setResumeData] = useState<ResumeData>(editorStartingData);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [activeTab, setActiveTab] = useState<EditorTab>("personal");
   const [editorPanelOpen, setEditorPanelOpen] = useState(true);
@@ -177,7 +194,7 @@ export default function EditorPage() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveInFlight, setSaveInFlight] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<"idle" | "preparing">("idle");
-  const [loadingResume, setLoadingResume] = useState<boolean>(Boolean(searchParams.get("resumeId")));
+  const [loadingResume, setLoadingResume] = useState<boolean>(Boolean(resumeIdParam));
   const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
   const [sourceVersion, setSourceVersion] = useState<number | null>(null);
   const [profileSuggestions, setProfileSuggestions] = useState<ProfileResponse | null>(null);
@@ -203,7 +220,7 @@ export default function EditorPage() {
   // SELECTIVE CANVAS EDITING STATE
   const [selectedElementId, setSelectedElementId] = useState<string | null>("fullName");
   const [elementStyles, setElementStyles] = useState<Record<string, ElementStyle>>(
-    initialResumeData.elementStyles || {},
+    editorStartingData.elementStyles || {},
   );
 
   // Color Popover state
@@ -281,15 +298,17 @@ export default function EditorPage() {
 
   // Load existing saved resume on mount
   useEffect(() => {
-    const resumeIdParam = searchParams.get("resumeId");
     if (resumeIdParam) {
       setLoadingResume(true);
       setLoadError("");
-      resumeApi
-        .get(resumeIdParam)
+      const request = isGuest
+        ? Promise.resolve(getGuestResume(resumeIdParam))
+        : resumeApi.get(resumeIdParam);
+      request
         .then((found) => {
+          if (!found) throw new Error("This temporary resume is no longer available in this tab.");
           if (!found.editable) {
-            router.push(`/resumes/${resumeIdParam}`);
+            router.push(`/resumes/${resumeIdParam}${isGuest ? "?guest=1" : ""}`);
             return;
           }
           setEditingResumeId(found.id);
@@ -304,7 +323,7 @@ export default function EditorPage() {
           setSaveStatus("idle");
         })
         .catch((caught) => {
-          setLoadError(caught instanceof ApiClientError
+          setLoadError(caught instanceof Error
             ? caught.message
             : "Unable to load this resume. It may have been removed or you may not have access.");
           setSaveStatus("error");
@@ -315,24 +334,34 @@ export default function EditorPage() {
       return;
     }
 
-    setResumeData({ ...initialResumeData });
-    setElementStyles(initialResumeData.elementStyles || {});
+    const templatePlaceholders = isGuest
+      ? templateCatalog.find((template) => template.id === activeTemplateId)?.data
+      : null;
+    const startingData = templatePlaceholders
+      ? { ...initialResumeData, ...structuredClone(templatePlaceholders) }
+      : { ...initialResumeData };
+    setResumeData(startingData);
+    setElementStyles(startingData.elementStyles || {});
     setSaveStatus("dirty");
     setLoadingResume(false);
-  }, [searchParams]);
+  }, [activeTemplateId, getGuestResume, isGuest, resumeIdParam, router]);
 
   useEffect(() => {
-    if (saveStatus !== "dirty" && saveStatus !== "error") return;
+    if (!isGuest && saveStatus !== "dirty" && saveStatus !== "error") return;
     const warnBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", warnBeforeUnload);
     return () => window.removeEventListener("beforeunload", warnBeforeUnload);
-  }, [saveStatus]);
+  }, [isGuest, saveStatus]);
 
   useEffect(() => {
-    const resumeIdParam = searchParams.get("resumeId");
+    if (isGuest) {
+      setProfileSuggestions(null);
+      setProfileLoadError("");
+      return;
+    }
     profileApi
       .getProfile()
       .then((profile) => {
@@ -366,7 +395,7 @@ export default function EditorPage() {
           ? "Complete your profile to use saved profile suggestions."
           : "Profile suggestions could not be loaded. Your resume is still editable.");
       });
-  }, [searchParams]);
+  }, [isGuest, resumeIdParam]);
 
   const markDirty = () => {
     revisionRef.current += 1;
@@ -719,6 +748,7 @@ export default function EditorPage() {
   };
 
   const saveExperienceToProfile = async (index: number) => {
+    if (isGuest) return;
     const item = resumeData.experience[index];
     if (!item || profileSuggestions?.experience.some((entry) => entry.id === item.id)) return;
     const [startDate = "", endValue = ""] = item.period.split(/\s+-\s+/, 2);
@@ -751,6 +781,7 @@ export default function EditorPage() {
   };
 
   const saveEducationToProfile = async (index: number) => {
+    if (isGuest) return;
     const item = resumeData.education?.[index];
     if (!item || profileSuggestions?.education.some((entry) => entry.id === item.id)) return;
     const [startDate = "", endValue = ""] = item.period.split(/\s+-\s+/, 2);
@@ -809,6 +840,11 @@ export default function EditorPage() {
     };
     markDirty();
     setResumeData((current) => ({ ...current, projects: [...(current.projects || []), optimistic] }));
+    if (isGuest) {
+      setNewProject({ name: "", description: "", url: "", technologies: "" });
+      toast.success("The project was added to this temporary resume.");
+      return;
+    }
     try {
       const created = await createProject({
         name,
@@ -851,6 +887,11 @@ export default function EditorPage() {
     const optimistic = { id: temporaryId, title, issuer: newCertificate.issuer.trim(), date: newCertificate.date, url: newCertificate.url ? normalizeUrl(newCertificate.url) : undefined };
     markDirty();
     setResumeData((current) => ({ ...current, certificates: [...(current.certificates || []), optimistic] }));
+    if (isGuest) {
+      setNewCertificate({ title: "", issuer: "", date: "", url: "" });
+      toast.success("The certificate was added to this temporary resume.");
+      return;
+    }
     try {
       const created = await createCertificate({
         title,
@@ -893,6 +934,11 @@ export default function EditorPage() {
     const optimistic = { id: temporaryId, platform, url };
     markDirty();
     setResumeData((current) => ({ ...current, socialLinks: [...(current.socialLinks || []), optimistic] }));
+    if (isGuest) {
+      setNewSocialLink({ platform: "", url: "" });
+      toast.success("The social link was added to this temporary resume.");
+      return;
+    }
     try {
       const created = await createSocialLink({ platform_name: platform, profile_url: url });
       setProfileSuggestions((current) => current ? { ...current, social_links: [...current.social_links, created] } : current);
@@ -960,19 +1006,29 @@ export default function EditorPage() {
     setSaveStatus("saving");
     setSaveNotice("");
     try {
-      const saved = editingResumeId
-        ? await resumeApi.update(editingResumeId, {
-            title: resumeTitle,
-            template_id: activeTemplateId,
-            resume_data: dataAtStart,
-            source_version: sourceVersion || undefined,
-          })
-        : await resumeApi.createTemplate({
-            title: resumeTitle,
-            template_id: activeTemplateId,
-            resume_data: dataAtStart,
-          });
+      const updatePayload = {
+        title: resumeTitle,
+        template_id: activeTemplateId,
+        resume_data: dataAtStart,
+        source_version: sourceVersion || undefined,
+      };
+      const saved = isGuest
+        ? editingResumeId
+          ? updateGuestResume(editingResumeId, updatePayload)
+          : createGuestResume({
+              title: resumeTitle,
+              template_id: activeTemplateId,
+              resume_data: dataAtStart,
+            })
+        : editingResumeId
+          ? await resumeApi.update(editingResumeId, updatePayload)
+          : await resumeApi.createTemplate({
+              title: resumeTitle,
+              template_id: activeTemplateId,
+              resume_data: dataAtStart,
+            });
 
+      if (!saved) throw new Error("This temporary resume is no longer available.");
       setEditingResumeId(saved.id);
       setSourceVersion(saved.source_version);
       if (revisionRef.current === revisionAtStart) {
@@ -985,10 +1041,15 @@ export default function EditorPage() {
       } else {
         setSaveStatus("dirty");
       }
-      setSaveNotice("Saved ✓");
-      setSaveNotice(revisionRef.current === revisionAtStart ? "Saved ✓" : "");
-      if (!silent) toast.success("Your latest changes are saved.");
-      router.replace(`/editor/${saved.template_id || activeTemplateId}?resumeId=${saved.id}`);
+      setSaveNotice(revisionRef.current === revisionAtStart
+        ? isGuest ? "Kept in tab ✓" : "Saved ✓"
+        : "");
+      if (!silent) {
+        toast.success(isGuest
+          ? "Changes are kept in this tab only."
+          : "Your latest changes are saved.");
+      }
+      router.replace(`/editor/${saved.template_id || activeTemplateId}?resumeId=${saved.id}${isGuest ? "&guest=1" : ""}`);
       return saved;
     } catch (caught) {
       setSaveStatus("error");
@@ -1049,7 +1110,7 @@ export default function EditorPage() {
   };
 
   const requestAiProposal = async () => {
-    if (!editingResumeId || !aiInstruction.trim() || aiBusy) return;
+    if (isGuest || !editingResumeId || !aiInstruction.trim() || aiBusy) return;
     setAiBusy(true);
     setAiError("");
     try {
@@ -1160,18 +1221,21 @@ export default function EditorPage() {
     );
   };
 
-  const saveLabel =
-    saveInFlight ? "Saving..." : saveStatus === "success" ? "Saved ✓" : "Save";
+  const saveLabel = saveInFlight
+    ? isGuest ? "Keeping..." : "Saving..."
+    : saveStatus === "success"
+      ? isGuest ? "Kept in tab ✓" : "Saved ✓"
+      : isGuest ? "Keep in tab" : "Save";
   const statusLabel =
     saveInFlight
-      ? "Saving..."
+      ? isGuest ? "Keeping in tab..." : "Saving..."
       : saveStatus === "dirty"
       ? "Unsaved changes"
       : saveStatus === "success"
-          ? "Saved ✓"
+          ? isGuest ? "In this tab only ✓" : "Saved ✓"
           : saveStatus === "error"
             ? "Save failed"
-            : "Saved";
+            : isGuest ? "In this tab only" : "Saved";
 
   if (loadingResume) {
     return (
@@ -1253,7 +1317,7 @@ export default function EditorPage() {
             onClick={() => void handleSaveResume()}
             disabled={saveInFlight || downloadStatus !== "idle"}
             loading={saveInFlight}
-            loadingLabel="Saving..."
+            loadingLabel={isGuest ? "Keeping..." : "Saving..."}
           >
             {saveStatus === "success" ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
             <span>{saveLabel}</span>
@@ -1278,6 +1342,16 @@ export default function EditorPage() {
           </div>
         </div>
       </header>
+
+      {isGuest && (
+        <div className="no-print flex flex-col gap-2 border-b border-[var(--status-warning-text)] bg-[var(--status-warning-bg)] px-4 py-2 text-xs font-semibold text-[var(--status-warning-text)] sm:flex-row sm:items-center sm:justify-between" role="status">
+          <span>Guest mode: nothing is uploaded. Refreshing or closing this tab permanently removes this resume.</span>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link href="/auth/login" className="button button-ghost button-sm">Log in</Link>
+            <Link href="/auth/register" className="button button-secondary button-sm">Sign up to save</Link>
+          </div>
+        </div>
+      )}
 
       {/* 2. Formatting Toolbar with Text Color Shades Dropdown (Row 2) */}
       <div className="bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2 flex items-center flex-wrap gap-3 overflow-x-auto text-xs text-[var(--text)] relative z-30 shadow-xs no-print">
@@ -1732,15 +1806,17 @@ export default function EditorPage() {
               <Plus className="w-3.5 h-3.5" />
               <span>More</span>
             </button>
-            <button
-              onClick={() => setActiveTab("ai")}
-              className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
-                activeTab === "ai" ? "bg-[var(--primary)] text-[var(--on-primary)] shadow-xs" : "text-[var(--text-muted)] hover:bg-[var(--primary-tint)]"
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>AI edit</span>
-            </button>
+            {!isGuest && (
+              <button
+                onClick={() => setActiveTab("ai")}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
+                  activeTab === "ai" ? "bg-[var(--primary)] text-[var(--on-primary)] shadow-xs" : "text-[var(--text-muted)] hover:bg-[var(--primary-tint)]"
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>AI edit</span>
+              </button>
+            )}
           </div>
 
           {profileLoadError && (
@@ -2032,7 +2108,7 @@ export default function EditorPage() {
                         className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2 text-[var(--text)] outline-none focus:border-[var(--primary)] resize-none"
                       />
                     </div>
-                    {!profileSuggestions?.experience.some((item) => item.id === exp.id) && (
+                    {!isGuest && !profileSuggestions?.experience.some((item) => item.id === exp.id) && (
                       <Button type="button" variant="secondary" size="sm" onClick={() => void saveExperienceToProfile(index)}>
                         Save new entry to profile
                       </Button>
@@ -2100,7 +2176,7 @@ export default function EditorPage() {
                       <label className="text-[var(--text-muted)] block mb-1 font-semibold">Grade</label>
                       <input type="text" value={edu.grade || ""} onChange={(event) => handleEducationChange(index, "grade", event.target.value)} className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2 text-[var(--text)] outline-none focus:border-[var(--primary)]" />
                     </div>
-                    {!profileSuggestions?.education.some((item) => item.id === edu.id) && (
+                    {!isGuest && !profileSuggestions?.education.some((item) => item.id === edu.id) && (
                       <Button type="button" variant="secondary" size="sm" onClick={() => void saveEducationToProfile(index)}>
                         Save new entry to profile
                       </Button>
@@ -2188,7 +2264,9 @@ export default function EditorPage() {
                   <textarea value={newProject.description} onChange={(event) => setNewProject((current) => ({ ...current, description: event.target.value }))} placeholder="Description" rows={2} className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
                   <ValidatedUrlInput value={newProject.url} onValueChange={(url) => setNewProject((current) => ({ ...current, url }))} placeholder="https://project.example" maxLength={2048} aria-label="Project URL" />
                   <input value={newProject.technologies} onChange={(event) => setNewProject((current) => ({ ...current, technologies: event.target.value }))} placeholder="Technologies, comma separated" className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
-                  <Button type="button" size="sm" onClick={() => void addProjectToResumeAndProfile()} disabled={!newProject.name.trim()}>Add to resume and profile</Button>
+                  <Button type="button" size="sm" onClick={() => void addProjectToResumeAndProfile()} disabled={!newProject.name.trim()}>
+                    {isGuest ? "Add to resume" : "Add to resume and profile"}
+                  </Button>
                   {(resumeData.projects || []).map((project, index) => (
                     <div key={project.id || index} draggable onDragStart={(event) => startItemDrag(event, "projects", index)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropItem(event, "projects", index)} className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 space-y-2 cursor-grab">
                       <div className="flex justify-end gap-1">
@@ -2212,7 +2290,9 @@ export default function EditorPage() {
                     <input type="date" value={newCertificate.date} onChange={(event) => setNewCertificate((current) => ({ ...current, date: event.target.value }))} className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" aria-label="Certificate date" />
                   </div>
                   <ValidatedUrlInput value={newCertificate.url} onValueChange={(url) => setNewCertificate((current) => ({ ...current, url }))} placeholder="Credential URL" maxLength={2048} aria-label="Credential URL" />
-                  <Button type="button" size="sm" onClick={() => void addCertificateToResumeAndProfile()} disabled={!newCertificate.title.trim()}>Add to resume and profile</Button>
+                  <Button type="button" size="sm" onClick={() => void addCertificateToResumeAndProfile()} disabled={!newCertificate.title.trim()}>
+                    {isGuest ? "Add to resume" : "Add to resume and profile"}
+                  </Button>
                   {(resumeData.certificates || []).map((certificate, index) => (
                     <div key={certificate.id || index} draggable onDragStart={(event) => startItemDrag(event, "certificates", index)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropItem(event, "certificates", index)} className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 cursor-grab">
                       <div className="flex gap-1">
@@ -2236,7 +2316,9 @@ export default function EditorPage() {
                     <input value={newSocialLink.platform} onChange={(event) => setNewSocialLink((current) => ({ ...current, platform: event.target.value }))} placeholder="Platform" className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2" />
                     <ValidatedUrlInput value={newSocialLink.url} onValueChange={(url) => setNewSocialLink((current) => ({ ...current, url }))} platform={newSocialLink.platform} placeholder="https://..." required maxLength={2048} aria-label="Social profile URL" />
                   </div>
-                  <Button type="button" size="sm" onClick={() => void addSocialLinkToResumeAndProfile()} disabled={!newSocialLink.platform.trim() || !newSocialLink.url.trim()}>Add to resume and profile</Button>
+                  <Button type="button" size="sm" onClick={() => void addSocialLinkToResumeAndProfile()} disabled={!newSocialLink.platform.trim() || !newSocialLink.url.trim()}>
+                    {isGuest ? "Add to resume" : "Add to resume and profile"}
+                  </Button>
                   {(resumeData.socialLinks || []).map((link, index) => (
                     <div key={link.id || index} draggable onDragStart={(event) => startItemDrag(event, "socialLinks", index)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropItem(event, "socialLinks", index)} className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 cursor-grab">
                       <div className="flex gap-1">
@@ -2254,7 +2336,7 @@ export default function EditorPage() {
               </div>
             )}
 
-            {activeTab === "ai" && (
+            {!isGuest && activeTab === "ai" && (
               <div className="space-y-4">
                 <div>
                   <h3 className="font-extrabold text-sm text-[var(--text)]">AI follow-up edit</h3>

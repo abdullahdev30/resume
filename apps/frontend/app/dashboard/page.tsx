@@ -1,21 +1,21 @@
-import { requireCurrentUser } from "../../modules/auth/server";
+import { getCurrentUser } from "../../modules/auth/server";
 import { AppShellServer as AppShell } from "../../modules/layout/AppShellServer";
 import DashboardClient from "./DashboardClient";
 import { listResumesOnServer } from "../../modules/resume/server";
 import { getProfileOnServer } from "../../modules/profile/server";
 
 export default async function DashboardPage() {
-  const [user, resumes, profile] = await Promise.all([
-    requireCurrentUser(),
-    listResumesOnServer(),
-    getProfileOnServer(),
-  ]);
+  const user = await getCurrentUser();
+  const [resumes, profile] = user
+    ? await Promise.all([listResumesOnServer(), getProfileOnServer()])
+    : [null, null];
 
   return (
     <AppShell user={user} initialProfile={profile}>
       <DashboardClient
         initialResumes={resumes || undefined}
-        initialProfileIncomplete={!profile?.personal.phone || !profile?.personal.email}
+        initialProfileIncomplete={user ? !profile?.personal.phone || !profile?.personal.email : undefined}
+        isAuthenticated={Boolean(user)}
       />
     </AppShell>
   );

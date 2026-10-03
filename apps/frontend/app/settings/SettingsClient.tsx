@@ -48,7 +48,6 @@ import {
   validateText,
 } from "@/lib/validation";
 import type { User as UserType } from "@/modules/auth/types";
-import { GuestUpgradeForm } from "@/modules/auth/components/GuestUpgradeForm";
 import { PROFILE_UPDATED_EVENT, type ProfileUpdatedDetail } from "@/modules/profile/events";
 import type { Certificate } from "@/modules/certificates/types";
 import { createCertificate, deleteCertificate, updateCertificate, uploadCertificate } from "@/modules/certificates/api";
@@ -661,13 +660,6 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
 
       {activeTab === "profile" && (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          {user.is_guest && (
-            <GuestUpgradeForm
-              initialName={[profileForm.first_name, profileForm.last_name].filter(Boolean).join(" ")}
-              initialEmail={profileForm.email}
-              initialPhone={profileForm.phone}
-            />
-          )}
           <Card padding="lg">
             <form onSubmit={saveProfile} className="form-stack">
               <div>
@@ -677,8 +669,8 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
               <div className="form-grid">
                 <ValidatedInput label="First name" value={profileForm.first_name} onValueChange={(first_name) => setProfileForm({ ...profileForm, first_name })} validate={(value) => validateName(value, "First name")} normalize={(value) => normalizePlainText(value, 100)} required autoFocus maxLength={100} />
                 <ValidatedInput label="Last name" value={profileForm.last_name} onValueChange={(last_name) => setProfileForm({ ...profileForm, last_name })} validate={(value) => validateName(value, "Last name", false)} normalize={(value) => normalizePlainText(value, 100)} optional maxLength={100} />
-                <ValidatedInput label="Email" type="email" value={profileForm.email} onValueChange={(email) => setProfileForm({ ...profileForm, email })} validate={(value) => user.is_guest && !value.trim() ? null : validateEmail(value)} normalize={normalizeEmail} required={!user.is_guest} optional={user.is_guest} autoComplete="email" maxLength={254} />
-                <PhoneInput label="Phone" value={profileForm.phone} onValueChange={(phone) => setProfileForm({ ...profileForm, phone })} required={!user.is_guest} optional={user.is_guest} />
+                <ValidatedInput label="Email" type="email" value={profileForm.email} onValueChange={(email) => setProfileForm({ ...profileForm, email })} validate={validateEmail} normalize={normalizeEmail} required autoComplete="email" maxLength={254} />
+                <PhoneInput label="Phone" value={profileForm.phone} onValueChange={(phone) => setProfileForm({ ...profileForm, phone })} required />
                 <Input label="City" value={profileForm.city} onChange={(event) => setProfileForm({ ...profileForm, city: event.target.value })} maxLength={100} />
                 <Input label="Address" value={profileForm.address} onChange={(event) => setProfileForm({ ...profileForm, address: event.target.value })} maxLength={1000} />
                 <Input label="Professional title" value={profileForm.professional_title} onChange={(event) => setProfileForm({ ...profileForm, professional_title: event.target.value })} placeholder="Senior Product Designer" maxLength={255} />
@@ -692,7 +684,7 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
                   type="submit"
                   loading={profileSaveStatus === "saving"}
                   loadingLabel="Saving..."
-                  disabled={!profileForm.first_name || (!user.is_guest && (!profileForm.email || !profileForm.phone))}
+                  disabled={!profileForm.first_name || !profileForm.email || !profileForm.phone}
                 >
                   {profileSaveStatus === "success" ? "Saved ✓" : "Save profile"}
                 </Button>
@@ -700,14 +692,6 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
             </form>
           </Card>
 
-          {user.is_guest ? (
-            <Card padding="md">
-              <h2 className="text-base font-bold">Profile photo</h2>
-              <Alert variant="info" className="mt-3">
-                Convert this guest account before uploading files. Your text profile and resumes remain available during the guest session.
-              </Alert>
-            </Card>
-          ) : (
           <>
           <Card padding="md">
             <h2 className="text-base font-bold">Profile photo</h2>
@@ -775,7 +759,6 @@ export default function SettingsClient({ user, initialProfile }: SettingsClientP
             }}
           />
           </>
-          )}
         </div>
       )}
 

@@ -22,16 +22,20 @@ import { ResumePrintRoot } from "@/components/templates/ResumePrintRoot";
 import { ResumePreview } from "@/components/templates/ResumePreview";
 import { resumeApi } from "../api";
 import { downloadResumePdf } from "../downloadResumePdf";
+import { useGuestResumes } from "../GuestResumeProvider";
 import type { AIEditProposal, ResumeRecord } from "../types";
 
 export function ResumeViewClient({
   initialResume,
   resumeId,
+  isAuthenticated,
 }: {
   initialResume?: ResumeRecord;
   resumeId?: string;
+  isAuthenticated: boolean;
 }) {
   const params = useParams<{ id: string }>();
+  const guestResumes = useGuestResumes();
   const activeResumeId = resumeId || params.id;
   const [resume, setResume] = useState<ResumeRecord | null>(initialResume || null);
   const [loading, setLoading] = useState(initialResume === undefined);
@@ -47,13 +51,17 @@ export function ResumeViewClient({
     setLoading(true);
     setLoadError("");
     try {
-      setResume(await resumeApi.get(activeResumeId));
+      const found = isAuthenticated
+        ? await resumeApi.get(activeResumeId)
+        : guestResumes.getResume(activeResumeId);
+      if (!found) throw new Error("Resume not found");
+      setResume(found);
     } catch {
       setLoadError("This resume could not be loaded. It may have been removed, or you may not have access to it.");
     } finally {
       setLoading(false);
     }
-  }, [activeResumeId]);
+  }, [activeResumeId, guestResumes, isAuthenticated]);
 
   useEffect(() => {
     if (initialResume === undefined) void loadResume();
@@ -126,11 +134,20 @@ export function ResumeViewClient({
         eyebrow={resume.resume_type === "ai" ? "AI-generated resume" : resume.resume_type === "legacy_pdf" ? "Uploaded document" : "Template resume"}
         icon={resume.resume_type === "ai" ? <Sparkles size={15} aria-hidden="true" /> : undefined}
         title={resume.title}
-        description={resume.editable ? "Your editable source is saved to your account and printed directly from this template." : "This uploaded PDF is available to view and download."}
+        description={resume.editable
+          ? isAuthenticated
+            ? "Your editable source is saved to your account and printed directly from this template."
+            : "This resume exists only in this tab. Print it now or sign up before leaving to start saving future work."
+          : "This uploaded PDF is available to view and download."}
         actions={
           <>
             {resume.editable && (
-              <Link href={`/resumes/${resume.id}/edit`} className="button button-secondary">
+              <Link
+                href={isAuthenticated
+                  ? `/resumes/${resume.id}/edit`
+                  : `/editor/${resume.template_id || "1"}?resumeId=${resume.id}&guest=1`}
+                className="button button-secondary"
+              >
                 <Pencil size={16} aria-hidden="true" />
                 Edit resume
               </Link>
@@ -154,6 +171,12 @@ export function ResumeViewClient({
           </>
         }
       />
+
+      {!isAuthenticated && (
+        <Alert variant="warning">
+          Guest work is kept only in memory and will be lost when this tab is refreshed or closed.
+        </Alert>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Badge variant="primary">{resume.resume_type.replace("_", " ")}</Badge>
@@ -181,7 +204,7 @@ export function ResumeViewClient({
         </Card>
       )}
 
-      {resume.editable && (
+      {isAuthenticated && resume.editable && (
         <Card padding="lg">
           <form onSubmit={requestAiEdit} className="form-stack">
             <div>

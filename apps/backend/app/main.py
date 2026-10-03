@@ -35,16 +35,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             settings.ai_timeout_seconds,
         )
     run_migrations()
-    guest_cleanup_task = None
-    if settings.guest_cleanup_enabled:
-        guest_cleanup_task = asyncio.create_task(run_guest_cleanup_loop())
+    guest_cleanup_task = asyncio.create_task(run_guest_cleanup_loop())
     try:
         yield
     finally:
-        if guest_cleanup_task is not None:
-            guest_cleanup_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await guest_cleanup_task
+        guest_cleanup_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await guest_cleanup_task
 
 
 app = FastAPI(

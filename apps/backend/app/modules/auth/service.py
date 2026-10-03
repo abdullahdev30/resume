@@ -10,6 +10,7 @@ from supabase_auth.errors import AuthError
 
 from app.core.config import settings
 from app.integrations.supabase import create_supabase_client
+from app.modules.auth.constants import GUEST_SESSION_TTL_HOURS
 from app.modules.auth.errors import (
     AuthApplicationError,
     guest_session_expired_error,
@@ -186,7 +187,7 @@ class AuthService:
                 )
             expires_at = self._guest_repository.create(
                 auth_result.user.id,
-                ttl_hours=settings.guest_session_ttl_hours,
+                ttl_hours=GUEST_SESSION_TTL_HOURS,
             )
         except AuthApplicationError:
             raise

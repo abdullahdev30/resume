@@ -1,10 +1,13 @@
-import { requireCurrentUser } from "@/modules/auth/server";
+import { getCurrentUser } from "@/modules/auth/server";
 import { getResumeOnServer } from "@/modules/resume/server";
 import { notFound, redirect } from "next/navigation";
 
 export default async function EditResumePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [, resume] = await Promise.all([requireCurrentUser(), getResumeOnServer(id)]);
+  const user = await getCurrentUser();
+  if (!user) redirect("/auth/login");
+
+  const resume = await getResumeOnServer(id);
 
   if (!resume) notFound();
   if (!resume.editable) redirect(`/resumes/${resume.id}`);

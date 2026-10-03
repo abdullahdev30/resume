@@ -10,11 +10,13 @@ export async function AppShellServer({
   initialProfile,
   children,
 }: {
-  user: User;
+  user: User | null;
   initialProfile?: ProfileResponse | null;
   children: React.ReactNode;
 }) {
-  const profile = initialProfile === undefined ? await getProfileOnServer() : initialProfile;
+  const profile = user && initialProfile === undefined
+    ? await getProfileOnServer()
+    : initialProfile;
   const profileName = [
     profile?.personal.first_name || profile?.personal.name,
     profile?.personal.last_name,

@@ -31,9 +31,6 @@ class Settings(BaseSettings):
     refresh_token_cookie_name: str = "refresh_token"
     access_token_max_age_seconds: int = 60 * 60
     refresh_token_max_age_seconds: int = 60 * 60 * 24 * 30
-    guest_session_ttl_hours: int = 12
-    guest_cleanup_enabled: bool = True
-    guest_cleanup_interval_minutes: int = 60
 
     rate_limit_storage_uri: str = "memory://"
     certificate_upload_dir: str = "uploads/certificates"

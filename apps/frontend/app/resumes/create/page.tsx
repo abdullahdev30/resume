@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/ui/Card";
-import { requireCurrentUser } from "@/modules/auth/server";
+import { getCurrentUser } from "@/modules/auth/server";
 import { AppShellServer as AppShell } from "@/modules/layout/AppShellServer";
 
 const options = [
@@ -24,7 +24,7 @@ const options = [
 ];
 
 export default async function CreateResumePage() {
-  const user = await requireCurrentUser();
+  const user = await getCurrentUser();
 
   return (
     <AppShell user={user}>
@@ -33,19 +33,29 @@ export default async function CreateResumePage() {
           eyebrow="New document"
           icon={<Plus size={15} aria-hidden="true" />}
           title="How would you like to begin?"
-          description="Both options create a real resume in your account and take you to the same fully editable workspace."
+          description={user
+            ? "Both options save a real resume to your account and open the editable workspace."
+            : "Build a resume for free in this tab. Sign in when you want database-backed saving and AI tools."}
         />
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {options.map((option) => {
             const Icon = option.icon;
             return (
-              <Link key={option.href} href={option.href} className="group no-underline">
+              <Link
+                key={option.href}
+                href={!user && option.href === "/resumes/create/ai" ? "/auth/login" : option.href}
+                className="group no-underline"
+              >
                 <Card padding="lg" interactive className="flex h-full min-h-64 flex-col">
                   <div className="state-icon !h-12 !w-12"><Icon size={23} aria-hidden="true" /></div>
                   <div className="mt-6">
                     <div className="text-xs font-bold uppercase tracking-wider text-[var(--primary)]">{option.meta}</div>
                     <h2 className="mt-2 text-xl font-bold text-[var(--text)]">{option.title}</h2>
-                    <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">{option.description}</p>
+                    <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">
+                      {!user && option.href === "/resumes/create/ai"
+                        ? "Log in to use AI with your securely saved profile."
+                        : option.description}
+                    </p>
                   </div>
                   <span className="mt-auto inline-flex items-center gap-2 pt-6 text-sm font-bold text-[var(--primary)]">
                     Continue <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" aria-hidden="true" />

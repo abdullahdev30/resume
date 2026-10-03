@@ -26,12 +26,6 @@ export interface VerifyEmailPayload {
   otp: string;
 }
 
-export type GuestUpgradePayload = RegisterPayload;
-
-export interface GuestUpgradeVerifyPayload extends GuestUpgradePayload {
-  otp: string;
-}
-
 export interface ResendVerificationPayload {
   email: string;
 }

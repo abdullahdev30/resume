@@ -12,32 +12,78 @@ export interface TemplateItem {
 }
 
 export const templateSampleData: ResumeData = {
-  fullName: "Your Name",
-  jobTitle: "Role Title",
-  email: "email@example.com",
-  phone: "+1 555-0192",
-  location: "Location",
-  summary: "Brief professional summary for the selected resume template.",
+  fullName: "Alex Morgan",
+  jobTitle: "Senior Product Designer",
+  email: "alex.morgan@example.com",
+  phone: "+1 415 555 0136",
+  location: "San Francisco, CA",
+  summary: "Product designer with 7+ years of experience creating accessible digital products, improving design systems, and turning customer research into measurable business results.",
   primaryColor: "#0E7C7B",
-  skills: ["UI/UX Design", "Figma", "React", "Tailwind CSS"],
-  languages: ["English"],
+  fontFamily: "Inter, sans-serif",
+  skills: ["Product Strategy", "UX Research", "Figma", "Design Systems", "Prototyping", "Accessibility"],
+  languages: ["English", "Spanish"],
   experience: [
     {
       id: "exp-1",
-      role: "Role Title",
-      company: "Company",
-      period: "Start – End",
-      details: "Key responsibilities and measurable outcomes.",
+      role: "Senior Product Designer",
+      company: "Northstar Labs",
+      period: "2022 – Present",
+      details: "Led discovery and end-to-end design for a B2B analytics platform. Improved task completion by 28% and established a reusable component library across three product teams.",
+    },
+    {
+      id: "exp-2",
+      role: "Product Designer",
+      company: "Brightside Studio",
+      period: "2019 – 2022",
+      details: "Designed responsive web and mobile experiences, facilitated customer workshops, and partnered with engineering to ship accessible interfaces on schedule.",
     },
   ],
   education: [
     {
       id: "edu-1",
-      degree: "B.A. Graphic Design",
-      institution: "Design Institute",
-      period: "2019 – 2023",
+      degree: "BFA, Interaction Design",
+      institution: "California College of Design",
+      period: "2015 – 2019",
+      grade: "Magna Cum Laude",
     },
   ],
+  projects: [
+    {
+      id: "project-1",
+      name: "Unified Design System",
+      description: "Created documented patterns and accessible components that reduced feature design time by 35%.",
+      url: "https://portfolio.example.com/design-system",
+      technologies: ["Figma", "Storybook", "WCAG"],
+    },
+  ],
+  certificates: [
+    {
+      id: "certificate-1",
+      title: "Human-Centered Design",
+      issuer: "Design Institute",
+      date: "2024",
+      url: "https://credentials.example.com/alex-morgan",
+    },
+  ],
+  socialLinks: [
+    {
+      id: "social-1",
+      platform: "LinkedIn",
+      url: "https://linkedin.com/in/alex-morgan",
+    },
+    {
+      id: "social-2",
+      platform: "Portfolio",
+      url: "https://portfolio.example.com/alex-morgan",
+    },
+  ],
+  pageSize: "A4",
+  pageMargin: 10,
+  lineSpacing: 1.15,
+  elementStyles: {
+    fullName: { isBold: true, fontSize: 24 },
+    jobTitle: { isBold: true, fontSize: 12 },
+  },
 };
 
 export const templateCatalog: TemplateItem[] = [

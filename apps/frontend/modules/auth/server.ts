@@ -24,7 +24,8 @@ export async function getCurrentUser(): Promise<User | null> {
       return null;
     }
 
-    return response.json() as Promise<User>;
+    const user = await response.json() as User;
+    return user.is_guest ? null : user;
   } catch {
     return null;
   }

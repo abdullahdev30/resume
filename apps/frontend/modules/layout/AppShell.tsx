@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Clock3,
   FileText,
   Home,
   LayoutTemplate,
@@ -29,16 +28,20 @@ import { profileApi } from "../profile/api";
 import { PROFILE_UPDATED_EVENT, type ProfileUpdatedDetail } from "../profile/events";
 
 interface AppShellProps {
-  user: User;
+  user: User | null;
   initialAvatarUrl?: string;
   initialDisplayName?: string;
   children: React.ReactNode;
 }
 
-const navItems = [
+const guestNavItems = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/resumes", label: "My Resumes", icon: FileText },
   { href: "/templates", label: "Templates", icon: LayoutTemplate },
+];
+
+const accountNavItems = [
+  ...guestNavItems,
   { href: "/settings", label: "Profile & Settings", icon: Settings },
 ];
 
@@ -50,7 +53,7 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl || "");
-  const fallbackDisplayName = user.name || user.email?.split("@")[0] || (user.is_guest ? "Guest" : "User");
+  const fallbackDisplayName = user?.name || user?.email?.split("@")[0] || "User";
   const [displayName, setDisplayName] = useState(initialDisplayName || fallbackDisplayName);
 
   useEffect(() => {
@@ -78,7 +81,7 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
   };
 
   useEffect(() => {
-    if (initialAvatarUrl !== undefined) return;
+    if (!user || initialAvatarUrl !== undefined) return;
     profileApi
       .getProfile()
       .then((profile) => {
@@ -90,7 +93,7 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
         if (savedName) setDisplayName(savedName);
       })
       .catch(() => setAvatarUrl(""));
-  }, [initialAvatarUrl]);
+  }, [initialAvatarUrl, user]);
 
   useEffect(() => {
     const updateProfile = (event: Event) => {
@@ -152,13 +155,20 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
 
         <div className="app-navbar-actions">
           <ThemeToggle />
-          <Link href="/settings" className="profile-chip" aria-label="Open profile settings">
-            <Avatar src={avatarUrl} alt={displayName} fallback={displayName.slice(0, 1)} size={34} />
-            <span className="profile-chip-copy">
-              <span className="profile-chip-name">{displayName}</span>
-              <span className="profile-chip-email">{user.email || (user.is_guest ? "Guest session" : "Account")}</span>
-            </span>
-          </Link>
+          {user ? (
+            <Link href="/settings" className="profile-chip" aria-label="Open profile settings">
+              <Avatar src={avatarUrl} alt={displayName} fallback={displayName.slice(0, 1)} size={34} />
+              <span className="profile-chip-copy">
+                <span className="profile-chip-name">{displayName}</span>
+                <span className="profile-chip-email">{user.email || "Account"}</span>
+              </span>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link href="/auth/login" className="button button-secondary button-sm">Log in</Link>
+              <Link href="/auth/register" className="button button-primary button-sm">Sign up</Link>
+            </div>
+          )}
         </div>
       </header>
 
@@ -193,7 +203,7 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
           </div>
           <nav className="sidebar-nav" aria-label="Main navigation">
             <div className="sidebar-label">Workspace</div>
-            {navItems.map((item) => {
+            {(user ? accountNavItems : guestNavItems).map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
               return (
@@ -211,33 +221,24 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
             })}
           </nav>
 
-          <div className="sidebar-footer">
-            <Tooltip label="Log out">
-              <button
-                type="button"
-                className="sidebar-logout"
-                onClick={() => setLogoutOpen(true)}
-                aria-label="Log out"
-              >
-                <LogOut size={18} aria-hidden="true" />
-                <span>Log out</span>
-              </button>
-            </Tooltip>
-          </div>
+          {user && (
+            <div className="sidebar-footer">
+              <Tooltip label="Log out">
+                <button
+                  type="button"
+                  className="sidebar-logout"
+                  onClick={() => setLogoutOpen(true)}
+                  aria-label="Log out"
+                >
+                  <LogOut size={18} aria-hidden="true" />
+                  <span>Log out</span>
+                </button>
+              </Tooltip>
+            </div>
+          )}
         </aside>
 
         <main className="app-main">
-          {user.is_guest && (
-            <div className="mb-5 flex flex-col gap-3 rounded-xl border border-[var(--status-warning-text)] bg-[var(--status-warning-bg)] p-4 text-[var(--status-warning-text)] sm:flex-row sm:items-center sm:justify-between" role="status">
-              <span className="flex items-start gap-2 text-sm font-semibold">
-                <Clock3 className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
-                This temporary guest account expires 12 hours after it was started. Verify your email in Settings to keep your profile and resumes.
-              </span>
-              <Link href="/settings#convert-account" className="button button-sm button-secondary shrink-0">
-                Keep my account
-              </Link>
-            </div>
-          )}
           {children}
         </main>
       </div>

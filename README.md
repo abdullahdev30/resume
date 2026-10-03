@@ -79,18 +79,12 @@ Supabase Dashboard settings to configure manually:
   password recovery UI uses manual OTP entry.
 - Authentication -> URL Configuration: add the local and production frontend
   and backend URLs used by this project.
-- Authentication -> Providers -> Anonymous Sign-Ins: enable anonymous users.
-- Authentication -> Settings: enable manual identity linking so a guest can
-  attach and verify an email without changing the existing user UUID.
 
-Guest access uses one database-backed temporary account mode. `POST
-/api/v1/auth/guest` creates a Supabase anonymous user and a server-only
-`guest_accounts` record that expires 12 hours later. The API validates this
-fixed expiry on every guest request. A background cleanup job removes expired,
-never-upgraded guests and their editable resumes; profile rows cascade from
-`auth.users`. Guests can convert in Settings by requesting and verifying an
-email-change OTP. Conversion keeps the same authenticated UUID, so all existing
-profile and resume ownership remains intact.
+The public resume builder does not create an account or send application data
+to the backend. Guest resumes are held only in React memory for the current tab
+and are lost on refresh or tab close. Registration and login enable the normal
+authenticated API/database flow. The legacy anonymous-account endpoints remain
+available for backward compatibility, but the frontend does not call them.
 
 ## Production deployment
 
@@ -147,9 +141,6 @@ CORS_ORIGINS=https://resume-2rp6qj2g0-abdullah-shafiques-projects-2f0cafbc.verce
 COOKIE_SECURE=true
 COOKIE_SAMESITE=none
 RATE_LIMIT_STORAGE_URI=memory://
-GUEST_SESSION_TTL_HOURS=12
-GUEST_CLEANUP_ENABLED=true
-GUEST_CLEANUP_INTERVAL_MINUTES=60
 ```
 
 Use a shared rate-limit store instead of `memory://` if the backend runs more
@@ -168,9 +159,9 @@ Auth endpoints:
 - `POST /api/v1/auth/forgot-password`
 - `POST /api/v1/auth/verify-recovery-otp`
 - `POST /api/v1/auth/change-password`
-- `POST /api/v1/auth/guest`
-- `POST /api/v1/auth/guest/upgrade/request`
-- `POST /api/v1/auth/guest/upgrade/verify`
+- `POST /api/v1/auth/guest` (legacy; not used by the frontend)
+- `POST /api/v1/auth/guest/upgrade/request` (legacy)
+- `POST /api/v1/auth/guest/upgrade/verify` (legacy)
 
 Profile endpoints require an authenticated session cookie or a valid bearer
 access token.
