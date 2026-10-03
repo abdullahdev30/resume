@@ -2,7 +2,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Form, UploadFile, status
 
-from app.modules.auth.dependencies import CURRENT_USER_DEPENDENCY
+from app.modules.auth.dependencies import (
+    CURRENT_REGISTERED_USER_DEPENDENCY,
+    CURRENT_USER_DEPENDENCY,
+)
 from app.modules.auth.schemas import UserResponse
 from app.modules.profile.errors import ProfileApplicationError, raise_profile_error
 from app.modules.profile.schemas import (
@@ -63,7 +66,11 @@ def upsert_personal(
     current_user: UserResponse = CURRENT_USER_DEPENDENCY,
 ) -> PersonalInfoResponse:
     try:
-        return profile_service.upsert_personal(_user_id(current_user), payload)
+        return profile_service.upsert_personal(
+            _user_id(current_user),
+            payload,
+            allow_missing_contacts=current_user.is_guest,
+        )
     except ProfileApplicationError as exc:
         raise_profile_error(exc)
 
@@ -71,7 +78,7 @@ def upsert_personal(
 @router.post("/avatar", response_model=PersonalInfoResponse)
 async def upload_avatar(
     file: Annotated[UploadFile, File()],
-    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+    current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
 ) -> PersonalInfoResponse:
     try:
         return await profile_service.upload_avatar(_user_id(current_user), file)
@@ -310,7 +317,7 @@ async def upload_certificate(
     file: Annotated[UploadFile, File()],
     category: Annotated[str | None, Form()] = None,
     field: Annotated[str | None, Form()] = None,
-    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+    current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
 ) -> CertificateResponse:
     try:
         return await profile_service.add_certificate_upload(

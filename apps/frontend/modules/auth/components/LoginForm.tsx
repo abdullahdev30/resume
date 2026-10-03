@@ -2,12 +2,15 @@
 
 import type React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Alert } from "../../../components/feedback/Alert";
+import { toast } from "../../../components/feedback/Toast";
 import { Button } from "../../../components/ui/Button";
 import { ValidatedInput } from "../../../components/ui/ValidatedInput";
 import { normalizeEmail, validateEmail } from "../../../lib/validation";
+import { authApi } from "../api";
 import { AuthLayout } from "./AuthLayout";
 import { PasswordField } from "./PasswordField";
 import { useAuth } from "../hooks";
@@ -16,6 +19,9 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState("");
+  const [guestLoading, setGuestLoading] = useState(false);
+  const [guestError, setGuestError] = useState("");
+  const router = useRouter();
   const { handleLogin, loading, error } = useAuth();
 
   const onSubmit = (event: React.FormEvent) => {
@@ -26,6 +32,25 @@ export function LoginForm() {
     }
     setFormError("");
     void handleLogin({ email: normalizeEmail(email), password });
+  };
+
+  const continueAsGuest = async () => {
+    setGuestLoading(true);
+    setGuestError("");
+    try {
+      await authApi.createGuest();
+      toast.success("Your 12-hour guest workspace is ready.");
+      router.push("/dashboard");
+      router.refresh();
+    } catch (caught) {
+      const message = caught instanceof Error
+        ? caught.message
+        : "The guest session could not be started. Please try again.";
+      setGuestError(message);
+      toast.error(message, "Guest session failed");
+    } finally {
+      setGuestLoading(false);
+    }
   };
 
   return (
@@ -63,6 +88,21 @@ export function LoginForm() {
         <Button type="submit" loading={loading} loadingLabel="Signing in..." fullWidth>
           Log in
         </Button>
+        <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]" aria-hidden="true">
+          <span className="h-px flex-1 bg-[var(--border)]" /> or <span className="h-px flex-1 bg-[var(--border)]" />
+        </div>
+        {guestError && <Alert variant="error">{guestError}</Alert>}
+        <Button
+          type="button"
+          variant="secondary"
+          fullWidth
+          onClick={() => void continueAsGuest()}
+          loading={guestLoading}
+          loadingLabel="Starting guest session..."
+          disabled={loading}
+        >
+          Continue as guest
+        </Button>
         <p>
           No account?{" "}
           <Link href="/auth/register" className="text-link">
@@ -70,6 +110,7 @@ export function LoginForm() {
           </Link>
         </p>
       </form>
+
     </AuthLayout>
   );
 }

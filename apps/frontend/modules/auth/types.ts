@@ -1,9 +1,11 @@
 export interface User {
   id: string;
   name?: string | null;
-  email: string;
+  email: string | null;
   number?: string | null;
   email_verified?: boolean | null;
+  is_guest?: boolean;
+  guest_expires_at?: string | null;
 }
 
 export interface LoginPayload {
@@ -21,6 +23,12 @@ export interface RegisterPayload {
 
 export interface VerifyEmailPayload {
   email: string;
+  otp: string;
+}
+
+export type GuestUpgradePayload = RegisterPayload;
+
+export interface GuestUpgradeVerifyPayload extends GuestUpgradePayload {
   otp: string;
 }
 
@@ -56,10 +64,8 @@ export interface VerifyEmailResponse extends MessageResponse {
   user: User;
 }
 
-export interface TokenResponse {
-  message: string;
-  access_token: string;
-  refresh_token: string;
+export interface SessionResponse extends MessageResponse {
+  user: User;
 }
 
 export interface RecoveryCodeResponse {

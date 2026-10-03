@@ -39,8 +39,8 @@ class PersonalInfoUpsert(ProfileBaseModel):
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
     father_name: str | None = Field(default=None, max_length=100)
-    email: EmailStr
-    phone: str = Field(min_length=7, max_length=20)
+    email: EmailStr | None = None
+    phone: str | None = Field(default=None, min_length=7, max_length=20)
     address: str | None = Field(default=None, max_length=1000)
     city: str | None = Field(default=None, max_length=100)
     professional_title: str | None = Field(default=None, max_length=255)

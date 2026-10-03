@@ -23,16 +23,18 @@ def set_auth_cookies(
     *,
     access_token: str,
     refresh_token: str,
+    access_max_age: int | None = None,
+    refresh_max_age: int | None = None,
 ) -> None:
     response.set_cookie(
         settings.access_token_cookie_name,
         access_token,
-        **_cookie_options(settings.access_token_max_age_seconds),
+        **_cookie_options(access_max_age or settings.access_token_max_age_seconds),
     )
     response.set_cookie(
         settings.refresh_token_cookie_name,
         refresh_token,
-        **_cookie_options(settings.refresh_token_max_age_seconds),
+        **_cookie_options(refresh_max_age or settings.refresh_token_max_age_seconds),
     )
 
 

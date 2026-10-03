@@ -12,13 +12,19 @@ from app.core.config import settings
 from app.integrations.supabase import create_supabase_client
 from app.modules.auth.errors import (
     AuthApplicationError,
+    guest_session_expired_error,
+    guest_session_unavailable_error,
+    guest_upgrade_error,
     invalid_recovery_code_error,
     invalid_session_error,
     upstream_auth_error,
 )
+from app.modules.auth.guest_repository import GuestAccountRepository
 from app.modules.auth.schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
+    GuestUpgradeRequest,
+    GuestUpgradeVerifyRequest,
     LoginRequest,
     RegisterRequest,
     RegisterResponse,
@@ -56,8 +62,10 @@ class AuthService:
     def __init__(
         self,
         client_factory: Callable[[], Client] = create_supabase_client,
+        guest_repository: GuestAccountRepository | None = None,
     ) -> None:
         self._client_factory = client_factory
+        self._guest_repository = guest_repository or GuestAccountRepository()
 
     def register(self, payload: RegisterRequest) -> RegisterResponse:
         try:
@@ -162,6 +170,39 @@ class AuthService:
 
         return self._auth_result_from_response(response, require_session=True)
 
+    def create_guest(self) -> AuthResult:
+        try:
+            response = self._client_factory().auth.sign_in_anonymously(
+                {"options": {"data": {"guest": True}}}
+            )
+            auth_result = self._auth_result_from_response(
+                response,
+                require_session=True,
+            )
+            if not auth_result.user.is_guest:
+                raise guest_upgrade_error(
+                    code="guest_creation_failed",
+                    message="Unable to start a guest session.",
+                )
+            expires_at = self._guest_repository.create(
+                auth_result.user.id,
+                ttl_hours=settings.guest_session_ttl_hours,
+            )
+        except AuthApplicationError:
+            raise
+        except Exception as exc:
+            raise upstream_auth_error(
+                exc,
+                authentication_message="Unable to start a guest session.",
+            ) from exc
+
+        return AuthResult(
+            user=auth_result.user.model_copy(
+                update={"guest_expires_at": expires_at}
+            ),
+            tokens=auth_result.tokens,
+        )
+
     def get_current_user(self, access_token: str) -> UserResponse:
         try:
             response = self._client_factory().auth.get_user(access_token)
@@ -172,7 +213,7 @@ class AuthService:
         if user is None:
             raise invalid_session_error()
 
-        return self._user_response(user)
+        return self._with_active_guest_lifetime(self._user_response(user))
 
     def refresh_session(self, refresh_token: str) -> AuthResult:
         try:
@@ -180,7 +221,144 @@ class AuthService:
         except Exception as exc:
             raise invalid_session_error() from exc
 
-        return self._auth_result_from_response(response, require_session=True)
+        auth_result = self._auth_result_from_response(response, require_session=True)
+        return AuthResult(
+            user=self._with_active_guest_lifetime(auth_result.user),
+            tokens=auth_result.tokens,
+        )
+
+    def request_guest_upgrade(
+        self,
+        *,
+        user_id: str,
+        access_token: str,
+        refresh_token: str,
+        payload: GuestUpgradeRequest,
+    ) -> None:
+        self._require_guest_id(user_id)
+        try:
+            client = self._client_factory()
+            client.auth.set_session(access_token, refresh_token)
+            response = client.auth.update_user(
+                {"email": str(payload.email)},
+                {"email_redirect_to": f"{settings.frontend_url}/settings"},
+            )
+            response_user = self._get_attr(response, "user")
+            if response_user is None or str(self._get_attr(response_user, "id")) != user_id:
+                raise guest_upgrade_error()
+            self._guest_repository.set_pending_email(user_id, str(payload.email))
+        except AuthApplicationError:
+            raise
+        except LookupError as exc:
+            raise guest_session_expired_error() from exc
+        except Exception as exc:
+            raise upstream_auth_error(
+                exc,
+                authentication_message="Unable to send the verification code.",
+            ) from exc
+
+    def verify_guest_upgrade(
+        self,
+        *,
+        user_id: str,
+        current_user: UserResponse,
+        access_token: str,
+        refresh_token: str,
+        payload: GuestUpgradeVerifyRequest,
+    ) -> AuthResult:
+        email = str(payload.email)
+        try:
+            pending_email_matches = self._guest_repository.pending_email_matches(
+                user_id,
+                email,
+            )
+        except Exception as exc:
+            raise guest_session_unavailable_error() from exc
+        if not pending_email_matches:
+            raise guest_upgrade_error(
+                code="guest_upgrade_not_requested",
+                message="Request a new verification code before converting this account.",
+                status_code=409,
+            )
+
+        try:
+            client = self._client_factory()
+            if current_user.is_guest:
+                verification = client.auth.verify_otp(
+                    {
+                        "email": email,
+                        "token": payload.otp,
+                        "type": "email_change",
+                    }
+                )
+                verified = self._auth_result_from_response(
+                    verification,
+                    require_session=True,
+                )
+                if verified.user.id != user_id:
+                    raise guest_upgrade_error(
+                        code="guest_identity_mismatch",
+                        message="The verified identity does not match this guest session.",
+                        status_code=403,
+                    )
+                if verified.tokens is None:
+                    raise invalid_session_error()
+                tokens = verified.tokens
+            else:
+                # Supabase may have accepted the OTP before a transient local
+                # database failure. Retrying finalizes the same authenticated
+                # UUID instead of leaving a half-converted account.
+                if current_user.id != user_id or current_user.email != email:
+                    raise guest_upgrade_error(
+                        code="guest_identity_mismatch",
+                        message="The verified identity does not match this guest session.",
+                        status_code=403,
+                    )
+                tokens = AuthTokens(
+                    access_token=access_token,
+                    refresh_token=refresh_token,
+                )
+
+            client.auth.set_session(
+                tokens.access_token,
+                tokens.refresh_token,
+            )
+            updated = client.auth.update_user(
+                {
+                    "password": payload.password,
+                    "data": {
+                        "name": payload.name,
+                        "phone_number": payload.number,
+                    },
+                }
+            )
+            updated_user = self._get_attr(updated, "user")
+            if updated_user is None:
+                raise invalid_session_error()
+            user = self._user_response(updated_user)
+            if user.id != user_id or user.is_guest:
+                raise guest_upgrade_error(
+                    code="guest_upgrade_incomplete",
+                    message="Email verification did not complete the account conversion.",
+                    status_code=409,
+                )
+
+            self._guest_repository.complete_upgrade(
+                user_id,
+                name=payload.name,
+                email=email,
+                phone=payload.number,
+            )
+            return AuthResult(user=user, tokens=tokens)
+        except AuthApplicationError:
+            raise
+        except LookupError as exc:
+            raise guest_upgrade_error(status_code=409) from exc
+        except Exception as exc:
+            raise upstream_auth_error(
+                exc,
+                authentication_message="Invalid or expired verification code.",
+            ) from exc
 
     def logout(
         self,
@@ -312,6 +490,25 @@ class AuthService:
             tokens=tokens,
         )
 
+    def _with_active_guest_lifetime(self, user: UserResponse) -> UserResponse:
+        if not user.is_guest:
+            return user
+        try:
+            expires_at = self._guest_repository.require_active(user.id)
+        except Exception as exc:
+            raise guest_session_unavailable_error() from exc
+        if expires_at is None:
+            raise guest_session_expired_error()
+        return user.model_copy(update={"guest_expires_at": expires_at})
+
+    def _require_guest_id(self, user_id: str) -> None:
+        try:
+            expires_at = self._guest_repository.require_active(user_id)
+        except Exception as exc:
+            raise guest_session_unavailable_error() from exc
+        if expires_at is None:
+            raise guest_session_expired_error()
+
     def _tokens_from_session(self, session: Any) -> AuthTokens | None:
         if session is None:
             return None
@@ -333,10 +530,11 @@ class AuthService:
 
         return UserResponse(
             id=str(self._get_attr(user, "id")),
-            email=str(email).lower(),
+            email=str(email).lower() if email else None,
             name=metadata.get("name"),
             number=metadata.get("phone_number"),
             email_verified=self._email_verified(user),
+            is_guest=bool(self._get_attr(user, "is_anonymous")),
         )
 
     def _email_verified(self, user: Any) -> bool:

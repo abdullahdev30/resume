@@ -4,6 +4,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.config import settings
 from app.modules.auth.errors import (
     AuthApplicationError,
+    guest_permission_error,
     invalid_session_error,
     missing_authentication_error,
     raise_http_error,
@@ -61,3 +62,15 @@ def get_current_user(
 
 
 CURRENT_USER_DEPENDENCY = Depends(get_current_user)
+
+
+def get_current_registered_user(
+    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+) -> UserResponse:
+    if current_user.is_guest:
+        raise_http_error(guest_permission_error())
+        raise RuntimeError("unreachable")
+    return current_user
+
+
+CURRENT_REGISTERED_USER_DEPENDENCY = Depends(get_current_registered_user)

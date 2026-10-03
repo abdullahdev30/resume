@@ -13,12 +13,14 @@ from app.modules.profile.service import ProfileService
 @dataclass
 class FakeAuthService:
     def get_current_user(self, access_token):
+        is_guest = access_token == "guest-token"
         return UserResponse(
             id="user-123",
-            email="john@example.com",
-            name="John Doe",
-            number="03001234567",
-            email_verified=True,
+            email=None if is_guest else "john@example.com",
+            name=None if is_guest else "John Doe",
+            number=None if is_guest else "03001234567",
+            email_verified=not is_guest,
+            is_guest=is_guest,
         )
 
 
@@ -161,8 +163,8 @@ def client():
     return TestClient(app)
 
 
-def auth_headers():
-    return {"Authorization": "Bearer access-token"}
+def auth_headers(token="access-token"):
+    return {"Authorization": f"Bearer {token}"}
 
 
 def personal_payload():
@@ -217,6 +219,37 @@ def test_personal_onboarding_is_required_and_normalizes_email(client):
     assert body["professional_title"] == "Senior Frontend Engineer"
     assert body["summary"].startswith("Builds accessible")
     assert body["social_links"][0]["platform_name"] == "LinkedIn"
+
+
+def test_registered_profile_still_requires_email_and_phone(client):
+    payload = personal_payload()
+    payload.pop("email")
+    payload.pop("phone")
+
+    response = client.put(
+        "/api/v1/profile/personal",
+        json=payload,
+        headers=auth_headers(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "missing_profile_contacts"
+
+
+def test_saved_guest_profile_allows_missing_email_and_phone(client):
+    payload = personal_payload()
+    payload.pop("email")
+    payload.pop("phone")
+
+    response = client.put(
+        "/api/v1/profile/personal",
+        json=payload,
+        headers=auth_headers("guest-token"),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["email"] is None
+    assert response.json()["phone"] is None
 
 
 def test_personal_update_cannot_replace_storage_managed_avatar(client):
@@ -462,3 +495,29 @@ def test_certificate_upload(client):
     assert response.status_code == 201
     assert response.json()["file_name"] == "transcript.pdf"
     assert response.json()["category"] == "Education"
+
+
+def test_saved_guest_can_store_profile_json_but_not_upload_files(client):
+    saved = client.put(
+        "/api/v1/profile/personal",
+        json=personal_payload(),
+        headers=auth_headers("guest-token"),
+    )
+
+    avatar = client.post(
+        "/api/v1/profile/avatar",
+        files={"file": ("avatar.png", b"image", "image/png")},
+        headers=auth_headers("guest-token"),
+    )
+    certificate = client.post(
+        "/api/v1/profile/certificates/upload",
+        data={"title": "Transcript"},
+        files={"file": ("transcript.pdf", b"%PDF", "application/pdf")},
+        headers=auth_headers("guest-token"),
+    )
+
+    assert saved.status_code == 200
+    assert avatar.status_code == 403
+    assert avatar.json()["detail"]["code"] == "guest_permission_denied"
+    assert certificate.status_code == 403
+    assert certificate.json()["detail"]["code"] == "guest_permission_denied"

@@ -6,8 +6,8 @@ export interface SocialLinkInput {
 export interface PersonalInfoPayload {
   first_name: string;
   last_name: string;
-  email: string;
-  phone: string;
+  email?: string | null;
+  phone?: string | null;
   address: string;
   city?: string | null;
   professional_title?: string | null;

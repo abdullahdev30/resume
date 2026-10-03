@@ -169,7 +169,15 @@ class ProfileService:
         self,
         user_id: str,
         payload: PersonalInfoUpsert,
+        *,
+        allow_missing_contacts: bool = False,
     ) -> PersonalInfoResponse:
+        if not allow_missing_contacts and (not payload.email or not payload.phone):
+            raise ProfileApplicationError(
+                status_code=422,
+                code="missing_profile_contacts",
+                message="Email and phone are required.",
+            )
         try:
             first_name = payload.resolved_first_name()
         except ValueError as exc:

@@ -66,6 +66,43 @@ def invalid_recovery_code_error() -> AuthApplicationError:
     )
 
 
+def guest_permission_error() -> AuthApplicationError:
+    return AuthApplicationError(
+        status_code=status.HTTP_403_FORBIDDEN,
+        code="guest_permission_denied",
+        message="Create an account to use this feature.",
+    )
+
+
+def guest_session_expired_error() -> AuthApplicationError:
+    return AuthApplicationError(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        code="guest_session_expired",
+        message="Your 12-hour guest session has ended. Start a new guest session.",
+    )
+
+
+def guest_upgrade_error(
+    *,
+    code: str = "guest_upgrade_failed",
+    message: str = "Unable to convert this guest account.",
+    status_code: int = status.HTTP_400_BAD_REQUEST,
+) -> AuthApplicationError:
+    return AuthApplicationError(
+        status_code=status_code,
+        code=code,
+        message=message,
+    )
+
+
+def guest_session_unavailable_error() -> AuthApplicationError:
+    return AuthApplicationError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="guest_session_unavailable",
+        message="Guest sessions are temporarily unavailable. Please try again.",
+    )
+
+
 def upstream_auth_error(
     exc: Exception,
     *,
@@ -86,6 +123,13 @@ def upstream_auth_error(
             status_code=status.HTTP_409_CONFLICT,
             code="account_already_exists",
             message="Unable to complete this request.",
+        )
+
+    if code == "anonymous_provider_disabled":
+        return AuthApplicationError(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="guest_access_unavailable",
+            message="Guest access is temporarily unavailable.",
         )
 
     if code == "email_not_confirmed":

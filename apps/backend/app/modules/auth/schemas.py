@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from datetime import datetime
 from typing import Any
 
 from pydantic import (
@@ -74,7 +75,7 @@ class RegisterRequest(AuthBaseModel):
     @classmethod
     def validate_phone_number(cls, value: str) -> str:
         if not isinstance(value, str):
-            raise ValueError("Phone number must be text.")
+            raise TypeError("Phone number must be text.")
         return normalize_phone_number(value)
 
     @field_validator("password")
@@ -87,6 +88,22 @@ class RegisterRequest(AuthBaseModel):
         if self.password != self.confirm_password:
             raise ValueError("Password confirmation does not match.")
         return self
+
+
+class GuestUpgradeRequest(RegisterRequest):
+    pass
+
+
+class GuestUpgradeVerifyRequest(GuestUpgradeRequest):
+    otp: str = Field(min_length=6, max_length=6, strict=True)
+
+    @field_validator("otp")
+    @classmethod
+    def validate_otp(cls, value: str) -> str:
+        otp = value.strip()
+        if not OTP_PATTERN.fullmatch(otp):
+            raise ValueError("OTP must be a 6-digit code.")
+        return otp
 
 
 class RegisterResponse(BaseModel):
@@ -156,10 +173,12 @@ class ChangePasswordRequest(AuthBaseModel):
 
 class UserResponse(BaseModel):
     id: str
-    email: str
+    email: str | None = None
     name: str | None = None
     number: str | None = None
     email_verified: bool | None = None
+    is_guest: bool = False
+    guest_expires_at: datetime | None = None
 
 
 class VerifyEmailResponse(BaseModel):
@@ -170,12 +189,6 @@ class VerifyEmailResponse(BaseModel):
 class SessionResponse(BaseModel):
     message: str
     user: UserResponse
-
-
-class TokenResponse(BaseModel):
-    message: str
-    access_token: str
-    refresh_token: str
 
 
 class MessageResponse(BaseModel):

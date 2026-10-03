@@ -24,6 +24,8 @@ USER_A_ID = "550e8400-e29b-41d4-a716-446655440000"
 USER_B_ID = "6b5d1f2c-6f2e-4a4a-9f6f-1a2b3c4d5e6f"
 USER_A_TOKEN = "user-a-token"
 USER_B_TOKEN = "user-b-token"
+GUEST_ID = "3b9250fd-8c98-4d34-9f4c-f73a8a9dc411"
+GUEST_TOKEN = "guest-token"
 MISSING_RESUME_ID = "11111111-2222-3333-4444-555555555555"
 
 PDF_BYTES = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n"
@@ -54,13 +56,14 @@ def ai_document(data: dict | None = None, template_id: int = 2) -> AIResumeDocum
     )
 
 
-def user(user_id: str) -> UserResponse:
+def user(user_id: str, *, is_guest: bool = False) -> UserResponse:
     return UserResponse(
         id=user_id,
-        email="john@example.com",
-        name="John Doe",
-        number="03001234567",
-        email_verified=True,
+        email=None if is_guest else "john@example.com",
+        name=None if is_guest else "John Doe",
+        number=None if is_guest else "03001234567",
+        email_verified=not is_guest,
+        is_guest=is_guest,
     )
 
 
@@ -73,6 +76,8 @@ class FakeAuthService:
             return user(USER_A_ID)
         if access_token == USER_B_TOKEN:
             return user(USER_B_ID)
+        if access_token == GUEST_TOKEN:
+            return user(GUEST_ID, is_guest=True)
         raise invalid_session_error()
 
 
@@ -489,6 +494,58 @@ def test_create_template_resume_stores_only_editable_source(
     row = resume_overrides.repository.rows[body["id"]]
     assert row.storage_path is None
     assert row.data["fullName"] == "John Doe"
+
+
+def test_saved_guest_can_create_owned_template_resume(client, resume_overrides):
+    authenticate(client, GUEST_TOKEN)
+
+    response = client.post(
+        "/api/v1/resumes/template",
+        json={
+            "title": "Guest Resume",
+            "template_id": "1",
+            "resume_data": {"fullName": "Guest Candidate"},
+        },
+    )
+
+    assert response.status_code == 201
+    created = resume_overrides.repository.rows[response.json()["id"]]
+    assert created.user_id == GUEST_ID
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "kwargs"),
+    [
+        (
+            "post",
+            "/api/v1/resumes",
+            {"files": {"file": ("resume.pdf", PDF_BYTES, "application/pdf")}},
+        ),
+        (
+            "post",
+            "/api/v1/resumes/ai",
+            {"json": {"title": "AI", "prompt": "Write a resume"}},
+        ),
+        (
+            "post",
+            f"/api/v1/resumes/{MISSING_RESUME_ID}/ai-edit",
+            {"json": {"instruction": "Improve it"}},
+        ),
+        ("get", f"/api/v1/resumes/{MISSING_RESUME_ID}/pdf", {}),
+    ],
+)
+def test_saved_guest_is_blocked_from_expensive_or_storage_routes(
+    client,
+    method,
+    path,
+    kwargs,
+):
+    authenticate(client, GUEST_TOKEN)
+
+    response = getattr(client, method)(path, **kwargs)
+
+    assert response.status_code == 403
+    assert error_code(response) == "guest_permission_denied"
 
 
 @pytest.mark.parametrize("template_id", ["1", "2", "3", "4", "5", "6"])

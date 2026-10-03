@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.database.connection import get_db
-from app.modules.auth.dependencies import CURRENT_USER_DEPENDENCY
+from app.modules.auth.dependencies import (
+    CURRENT_REGISTERED_USER_DEPENDENCY,
+    CURRENT_USER_DEPENDENCY,
+)
 from app.modules.auth.router import limiter
 from app.modules.auth.schemas import UserResponse
 from app.modules.resume.errors import ResumeApplicationError, raise_resume_error
@@ -46,7 +49,7 @@ RESUME_SERVICE_DEPENDENCY = Depends(get_resume_service)
 async def create_resume(
     file: Annotated[UploadFile, File(description="PDF file (max 10 MB by default).")],
     title: Annotated[str | None, Form(description="Resume title.")] = None,
-    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+    current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
     resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
 ) -> ResumeResponse:
     try:
@@ -88,7 +91,7 @@ async def create_template_resume(
 async def create_ai_resume(
     request: Request,
     payload: AIResumeRequest,
-    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+    current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
     resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
 ) -> ResumeResponse:
     try:
@@ -176,7 +179,7 @@ async def create_ai_edit_proposal(
     resume_id: UUID,
     request: Request,
     payload: ResumeAIEditRequest,
-    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+    current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
     resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
 ) -> ResumeAIEditProposal:
     try:
@@ -197,7 +200,7 @@ async def create_ai_edit_proposal(
 )
 def get_resume_pdf(
     resume_id: UUID,
-    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+    current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
     resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
 ) -> ResumePDFResponse:
     try:

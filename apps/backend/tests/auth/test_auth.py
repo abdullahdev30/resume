@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,6 +19,8 @@ class FakeAuthService:
     def __post_init__(self) -> None:
         self.register_payload = None
         self.forgot_payload = None
+        self.guest_upgrade_payload = None
+        self.guest_create_count = 0
 
     def register(self, payload):
         self.register_payload = payload
@@ -39,9 +42,43 @@ class FakeAuthService:
     def login(self, payload):
         return auth_result()
 
+    def create_guest(self):
+        self.guest_create_count += 1
+        return guest_auth_result()
+
+    def request_guest_upgrade(
+        self,
+        *,
+        user_id,
+        access_token,
+        refresh_token,
+        payload,
+    ):
+        self.guest_upgrade_payload = payload
+
+    def verify_guest_upgrade(
+        self,
+        *,
+        user_id,
+        current_user,
+        access_token,
+        refresh_token,
+        payload,
+    ):
+        self.guest_upgrade_payload = payload
+        return AuthResult(
+            user=user_response(user_id=user_id, email=str(payload.email)),
+            tokens=AuthTokens(
+                access_token="upgraded-access-token",
+                refresh_token="upgraded-refresh-token",
+            ),
+        )
+
     def get_current_user(self, access_token):
         if access_token == "expired-token":
             raise invalid_session_error()
+        if access_token == "guest-token":
+            return UserResponse(id="guest-123", is_guest=True)
         return user_response()
 
     def refresh_session(self, refresh_token):
@@ -82,13 +119,31 @@ def client():
     return TestClient(app)
 
 
-def user_response() -> UserResponse:
+def user_response(
+    *,
+    user_id: str = "user-123",
+    email: str = "john@example.com",
+) -> UserResponse:
     return UserResponse(
-        id="user-123",
-        email="john@example.com",
+        id=user_id,
+        email=email,
         name="John Doe",
         number="03001234567",
         email_verified=True,
+    )
+
+
+def guest_auth_result() -> AuthResult:
+    return AuthResult(
+        user=UserResponse(
+            id="guest-123",
+            is_guest=True,
+            guest_expires_at=datetime.now(UTC) + timedelta(hours=12),
+        ),
+        tokens=AuthTokens(
+            access_token="guest-access-token",
+            refresh_token="guest-refresh-token",
+        ),
     )
 
 
@@ -141,7 +196,7 @@ def test_register_valid_data_normalizes_inputs(client, auth_service_override):
     }
     assert auth_service_override.register_payload.name == "John Doe"
     assert str(auth_service_override.register_payload.email) == "john@example.com"
-    assert auth_service_override.register_payload.number == "03001234567"
+    assert auth_service_override.register_payload.number == "+923001234567"
 
 
 def test_register_accepts_phone_field(client, auth_service_override):
@@ -151,16 +206,15 @@ def test_register_accepts_phone_field(client, auth_service_override):
     )
 
     assert response.status_code == 201
-    assert auth_service_override.register_payload.number == "03001234567"
+    assert auth_service_override.register_payload.number == "+923001234567"
 
 
 @pytest.mark.parametrize(
     "number",
     [
-        "3001234567",
-        "030012345678",
-        "0300-1234567",
-        "+923001234567",
+        "123",
+        "+0123456789",
+        "++923001234567",
         "abc03001234",
     ],
 )
@@ -171,6 +225,24 @@ def test_register_rejects_invalid_phone_numbers(client, number):
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "number",
+    ["0300-1234567", "+923001234567", "00923001234567"],
+)
+def test_register_accepts_and_normalizes_common_phone_formats(
+    client,
+    auth_service_override,
+    number,
+):
+    response = client.post(
+        "/api/v1/auth/register",
+        json=valid_register_payload(number=number),
+    )
+
+    assert response.status_code == 201
+    assert auth_service_override.register_payload.number == "+923001234567"
 
 
 @pytest.mark.parametrize(
@@ -247,7 +319,7 @@ def test_resend_verification_returns_generic_message(client):
     assert "If an account is pending verification" in response.json()["message"]
 
 
-def test_login_returns_tokens_without_user_details(client):
+def test_login_sets_http_only_session_without_exposing_tokens(client):
     response = client.post(
         "/api/v1/auth/login",
         json={"email": "john@example.com", "password": "StrongPassword123!"},
@@ -257,13 +329,95 @@ def test_login_returns_tokens_without_user_details(client):
     assert response.cookies.get("access_token") == "access-token"
     assert response.cookies.get("refresh_token") == "refresh-token"
     response_body = response.json()
-    assert response_body == {
-        "message": "Login successful.",
-        "access_token": "access-token",
-        "refresh_token": "refresh-token",
-    }
-    assert "user" not in response_body
-    assert "id" not in response_body
+    assert response_body["message"] == "Login successful."
+    assert response_body["user"]["id"] == "user-123"
+    assert "access_token" not in response_body
+    assert "refresh_token" not in response_body
+
+
+def test_create_guest_sets_12_hour_session_without_exposing_tokens(client):
+    response = client.post("/api/v1/auth/guest")
+
+    assert response.status_code == 201
+    assert response.cookies.get("access_token") == "guest-access-token"
+    assert response.cookies.get("refresh_token") == "guest-refresh-token"
+    response_body = response.json()
+    assert response_body["user"]["id"] == "guest-123"
+    assert response_body["user"]["is_guest"] is True
+    assert response_body["user"]["guest_expires_at"] is not None
+    assert "guest-access-token" not in str(response_body)
+
+
+def test_create_guest_resumes_existing_guest_without_replacing_ownership(
+    client,
+    auth_service_override,
+):
+    client.cookies.set("access_token", "guest-token")
+
+    response = client.post("/api/v1/auth/guest")
+
+    assert response.status_code == 201
+    assert response.json()["message"] == "Guest session resumed."
+    assert response.json()["user"]["id"] == "guest-123"
+    assert auth_service_override.guest_create_count == 0
+
+
+def test_create_guest_does_not_replace_registered_session(client):
+    client.cookies.set("access_token", "access-token")
+
+    response = client.post("/api/v1/auth/guest")
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "already_authenticated"
+
+
+def test_guest_upgrade_request_uses_current_guest_identity(
+    client,
+    auth_service_override,
+):
+    client.cookies.set("access_token", "guest-token")
+    client.cookies.set("refresh_token", "guest-refresh-token")
+
+    response = client.post(
+        "/api/v1/auth/guest/upgrade/request",
+        json=valid_register_payload_with_phone(),
+    )
+
+    assert response.status_code == 200
+    assert auth_service_override.guest_upgrade_payload.name == "John Doe"
+    assert auth_service_override.guest_upgrade_payload.number == "+923001234567"
+
+
+def test_registered_user_cannot_use_guest_upgrade_request(client):
+    client.cookies.set("access_token", "access-token")
+    client.cookies.set("refresh_token", "refresh-token")
+
+    response = client.post(
+        "/api/v1/auth/guest/upgrade/request",
+        json=valid_register_payload_with_phone(),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "guest_permission_denied"
+
+
+def test_guest_upgrade_verification_preserves_user_id_and_rotates_cookies(
+    client,
+):
+    client.cookies.set("access_token", "guest-token")
+    client.cookies.set("refresh_token", "guest-refresh-token")
+    payload = valid_register_payload_with_phone(otp="123456")
+
+    response = client.post(
+        "/api/v1/auth/guest/upgrade/verify",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["user"]["id"] == "guest-123"
+    assert response.json()["user"]["is_guest"] is False
+    assert response.cookies.get("access_token") == "upgraded-access-token"
+    assert response.cookies.get("refresh_token") == "upgraded-refresh-token"
 
 
 def test_me_requires_authentication(client):
@@ -310,13 +464,10 @@ def test_refresh_rotates_session_cookies(client):
     assert response.cookies.get("access_token") == "new-access-token"
     assert response.cookies.get("refresh_token") == "new-refresh-token"
     response_body = response.json()
-    assert response_body == {
-        "message": "Session refreshed successfully.",
-        "access_token": "new-access-token",
-        "refresh_token": "new-refresh-token",
-    }
-    assert "user" not in response_body
-    assert "id" not in response_body
+    assert response_body["message"] == "Session refreshed successfully."
+    assert response_body["user"]["id"] == "user-123"
+    assert "access_token" not in response_body
+    assert "refresh_token" not in response_body
 
 
 def test_refresh_invalid_token_clears_cookies(client, auth_service_override):
@@ -432,6 +583,22 @@ def test_change_password_valid_session(client):
 
     assert response.status_code == 200
     assert response.json() == {"message": "Password changed successfully."}
+
+
+def test_change_password_rejects_saved_guest_session(client):
+    client.cookies.set("access_token", "guest-token")
+    client.cookies.set("refresh_token", "guest-refresh-token")
+
+    response = client.post(
+        "/api/v1/auth/change-password",
+        json={
+            "new_password": "NewStrongPassword123!",
+            "confirm_new_password": "NewStrongPassword123!",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "guest_permission_denied"
 
 
 

@@ -1,6 +1,5 @@
 import re
 
-
 E164_PHONE_PATTERN = re.compile(r"^\+[1-9]\d{7,14}$")
 
 
