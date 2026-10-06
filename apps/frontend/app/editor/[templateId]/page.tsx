@@ -60,8 +60,12 @@ import { ThemeToggle } from "../../../components/ui/ThemeToggle";
 import { ValidatedInput } from "../../../components/ui/ValidatedInput";
 import { ValidatedUrlInput } from "../../../components/ui/ValidatedUrlInput";
 import { resumeApi } from "../../../modules/resume/api";
-import { useGuestResumes } from "../../../modules/resume/GuestResumeProvider";
-import { profileToResumeData } from "../../../modules/resume/profileSnapshot";
+import { authApi } from "../../../modules/auth/api";
+import {
+  profileToResumeData,
+  withoutProfileAvatar,
+  withProfileAvatarSnapshot,
+} from "../../../modules/resume/profileSnapshot";
 import { profileApi } from "../../../modules/profile/api";
 import type { ProfileResponse } from "../../../modules/profile/types";
 import { ApiClientError } from "../../../lib/api-client";
@@ -169,19 +173,15 @@ export default function EditorPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const {
-    createResume: createGuestResume,
-    getResume: getGuestResume,
-    updateResume: updateGuestResume,
-  } = useGuestResumes();
   const isGuest = searchParams.get("guest") === "1";
+  const isSample = searchParams.get("sample") === "1";
   const resumeIdParam = searchParams.get("resumeId");
   const templateIdParam = (params.templateId as string) || "1";
-  const guestTemplateData = isGuest
+  const sampleTemplateData = isSample
     ? templateCatalog.find((template) => template.id === templateIdParam)?.data
     : null;
-  const editorStartingData: ResumeData = guestTemplateData
-    ? { ...initialResumeData, ...structuredClone(guestTemplateData) }
+  const editorStartingData: ResumeData = sampleTemplateData
+    ? { ...initialResumeData, ...structuredClone(sampleTemplateData) }
     : { ...initialResumeData };
 
   const [activeTemplateId, setActiveTemplateId] = useState<string>(templateIdParam);
@@ -301,12 +301,8 @@ export default function EditorPage() {
     if (resumeIdParam) {
       setLoadingResume(true);
       setLoadError("");
-      const request = isGuest
-        ? Promise.resolve(getGuestResume(resumeIdParam))
-        : resumeApi.get(resumeIdParam);
-      request
+      resumeApi.get(resumeIdParam)
         .then((found) => {
-          if (!found) throw new Error("This temporary resume is no longer available in this tab.");
           if (!found.editable) {
             router.push(`/resumes/${resumeIdParam}${isGuest ? "?guest=1" : ""}`);
             return;
@@ -334,7 +330,7 @@ export default function EditorPage() {
       return;
     }
 
-    const templatePlaceholders = isGuest
+    const templatePlaceholders = isSample
       ? templateCatalog.find((template) => template.id === activeTemplateId)?.data
       : null;
     const startingData = templatePlaceholders
@@ -344,10 +340,10 @@ export default function EditorPage() {
     setElementStyles(startingData.elementStyles || {});
     setSaveStatus("dirty");
     setLoadingResume(false);
-  }, [activeTemplateId, getGuestResume, isGuest, resumeIdParam, router]);
+  }, [activeTemplateId, isGuest, isSample, resumeIdParam, router]);
 
   useEffect(() => {
-    if (!isGuest && saveStatus !== "dirty" && saveStatus !== "error") return;
+    if (saveStatus !== "dirty" && saveStatus !== "error") return;
     const warnBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
@@ -364,11 +360,18 @@ export default function EditorPage() {
     }
     profileApi
       .getProfile()
-      .then((profile) => {
-        setProfileLoadError("");
-        setProfileSuggestions(profile);
+      .then(async (profile) => {
+        let snapshotProfile = profile;
+        try {
+          snapshotProfile = await withProfileAvatarSnapshot(profile);
+          setProfileLoadError("");
+        } catch {
+          snapshotProfile = withoutProfileAvatar(profile);
+          setProfileLoadError("Profile details loaded, but the profile photo could not be copied into this resume.");
+        }
+        setProfileSuggestions(snapshotProfile);
         if (resumeIdParam) return;
-        const profileData = profileToResumeData(profile);
+        const profileData = profileToResumeData(snapshotProfile);
         setResumeData((prev) => ({
           ...prev,
           ...profileData,
@@ -1012,23 +1015,14 @@ export default function EditorPage() {
         resume_data: dataAtStart,
         source_version: sourceVersion || undefined,
       };
-      const saved = isGuest
-        ? editingResumeId
-          ? updateGuestResume(editingResumeId, updatePayload)
-          : createGuestResume({
-              title: resumeTitle,
-              template_id: activeTemplateId,
-              resume_data: dataAtStart,
-            })
-        : editingResumeId
-          ? await resumeApi.update(editingResumeId, updatePayload)
-          : await resumeApi.createTemplate({
-              title: resumeTitle,
-              template_id: activeTemplateId,
-              resume_data: dataAtStart,
-            });
-
-      if (!saved) throw new Error("This temporary resume is no longer available.");
+      if (isGuest && !editingResumeId) await authApi.createGuest();
+      const saved = editingResumeId
+        ? await resumeApi.update(editingResumeId, updatePayload)
+        : await resumeApi.createTemplate({
+            title: resumeTitle,
+            template_id: activeTemplateId,
+            resume_data: dataAtStart,
+          });
       setEditingResumeId(saved.id);
       setSourceVersion(saved.source_version);
       if (revisionRef.current === revisionAtStart) {
@@ -1042,11 +1036,11 @@ export default function EditorPage() {
         setSaveStatus("dirty");
       }
       setSaveNotice(revisionRef.current === revisionAtStart
-        ? isGuest ? "Kept in tab ✓" : "Saved ✓"
+        ? "Saved ✓"
         : "");
       if (!silent) {
         toast.success(isGuest
-          ? "Changes are kept in this tab only."
+          ? "Changes are saved to your temporary guest workspace."
           : "Your latest changes are saved.");
       }
       router.replace(`/editor/${saved.template_id || activeTemplateId}?resumeId=${saved.id}${isGuest ? "&guest=1" : ""}`);
@@ -1180,7 +1174,9 @@ export default function EditorPage() {
   const handlePhotoUpload = (file: File) => {
     const fileError = validateFile(file, {
       allowedTypes: ["image/jpeg", "image/png", "image/webp"],
-      maxBytes: 10 * 1024 * 1024,
+      // Resume photos are stored as data URLs in resume_data. Keep the
+      // base64-expanded value below the backend's 2,000,000-character limit.
+      maxBytes: 1.4 * 1024 * 1024,
       label: "Profile image",
     });
     if (fileError) {
@@ -1222,20 +1218,20 @@ export default function EditorPage() {
   };
 
   const saveLabel = saveInFlight
-    ? isGuest ? "Keeping..." : "Saving..."
+    ? "Saving..."
     : saveStatus === "success"
-      ? isGuest ? "Kept in tab ✓" : "Saved ✓"
-      : isGuest ? "Keep in tab" : "Save";
+      ? "Saved ✓"
+      : "Save";
   const statusLabel =
     saveInFlight
-      ? isGuest ? "Keeping in tab..." : "Saving..."
+      ? "Saving..."
       : saveStatus === "dirty"
       ? "Unsaved changes"
       : saveStatus === "success"
-          ? isGuest ? "In this tab only ✓" : "Saved ✓"
+          ? "Saved ✓"
           : saveStatus === "error"
             ? "Save failed"
-            : isGuest ? "In this tab only" : "Saved";
+            : "Saved";
 
   if (loadingResume) {
     return (
@@ -1253,7 +1249,7 @@ export default function EditorPage() {
     );
   }
 
-  if (!["1", "2", "3", "4", "5", "6", "ai"].includes(activeTemplateId)) {
+  if (!["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "ai"].includes(activeTemplateId)) {
     return (
       <div className="min-h-screen bg-[var(--bg)] p-6">
         <ErrorState message="This template does not exist or is no longer available." onRetry={() => router.push("/templates")} />
@@ -1317,7 +1313,7 @@ export default function EditorPage() {
             onClick={() => void handleSaveResume()}
             disabled={saveInFlight || downloadStatus !== "idle"}
             loading={saveInFlight}
-            loadingLabel={isGuest ? "Keeping..." : "Saving..."}
+            loadingLabel="Saving..."
           >
             {saveStatus === "success" ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
             <span>{saveLabel}</span>
@@ -1345,7 +1341,7 @@ export default function EditorPage() {
 
       {isGuest && (
         <div className="no-print flex flex-col gap-2 border-b border-[var(--status-warning-text)] bg-[var(--status-warning-bg)] px-4 py-2 text-xs font-semibold text-[var(--status-warning-text)] sm:flex-row sm:items-center sm:justify-between" role="status">
-          <span>Guest mode: nothing is uploaded. Refreshing or closing this tab permanently removes this resume.</span>
+          <span>Guest mode: this resume is stored privately in a temporary database-backed workspace. Create an account before it expires to keep it.</span>
           <div className="flex shrink-0 items-center gap-2">
             <Link href="/auth/login" className="button button-ghost button-sm">Log in</Link>
             <Link href="/auth/register" className="button button-secondary button-sm">Sign up to save</Link>

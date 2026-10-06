@@ -12,6 +12,7 @@ import {
   RecoveryCodeResponse,
   SessionResponse,
   User,
+  GuestUpgradeVerifyPayload,
 } from "./types";
 
 import { apiClient } from "../../lib/api-client";
@@ -26,6 +27,28 @@ export const authApi = {
 
   async login(payload: LoginPayload): Promise<SessionResponse> {
     return apiClient("/auth/login", {
+      method: "POST",
+      body: payload,
+    });
+  },
+
+  async createGuest(): Promise<SessionResponse> {
+    return apiClient("/auth/guest", {
+      method: "POST",
+    });
+  },
+
+  async requestGuestUpgrade(payload: RegisterPayload): Promise<MessageResponse> {
+    return apiClient("/auth/guest/upgrade/request", {
+      method: "POST",
+      body: payload,
+    });
+  },
+
+  async verifyGuestUpgrade(
+    payload: GuestUpgradeVerifyPayload,
+  ): Promise<SessionResponse> {
+    return apiClient("/auth/guest/upgrade/verify", {
       method: "POST",
       body: payload,
     });

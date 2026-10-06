@@ -1,7 +1,3 @@
-import {
-  cachedClientRequest,
-  clearClientResponseCache,
-} from "./client-response-cache";
 import { isSuccessfulHttpStatus } from "./http-status";
 
 // Browser requests stay on the Next.js origin. The Route Handler forwards
@@ -35,23 +31,7 @@ export function apiClient<T = unknown>(
   endpoint: string,
   options: ApiClientOptions = {}
 ): Promise<T> {
-  const method = (options.method || "GET").toUpperCase();
-  const request = () => executeApiRequest<T>(endpoint, options);
-  const canUseMemoryCache =
-    (method === "GET" || method === "HEAD")
-    && !options.signal
-    && options.cache !== "no-store";
-
-  if (canUseMemoryCache) {
-    return cachedClientRequest(`${method}:${endpoint}`, request);
-  }
-
-  return request().then((result) => {
-    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
-      clearClientResponseCache();
-    }
-    return result;
-  });
+  return executeApiRequest<T>(endpoint, options);
 }
 
 async function executeApiRequest<T>(
@@ -111,7 +91,6 @@ function refreshSession() {
 
 function redirectToLogin() {
   if (typeof window !== "undefined") {
-    clearClientResponseCache();
     window.location.assign("/auth/login?reason=session-expired");
   }
 }
@@ -142,6 +121,7 @@ async function apiClientAttempt<T = unknown>(
 
   const config: RequestInit = {
     ...customOptions,
+    cache: customOptions.cache || "no-store",
     headers: requestHeaders,
     // Ensures cookies are sent and received with cross-origin requests if needed
     credentials: "include",
@@ -243,15 +223,11 @@ export async function apiClientUpload<T>(
   } = {},
 ): Promise<T> {
   try {
-    const result = await apiClientUploadAttempt<T>(endpoint, body, options);
-    clearClientResponseCache();
-    return result;
+    return await apiClientUploadAttempt<T>(endpoint, body, options);
   } catch (error) {
     if (shouldRefreshSession(endpoint, error) && !options.signal?.aborted) {
       if (await refreshSession()) {
-        const result = await apiClientUploadAttempt<T>(endpoint, body, options);
-        clearClientResponseCache();
-        return result;
+        return apiClientUploadAttempt<T>(endpoint, body, options);
       }
       redirectToLogin();
     }

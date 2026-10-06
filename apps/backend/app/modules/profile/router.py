@@ -9,6 +9,7 @@ from app.modules.auth.dependencies import (
 from app.modules.auth.schemas import UserResponse
 from app.modules.profile.errors import ProfileApplicationError, raise_profile_error
 from app.modules.profile.schemas import (
+    AvatarSnapshotResponse,
     CertificateCreate,
     CertificateResponse,
     CertificateUpdate,
@@ -82,6 +83,16 @@ async def upload_avatar(
 ) -> PersonalInfoResponse:
     try:
         return await profile_service.upload_avatar(_user_id(current_user), file)
+    except ProfileApplicationError as exc:
+        raise_profile_error(exc)
+
+
+@router.get("/avatar/snapshot", response_model=AvatarSnapshotResponse)
+async def get_avatar_snapshot(
+    current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
+) -> AvatarSnapshotResponse:
+    try:
+        return await profile_service.get_avatar_snapshot(_user_id(current_user))
     except ProfileApplicationError as exc:
         raise_profile_error(exc)
 

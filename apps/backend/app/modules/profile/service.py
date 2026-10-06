@@ -1,3 +1,4 @@
+import base64
 import logging
 from pathlib import Path
 from uuid import uuid4
@@ -12,6 +13,7 @@ from app.modules.profile.errors import (
 )
 from app.modules.profile.repository import ProfileRepository
 from app.modules.profile.schemas import (
+    AvatarSnapshotResponse,
     CertificateCreate,
     CertificateResponse,
     CertificateUpdate,
@@ -44,6 +46,7 @@ PROJECTS_TABLE = "profile_projects"
 SOCIAL_LINKS_TABLE = "profile_social_links"
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_RESUME_AVATAR_BYTES = int(1.4 * 1024 * 1024)
 ALLOWED_DOCUMENT_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
 ALLOWED_AVATAR_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 ALLOWED_MIME_TYPES = {
@@ -216,6 +219,47 @@ class ProfileService:
         if previous_storage_path and previous_storage_path != storage_path:
             await self._delete_avatar_object(user_id, previous_storage_path)
         return self._personal_response(user_id, record)
+
+    async def get_avatar_snapshot(self, user_id: str) -> AvatarSnapshotResponse:
+        """Return the authenticated user's private avatar as a resume-safe data URL."""
+        personal = self.repository.get_personal(user_id)
+        if personal is None:
+            raise profile_not_found_error()
+
+        storage_path = personal.get("avatar_url")
+        if not storage_path:
+            return AvatarSnapshotResponse(data_url=None)
+        if not storage_path.startswith(f"users/{user_id}/avatars/"):
+            raise ProfileApplicationError(
+                status_code=422,
+                code="invalid_avatar_storage_path",
+                message="The profile photo cannot be copied into a resume.",
+            )
+
+        try:
+            data, content_type = await self.storage.download_bytes(storage_path)
+        except S3StorageError as exc:
+            raise ProfileApplicationError(
+                status_code=502,
+                code="avatar_snapshot_unavailable",
+                message="The profile photo could not be copied. Please try again.",
+            ) from exc
+
+        if content_type not in ALLOWED_MIME_TYPES - {"application/pdf"}:
+            raise ProfileApplicationError(
+                status_code=422,
+                code="invalid_avatar_file",
+                message="The stored profile photo type is not supported by resumes.",
+            )
+        if len(data) > MAX_RESUME_AVATAR_BYTES:
+            raise ProfileApplicationError(
+                status_code=422,
+                code="avatar_snapshot_too_large",
+                message="The profile photo must be 1.4 MB or smaller to copy into a resume.",
+            )
+        self._validate_file_signature(content_type, data)
+        encoded = base64.b64encode(data).decode("ascii")
+        return AvatarSnapshotResponse(data_url=f"data:{content_type};base64,{encoded}")
 
     async def _delete_avatar_object(self, user_id: str, storage_path: str) -> None:
         expected_prefix = f"users/{user_id}/avatars/"

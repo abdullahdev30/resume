@@ -21,6 +21,10 @@ export interface ResumeListResponse {
   resumes: ResumeRecord[];
 }
 
+export interface ResumePdfResponse {
+  download_url: string;
+}
+
 export interface TemplateResumePayload {
   title: string;
   template_id: string;

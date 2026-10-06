@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Figtree } from "next/font/google";
 import { ToastProvider } from "@/components/feedback/Toast";
-import { GuestResumeProvider } from "@/modules/resume/GuestResumeProvider";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -50,9 +49,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <GuestResumeProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </GuestResumeProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

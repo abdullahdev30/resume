@@ -21,6 +21,10 @@ export interface RegisterPayload {
   confirm_password: string;
 }
 
+export interface GuestUpgradeVerifyPayload extends RegisterPayload {
+  otp: string;
+}
+
 export interface VerifyEmailPayload {
   email: string;
   otp: string;

@@ -1,10 +1,16 @@
-import type { PersonalInfo, PersonalInfoPayload, ProfileResponse } from "./types";
+import type { AvatarSnapshotResponse, PersonalInfo, PersonalInfoPayload, ProfileResponse } from "./types";
 
 import { apiClient, apiClientUpload } from "../../lib/api-client";
 
 export const profileApi = {
   async getProfile(): Promise<ProfileResponse> {
     return apiClient("/profile", {
+      method: "GET",
+    });
+  },
+
+  async getAvatarSnapshot(): Promise<AvatarSnapshotResponse> {
+    return apiClient("/profile/avatar/snapshot", {
       method: "GET",
     });
   },

@@ -34,25 +34,6 @@ export interface PersonalInfo {
   updated_at?: string | null;
 }
 
-export interface EducationPayload {
-  institute_name: string;
-  field_of_study: string;
-  start_date: string;
-  end_date?: string;
-  grade?: string;
-}
-
-export interface ExperiencePayload {
-  institute_name: string;
-  job_title: string;
-  start_date: string;
-  end_date?: string;
-}
-
-export interface SkillPayload {
-  name: string;
-}
-
 export interface ProfileResponse {
   personal: PersonalInfo;
   education: import("../education/types").Education[];
@@ -61,4 +42,8 @@ export interface ProfileResponse {
   certificates: import("../certificates/types").Certificate[];
   projects: import("../projects/types").Project[];
   social_links: import("../social-links/types").SocialLink[];
+}
+
+export interface AvatarSnapshotResponse {
+  data_url: string | null;
 }

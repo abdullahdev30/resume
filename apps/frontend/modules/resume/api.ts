@@ -4,6 +4,7 @@ import type {
   AIEditProposal,
   AIResumePayload,
   ResumeListResponse,
+  ResumePdfResponse,
   ResumeRecord,
   ResumeUpdatePayload,
   TemplateResumePayload,
@@ -13,6 +14,8 @@ export const resumeApi = {
   list: () => apiClient<ResumeListResponse>("/resumes"),
 
   get: (id: string) => apiClient<ResumeRecord>(`/resumes/${id}`),
+
+  getPdf: (id: string) => apiClient<ResumePdfResponse>(`/resumes/${id}/pdf`),
 
   createTemplate: (payload: TemplateResumePayload) =>
     apiClient<ResumeRecord>("/resumes/template", {

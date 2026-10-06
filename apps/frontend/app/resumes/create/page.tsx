@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/ui/Card";
-import { getCurrentUser } from "@/modules/auth/server";
+import { getSessionUser } from "@/modules/auth/server";
 import { AppShellServer as AppShell } from "@/modules/layout/AppShellServer";
 
 const options = [
@@ -24,18 +24,19 @@ const options = [
 ];
 
 export default async function CreateResumePage() {
-  const user = await getCurrentUser();
+  const sessionUser = await getSessionUser();
+  const isRegistered = Boolean(sessionUser && !sessionUser.is_guest);
 
   return (
-    <AppShell user={user}>
+    <AppShell user={isRegistered ? sessionUser : null}>
       <div className="page-stack max-w-4xl">
         <PageHeader
           eyebrow="New document"
           icon={<Plus size={15} aria-hidden="true" />}
           title="How would you like to begin?"
-          description={user
+          description={isRegistered
             ? "Both options save a real resume to your account and open the editable workspace."
-            : "Build a resume for free in this tab. Sign in when you want database-backed saving and AI tools."}
+            : "Build a resume in a private temporary guest workspace. Sign in for permanent saving and AI tools."}
         />
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {options.map((option) => {
@@ -43,7 +44,7 @@ export default async function CreateResumePage() {
             return (
               <Link
                 key={option.href}
-                href={!user && option.href === "/resumes/create/ai" ? "/auth/login" : option.href}
+                href={!isRegistered && option.href === "/resumes/create/ai" ? "/auth/login" : option.href}
                 className="group no-underline"
               >
                 <Card padding="lg" interactive className="flex h-full min-h-64 flex-col">
@@ -52,7 +53,7 @@ export default async function CreateResumePage() {
                     <div className="text-xs font-bold uppercase tracking-wider text-[var(--primary)]">{option.meta}</div>
                     <h2 className="mt-2 text-xl font-bold text-[var(--text)]">{option.title}</h2>
                     <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">
-                      {!user && option.href === "/resumes/create/ai"
+                      {!isRegistered && option.href === "/resumes/create/ai"
                         ? "Log in to use AI with your securely saved profile."
                         : option.description}
                     </p>

@@ -88,6 +88,10 @@ class PersonalInfoResponse(ProfileBaseModel):
     updated_at: datetime | str | None = None
 
 
+class AvatarSnapshotResponse(ProfileBaseModel):
+    data_url: str | None = None
+
+
 class DateRangeModel(ProfileBaseModel):
     start_date: date
     end_date: date | None = None

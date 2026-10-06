@@ -22,20 +22,20 @@ import { ResumePrintRoot } from "@/components/templates/ResumePrintRoot";
 import { ResumePreview } from "@/components/templates/ResumePreview";
 import { resumeApi } from "../api";
 import { downloadResumePdf } from "../downloadResumePdf";
-import { useGuestResumes } from "../GuestResumeProvider";
 import type { AIEditProposal, ResumeRecord } from "../types";
 
 export function ResumeViewClient({
   initialResume,
   resumeId,
-  isAuthenticated,
+  isRegistered,
+  isGuest,
 }: {
   initialResume?: ResumeRecord;
   resumeId?: string;
-  isAuthenticated: boolean;
+  isRegistered: boolean;
+  isGuest: boolean;
 }) {
   const params = useParams<{ id: string }>();
-  const guestResumes = useGuestResumes();
   const activeResumeId = resumeId || params.id;
   const [resume, setResume] = useState<ResumeRecord | null>(initialResume || null);
   const [loading, setLoading] = useState(initialResume === undefined);
@@ -51,9 +51,7 @@ export function ResumeViewClient({
     setLoading(true);
     setLoadError("");
     try {
-      const found = isAuthenticated
-        ? await resumeApi.get(activeResumeId)
-        : guestResumes.getResume(activeResumeId);
+      const found = await resumeApi.get(activeResumeId);
       if (!found) throw new Error("Resume not found");
       setResume(found);
     } catch {
@@ -61,7 +59,7 @@ export function ResumeViewClient({
     } finally {
       setLoading(false);
     }
-  }, [activeResumeId, guestResumes, isAuthenticated]);
+  }, [activeResumeId]);
 
   useEffect(() => {
     if (initialResume === undefined) void loadResume();
@@ -111,15 +109,20 @@ export function ResumeViewClient({
   };
 
   const downloadResume = async () => {
-    if (!resume?.editable || busyAction) return;
+    if (!resume || busyAction) return;
     setBusyAction("download");
     setActionError("");
     try {
-      await downloadResumePdf(resume.title);
+      if (resume.editable) {
+        await downloadResumePdf(resume.title);
+      } else {
+        const { download_url: downloadUrl } = await resumeApi.getPdf(resume.id);
+        window.location.assign(downloadUrl);
+      }
     } catch {
-      const message = "We could not open the browser print dialog. Please try again.";
+      const message = "We could not prepare this resume download. Please try again.";
       setActionError(message);
-      toast.error(message, "Print failed");
+      toast.error(message, "Download failed");
     } finally {
       setBusyAction(null);
     }
@@ -135,15 +138,15 @@ export function ResumeViewClient({
         icon={resume.resume_type === "ai" ? <Sparkles size={15} aria-hidden="true" /> : undefined}
         title={resume.title}
         description={resume.editable
-          ? isAuthenticated
+          ? isRegistered
             ? "Your editable source is saved to your account and printed directly from this template."
-            : "This resume exists only in this tab. Print it now or sign up before leaving to start saving future work."
+            : "This resume is saved to your private temporary guest workspace. Create an account before it expires to keep it."
           : "This uploaded PDF is available to view and download."}
         actions={
           <>
             {resume.editable && (
               <Link
-                href={isAuthenticated
+                href={!isGuest
                   ? `/resumes/${resume.id}/edit`
                   : `/editor/${resume.template_id || "1"}?resumeId=${resume.id}&guest=1`}
                 className="button button-secondary"
@@ -152,7 +155,7 @@ export function ResumeViewClient({
                 Edit resume
               </Link>
             )}
-            {resume.editable && (
+            {(resume.editable || isRegistered) && (
               <div className="flex max-w-80 flex-col items-end gap-1">
                 <Button
                   onClick={() => void downloadResume()}
@@ -161,20 +164,20 @@ export function ResumeViewClient({
                   disabled={Boolean(busyAction)}
                 >
                   <Download size={16} aria-hidden="true" />
-                  Print / Save PDF
+                  {resume.editable ? "Print / Save PDF" : "Download PDF"}
                 </Button>
-                <p className="text-right text-[10px] leading-tight text-[var(--text-muted)]">
+                {resume.editable && <p className="text-right text-[10px] leading-tight text-[var(--text-muted)]">
                   In the print window choose <strong>Save as PDF</strong>, Margins: <strong>None</strong>, enable <strong>Background graphics</strong>.
-                </p>
+                </p>}
               </div>
             )}
           </>
         }
       />
 
-      {!isAuthenticated && (
+      {isGuest && (
         <Alert variant="warning">
-          Guest work is kept only in memory and will be lost when this tab is refreshed or closed.
+          Guest work is database-backed for this temporary session. Create an account before the session expires to keep it.
         </Alert>
       )}
 
@@ -204,7 +207,7 @@ export function ResumeViewClient({
         </Card>
       )}
 
-      {isAuthenticated && resume.editable && (
+      {isRegistered && resume.editable && (
         <Card padding="lg">
           <form onSubmit={requestAiEdit} className="form-stack">
             <div>

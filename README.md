@@ -80,11 +80,12 @@ Supabase Dashboard settings to configure manually:
 - Authentication -> URL Configuration: add the local and production frontend
   and backend URLs used by this project.
 
-The public resume builder does not create an account or send application data
-to the backend. Guest resumes are held only in React memory for the current tab
-and are lost on refresh or tab close. Registration and login enable the normal
-authenticated API/database flow. The legacy anonymous-account endpoints remain
-available for backward compatibility, but the frontend does not call them.
+The public resume builder creates a short-lived anonymous backend session.
+Guest resumes use the same authenticated API/database flow as registered
+resumes, so refreshes do not discard work. Guests can convert that session into
+a registered account through email verification without changing the resume
+owner identity. Temporary guest accounts are still subject to the backend's
+configured expiry and cleanup policy.
 
 ## Production deployment
 
@@ -159,23 +160,20 @@ Auth endpoints:
 - `POST /api/v1/auth/forgot-password`
 - `POST /api/v1/auth/verify-recovery-otp`
 - `POST /api/v1/auth/change-password`
-- `POST /api/v1/auth/guest` (legacy; not used by the frontend)
-- `POST /api/v1/auth/guest/upgrade/request` (legacy)
-- `POST /api/v1/auth/guest/upgrade/verify` (legacy)
+- `POST /api/v1/auth/guest`
+- `POST /api/v1/auth/guest/upgrade/request`
+- `POST /api/v1/auth/guest/upgrade/verify`
 
 Profile endpoints require an authenticated session cookie or a valid bearer
 access token.
 
 Onboarding/profile endpoints:
 
-- `GET /api/profile`
-- `GET /api/profile/onboarding/status`
-- `POST /api/profile/onboarding/personal`
-- `POST /api/profile/onboarding/education`
-- `POST /api/profile/onboarding/experience`
-- `POST /api/profile/onboarding/skills`
-- `POST /api/profile/onboarding/certificates`
-- `PUT /api/profile/personal`
+- `GET /api/v1/profile`
+- `GET /api/v1/profile/onboarding/status`
+- `PUT /api/v1/profile/personal`
+- `POST /api/v1/profile/avatar`
+- `GET /api/v1/profile/avatar/snapshot`
 
 The personal step is required first and includes first name, last name, email,
 phone, address, and optional social links. Education, experience, skills,
@@ -183,25 +181,28 @@ certificates, and projects can be skipped during onboarding and added later.
 
 Profile item CRUD endpoints:
 
-- `POST /api/profile/social-links`
-- `PUT /api/profile/social-links/{item_id}`
-- `DELETE /api/profile/social-links/{item_id}`
-- `POST /api/profile/education`
-- `PUT /api/profile/education/{item_id}`
-- `DELETE /api/profile/education/{item_id}`
-- `POST /api/profile/experience`
-- `PUT /api/profile/experience/{item_id}`
-- `DELETE /api/profile/experience/{item_id}`
-- `POST /api/profile/skills`
-- `PUT /api/profile/skills/{item_id}`
-- `DELETE /api/profile/skills/{item_id}`
-- `POST /api/profile/certificates`
-- `POST /api/profile/certificates/upload`
-- `PUT /api/profile/certificates/{item_id}`
-- `DELETE /api/profile/certificates/{item_id}`
-- `POST /api/profile/projects`
-- `PUT /api/profile/projects/{item_id}`
-- `DELETE /api/profile/projects/{item_id}`
+- `GET|POST /api/v1/profile/social-links`
+- `PUT|DELETE /api/v1/profile/social-links/{item_id}`
+- `GET|POST /api/v1/profile/education`
+- `PUT|DELETE /api/v1/profile/education/{item_id}`
+- `GET|POST /api/v1/profile/experience`
+- `PUT|DELETE /api/v1/profile/experience/{item_id}`
+- `GET|POST /api/v1/profile/skills`
+- `PUT|DELETE /api/v1/profile/skills/{item_id}`
+- `GET|POST /api/v1/profile/certificates`
+- `POST /api/v1/profile/certificates/upload`
+- `PUT|DELETE /api/v1/profile/certificates/{item_id}`
+- `GET|POST /api/v1/profile/projects`
+- `PUT|DELETE /api/v1/profile/projects/{item_id}`
+
+Resume endpoints:
+
+- `POST|GET /api/v1/resumes`
+- `POST /api/v1/resumes/template`
+- `POST /api/v1/resumes/ai`
+- `GET|PUT|DELETE /api/v1/resumes/{resume_id}`
+- `POST /api/v1/resumes/{resume_id}/ai-edit`
+- `GET /api/v1/resumes/{resume_id}/pdf`
 
 Run backend checks from `apps/backend`:
 
@@ -219,7 +220,7 @@ AI generation runs only on the backend. Copy the `AI_*` values from
 follow-up AI edits are validated against the same resume schema used by the
 editor.
 
-Editable resumes use the same six fixed-A4 React templates for preview and
+Editable resumes use the same ten fixed-A4 React templates for preview and
 browser printing. Download PDF saves pending editor changes, prepares fonts and
 images, and opens the browser print dialog; choose Save as PDF with no margins
 and background graphics enabled. Editable PDFs are not generated or stored by

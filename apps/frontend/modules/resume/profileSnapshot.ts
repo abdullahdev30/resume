@@ -1,5 +1,30 @@
 import type { ResumeData } from "@/components/templates/TemplateOne";
+import { profileApi } from "@/modules/profile/api";
 import type { ProfileResponse } from "@/modules/profile/types";
+
+export async function withProfileAvatarSnapshot(
+  profile: ProfileResponse,
+): Promise<ProfileResponse> {
+  if (!profile.personal.avatar_url) return profile;
+  const { data_url: dataUrl } = await profileApi.getAvatarSnapshot();
+  return {
+    ...profile,
+    personal: {
+      ...profile.personal,
+      avatar_url: dataUrl,
+    },
+  };
+}
+
+export function withoutProfileAvatar(profile: ProfileResponse): ProfileResponse {
+  return {
+    ...profile,
+    personal: {
+      ...profile.personal,
+      avatar_url: null,
+    },
+  };
+}
 
 export function profileToResumeData(profile: ProfileResponse): ResumeData {
   const personal = profile.personal;

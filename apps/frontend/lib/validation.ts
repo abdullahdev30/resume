@@ -160,7 +160,9 @@ export function validateFile(
   const label = options.label || "File";
   if (!options.allowedTypes.includes(file.type)) return `${label} type is not supported.`;
   if (file.size > options.maxBytes) {
-    return `${label} must be ${Math.round(options.maxBytes / (1024 * 1024))} MB or smaller.`;
+    const sizeInMb = options.maxBytes / (1024 * 1024);
+    const formattedSize = Number.isInteger(sizeInMb) ? String(sizeInMb) : sizeInMb.toFixed(1);
+    return `${label} must be ${formattedSize} MB or smaller.`;
   }
   return null;
 }

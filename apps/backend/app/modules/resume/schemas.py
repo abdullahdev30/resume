@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ResumeKind = Literal["template", "ai", "legacy_pdf"]
 ResumePageSize = Literal["A4", "Letter", "Legal", "A5", "B5", "Tabloid"]
-TemplateId = Literal["1", "2", "3", "4", "5", "6"]
+TemplateId = Literal["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
 EditorTemplateId = TemplateId
 ResumeSection = Literal[
     "personal",
@@ -205,7 +205,7 @@ class AIResumeRequest(ResumeSchema):
 
 
 class AIResumeDesign(ResumeSchema):
-    template_id: int = Field(ge=1, le=6)
+    template_id: int = Field(ge=1, le=10)
     primary_color: str = Field(alias="primaryColor", pattern=r"^#[0-9a-fA-F]{6}$")
     secondary_color: str = Field(alias="secondaryColor", pattern=r"^#[0-9a-fA-F]{6}$")
     font_family: ResumeFontFamily = Field(alias="fontFamily")

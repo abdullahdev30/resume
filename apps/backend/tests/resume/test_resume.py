@@ -496,10 +496,10 @@ def test_create_template_resume_stores_only_editable_source(
     assert row.data["fullName"] == "John Doe"
 
 
-def test_saved_guest_can_create_owned_template_resume(client, resume_overrides):
+def test_saved_guest_can_use_owned_template_resume_crud(client, resume_overrides):
     authenticate(client, GUEST_TOKEN)
 
-    response = client.post(
+    create_response = client.post(
         "/api/v1/resumes/template",
         json={
             "title": "Guest Resume",
@@ -508,9 +508,35 @@ def test_saved_guest_can_create_owned_template_resume(client, resume_overrides):
         },
     )
 
-    assert response.status_code == 201
-    created = resume_overrides.repository.rows[response.json()["id"]]
+    assert create_response.status_code == 201
+    created_body = create_response.json()
+    resume_id = created_body["id"]
+    created = resume_overrides.repository.rows[resume_id]
     assert created.user_id == GUEST_ID
+
+    list_response = client.get("/api/v1/resumes")
+    assert list_response.status_code == 200
+    assert [item["id"] for item in list_response.json()["resumes"]] == [resume_id]
+
+    get_response = client.get(f"/api/v1/resumes/{resume_id}")
+    assert get_response.status_code == 200
+    assert get_response.json()["resume_data"]["fullName"] == "Guest Candidate"
+
+    update_response = client.put(
+        f"/api/v1/resumes/{resume_id}",
+        json={
+            "resume_data": {"fullName": "Guest Candidate Updated"},
+            "source_version": created_body["source_version"],
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["resume_data"]["fullName"] == (
+        "Guest Candidate Updated"
+    )
+
+    delete_response = client.delete(f"/api/v1/resumes/{resume_id}")
+    assert delete_response.status_code == 200
+    assert client.get("/api/v1/resumes").json()["resumes"] == []
 
 
 @pytest.mark.parametrize(
@@ -548,7 +574,9 @@ def test_saved_guest_is_blocked_from_expensive_or_storage_routes(
     assert error_code(response) == "guest_permission_denied"
 
 
-@pytest.mark.parametrize("template_id", ["1", "2", "3", "4", "5", "6"])
+@pytest.mark.parametrize(
+    "template_id", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+)
 def test_all_catalog_template_ids_create_real_resumes(client, template_id):
     authenticate(client)
     response = client.post(
@@ -658,7 +686,7 @@ def test_create_ai_resume_rejects_client_supplied_profile_context(client, monkey
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("template_id", 7),
+        ("template_id", 11),
         ("primaryColor", "blue"),
         ("fontFamily", "Comic Sans MS"),
         ("fontScale", 4),

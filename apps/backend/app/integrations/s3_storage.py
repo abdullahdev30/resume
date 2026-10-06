@@ -101,6 +101,14 @@ class S3StorageService:
             logger.exception("Storage delete failed for object '%s'", storage_path)
             raise S3StorageError("Unable to delete the storage object.") from exc
 
+    async def download_bytes(self, storage_path: str) -> tuple[bytes, str]:
+        """Read a private object and return its bytes and declared content type."""
+        try:
+            return await run_in_threadpool(self._download_bytes, storage_path)
+        except (BotoCoreError, ClientError, OSError) as exc:
+            logger.exception("Storage download failed for object '%s'", storage_path)
+            raise S3StorageError("Unable to download the storage object.") from exc
+
     def generate_signed_url(
         self,
         storage_path: str,
@@ -151,3 +159,11 @@ class S3StorageService:
             if code in {"404", "NoSuchKey", "NotFound"}:
                 return
             raise
+
+    def _download_bytes(self, key: str) -> tuple[bytes, str]:
+        response = self.client.get_object(Bucket=self.bucket_name, Key=key)
+        body = response["Body"]
+        try:
+            return body.read(), response.get("ContentType") or "application/octet-stream"
+        finally:
+            body.close()

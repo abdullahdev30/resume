@@ -13,23 +13,23 @@ import { Card } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Tabs } from "@/components/ui/Tabs";
-import { buildTemplateResumePayload, createTemplateResumeFromItem, renderTemplate, TemplateCard } from "@/components/templates/TemplateCard";
+import { createTemplateResumeFromItem, renderTemplate, TemplateCard } from "@/components/templates/TemplateCard";
 import { templateCatalog, type TemplateItem } from "@/components/templates/catalog";
+import type { User } from "@/modules/auth/types";
 import type { ProfileResponse } from "@/modules/profile/types";
-import { useGuestResumes } from "@/modules/resume/GuestResumeProvider";
 
 type Category = "All" | TemplateItem["category"];
 const categories: Category[] = ["All", "Modern", "Creative", "Minimalist", "Executive"];
 
 export default function TemplatesClient({
   profile,
-  isAuthenticated,
+  sessionUser,
 }: {
   profile: ProfileResponse | null;
-  isAuthenticated: boolean;
+  sessionUser: User | null;
 }) {
   const router = useRouter();
-  const guestResumes = useGuestResumes();
+  const isRegistered = Boolean(sessionUser && !sessionUser.is_guest);
   const [selectedCategory, setSelectedCategory] = useState<Category>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [preview, setPreview] = useState<TemplateItem | null>(null);
@@ -51,19 +51,19 @@ export default function TemplatesClient({
     setCreating(true);
     setError("");
     try {
-      const resume = isAuthenticated
-        ? await createTemplateResumeFromItem(item, profile)
-        : guestResumes.createResume(buildTemplateResumePayload(item, null, true));
+      const resume = await createTemplateResumeFromItem(item, sessionUser, profile);
       toast.success(
-        isAuthenticated
+        isRegistered
           ? "A new independent resume was created from this template."
-          : "Your resume is ready in this tab. Sign up to save it permanently.",
+          : "Your resume is saved to a temporary private guest workspace.",
         "Resume created",
       );
-      const guestParam = isAuthenticated ? "" : "&guest=1";
+      const guestParam = isRegistered ? "" : "&guest=1";
       router.push(`/editor/${resume.template_id || item.id}?resumeId=${resume.id}${guestParam}`);
-    } catch {
-      const message = "We could not create the resume. Check your connection and try again.";
+    } catch (caught) {
+      const message = caught instanceof Error
+        ? caught.message
+        : "We could not create the resume. Check your connection and try again.";
       setError(message);
       toast.error(message, "Creation failed");
     } finally {
@@ -78,9 +78,9 @@ export default function TemplatesClient({
           eyebrow="Template gallery"
           icon={<Sparkles size={15} aria-hidden="true" />}
           title="Choose a professional starting point"
-          description={isAuthenticated
+          description={isRegistered
             ? "Preview each complete sample layout, then create a resume prefilled from your saved profile."
-            : "Preview a complete sample, choose any layout, and replace the placeholder content with your own details."}
+            : "Preview a complete sample, then create a blank resume saved to a private temporary guest workspace."}
         />
         <div className="mt-6 grid gap-5 border-t border-[var(--border)] pt-5">
           <div className="max-w-md">
@@ -125,7 +125,7 @@ export default function TemplatesClient({
               item={template}
               onPreview={setPreview}
               profile={profile}
-              isAuthenticated={isAuthenticated}
+              sessionUser={sessionUser}
             />
           ))}
         </section>

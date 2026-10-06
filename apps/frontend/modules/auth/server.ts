@@ -4,7 +4,7 @@ import { BACKEND_API_BASE } from "../../lib/backend-api-url";
 import { isSuccessfulHttpStatus } from "../../lib/http-status";
 import type { User } from "./types";
 
-export async function getCurrentUser(): Promise<User | null> {
+export async function getSessionUser(): Promise<User | null> {
   const cookieStore = await cookies();
   const cookieHeader = cookieStore.toString();
 
@@ -24,11 +24,15 @@ export async function getCurrentUser(): Promise<User | null> {
       return null;
     }
 
-    const user = await response.json() as User;
-    return user.is_guest ? null : user;
+    return await response.json() as User;
   } catch {
     return null;
   }
+}
+
+export async function getCurrentUser(): Promise<User | null> {
+  const user = await getSessionUser();
+  return user?.is_guest ? null : user;
 }
 
 export async function requireCurrentUser(): Promise<User> {

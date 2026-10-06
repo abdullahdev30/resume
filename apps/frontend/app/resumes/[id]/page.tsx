@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/modules/auth/server";
+import { getSessionUser } from "@/modules/auth/server";
 import { AppShellServer as AppShell } from "@/modules/layout/AppShellServer";
 import { ResumeViewClient } from "@/modules/resume/components/ResumeViewClient";
 import { getResumeOnServer } from "@/modules/resume/server";
@@ -11,18 +11,21 @@ export default async function ResumeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const user = await getCurrentUser();
-  if (!user && !id.startsWith("guest-")) redirect("/auth/login");
-  const [resume, profile] = user
-    ? await Promise.all([getResumeOnServer(id), getProfileOnServer()])
-    : [null, null];
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) redirect("/auth/login");
+  const isGuest = Boolean(sessionUser.is_guest);
+  const [resume, profile] = await Promise.all([
+    getResumeOnServer(id),
+    isGuest ? Promise.resolve(null) : getProfileOnServer(),
+  ]);
 
   return (
-    <AppShell user={user} initialProfile={profile}>
+    <AppShell user={isGuest ? null : sessionUser} initialProfile={profile}>
       <ResumeViewClient
         initialResume={resume || undefined}
         resumeId={id}
-        isAuthenticated={Boolean(user)}
+        isRegistered={!isGuest}
+        isGuest={isGuest}
       />
     </AppShell>
   );

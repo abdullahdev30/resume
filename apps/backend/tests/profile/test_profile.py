@@ -140,9 +140,13 @@ class FakeProfileRepository:
 class FakeProfileStorage:
     def __init__(self):
         self.deleted_paths = []
+        self.objects = {}
 
     async def delete_object(self, storage_path):
         self.deleted_paths.append(storage_path)
+
+    async def download_bytes(self, storage_path):
+        return self.objects[storage_path]
 
 
 @pytest.fixture(autouse=True)
@@ -290,6 +294,51 @@ def test_avatar_upload_replaces_database_value_and_deletes_previous_object(
     assert first_path != second_path
     assert app_overrides.repository.get_personal("user-123")["avatar_url"] == second_path
     assert app_overrides.storage.deleted_paths == [first_path]
+
+
+def test_avatar_snapshot_returns_owned_photo_as_persistent_data_url(
+    client,
+    app_overrides,
+):
+    create_personal(client)
+    storage_path = "users/user-123/avatars/profile.png"
+    image_data = b"\x89PNG\r\n\x1a\nprofile-image"
+    app_overrides.repository.personal["user-123"]["avatar_url"] = storage_path
+    app_overrides.storage.objects[storage_path] = (image_data, "image/png")
+
+    response = client.get(
+        "/api/v1/profile/avatar/snapshot",
+        headers=auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data_url"] == (
+        "data:image/png;base64,iVBORw0KGgpwcm9maWxlLWltYWdl"
+    )
+
+
+def test_avatar_snapshot_rejects_another_users_storage_path(client, app_overrides):
+    create_personal(client)
+    app_overrides.repository.personal["user-123"]["avatar_url"] = (
+        "users/another-user/avatars/profile.png"
+    )
+
+    response = client.get(
+        "/api/v1/profile/avatar/snapshot",
+        headers=auth_headers(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_avatar_storage_path"
+
+
+def test_guest_cannot_request_registered_profile_avatar_snapshot(client):
+    response = client.get(
+        "/api/v1/profile/avatar/snapshot",
+        headers=auth_headers("guest-token"),
+    )
+
+    assert response.status_code == 403
 
 
 def test_profile_supports_multiple_optional_sections(client):

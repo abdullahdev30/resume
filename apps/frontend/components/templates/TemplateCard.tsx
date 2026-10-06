@@ -10,11 +10,12 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { ApiClientError } from "@/lib/api-client";
+import { authApi } from "@/modules/auth/api";
+import type { User } from "@/modules/auth/types";
 import { profileApi } from "@/modules/profile/api";
 import type { ProfileResponse } from "@/modules/profile/types";
 import { resumeApi } from "@/modules/resume/api";
-import { useGuestResumes } from "@/modules/resume/GuestResumeProvider";
-import { profileToResumeData } from "@/modules/resume/profileSnapshot";
+import { profileToResumeData, withProfileAvatarSnapshot } from "@/modules/resume/profileSnapshot";
 import type { ResumeData } from "./TemplateOne";
 import { ResumeTemplateRenderer } from "./ResumeTemplateRenderer";
 import type { TemplateItem } from "./catalog";
@@ -47,41 +48,42 @@ export function TemplateCard({
   item,
   onPreview,
   profile,
-  isAuthenticated,
+  sessionUser,
 }: {
   item: TemplateItem;
   onPreview: (item: TemplateItem) => void;
   profile?: ProfileResponse | null;
-  isAuthenticated: boolean;
+  sessionUser: User | null;
 }) {
   const router = useRouter();
-  const guestResumes = useGuestResumes();
+  const isRegistered = Boolean(sessionUser && !sessionUser.is_guest);
   const [creating, setCreating] = useState(false);
 
   const handleUseTemplate = async () => {
     if (creating) return;
     setCreating(true);
     try {
-      const resume = isAuthenticated
-        ? await createTemplateResumeFromItem(item, profile)
-        : guestResumes.createResume(buildTemplateResumePayload(item, null, true));
+      const resume = await createTemplateResumeFromItem(item, sessionUser, profile);
       toast.success(
-        isAuthenticated
+        isRegistered
           ? "A new independent resume was created from this template."
-          : "Your resume is ready in this tab. Sign up to save resumes permanently.",
+          : "Your resume is saved to a temporary private guest workspace.",
         "Resume created",
       );
-      const guestParam = isAuthenticated ? "" : "&guest=1";
+      const guestParam = isRegistered ? "" : "&guest=1";
       router.push(`/editor/${resume.template_id || item.id}?resumeId=${resume.id}${guestParam}`);
-    } catch {
-      toast.error("We could not create the resume. Check your profile connection and try again.", "Creation failed");
+    } catch (caught) {
+      const message = caught instanceof Error
+        ? caught.message
+        : "We could not create the resume. Check your profile connection and try again.";
+      toast.error(message, "Creation failed");
     } finally {
       setCreating(false);
     }
   };
 
   const handlePrintSample = () => {
-    const printWindow = window.open(`/editor/${item.id}?guest=1`, "_blank", "noopener,noreferrer");
+    const printWindow = window.open(`/editor/${item.id}?sample=1`, "_blank", "noopener,noreferrer");
     if (!printWindow) {
       toast.warning("Allow pop-ups to print this template sample.");
       return;
@@ -140,10 +142,18 @@ export function TemplateCard({
 
 export async function createTemplateResumeFromItem(
   item: TemplateItem,
+  sessionUser: User | null,
   profile?: ProfileResponse | null,
 ) {
+  const isRegistered = Boolean(sessionUser && !sessionUser.is_guest);
+  if (!sessionUser) await authApi.createGuest();
+
+  if (!isRegistered) {
+    return resumeApi.createTemplate(buildTemplateResumePayload(item, null));
+  }
+
   let resolvedProfile = profile;
-  if (resolvedProfile == null) {
+  if (resolvedProfile === undefined || resolvedProfile === null) {
     try {
       resolvedProfile = await profileApi.getProfile();
     } catch (error) {
@@ -151,24 +161,30 @@ export async function createTemplateResumeFromItem(
       resolvedProfile = null;
     }
   }
+  if (resolvedProfile?.personal.avatar_url) {
+    resolvedProfile = await withProfileAvatarSnapshot(resolvedProfile);
+  }
   return resumeApi.createTemplate(buildTemplateResumePayload(item, resolvedProfile));
 }
 
 export function buildTemplateResumePayload(
   item: TemplateItem,
   profile?: ProfileResponse | null,
-  useTemplatePlaceholders = false,
 ) {
   const profileData = profile
     ? profileToResumeData(profile)
-    : useTemplatePlaceholders
-      ? structuredClone(item.data)
-      : blankResumeData;
+    : blankResumeData;
   const resumeData: ResumeData = {
     ...blankResumeData,
     ...profileData,
     primaryColor: item.data.primaryColor || blankResumeData.primaryColor,
+    secondaryColor: item.data.secondaryColor || blankResumeData.secondaryColor,
     fontFamily: item.data.fontFamily || blankResumeData.fontFamily,
+    fontScale: item.data.fontScale || blankResumeData.fontScale,
+    pageSize: item.data.pageSize || blankResumeData.pageSize,
+    pageMargin: item.data.pageMargin ?? blankResumeData.pageMargin,
+    lineSpacing: item.data.lineSpacing ?? blankResumeData.lineSpacing,
+    sectionOrder: item.data.sectionOrder || blankResumeData.sectionOrder,
   };
 
   return {

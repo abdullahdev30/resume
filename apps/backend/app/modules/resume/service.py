@@ -437,7 +437,7 @@ class ResumeService:
             "date, credential, project, URL, metric, degree, skill, or language. You may "
             "reorganize and rewrite supplied facts for clarity. When existing_resume_data is "
             "present, preserve manual edits unless the instruction explicitly changes them. "
-            "Use empty strings or arrays when information is unavailable. Pick template_id 1-6 "
+            "Use empty strings or arrays when information is unavailable. Pick template_id 1-10 "
             "and a high-contrast palette appropriate to the job and seniority: conservative for "
             "finance/legal/executive work and modern for technology/design work. Prefer a one-page "
             "structure when the supplied content is short. Never output HTML or CSS."
@@ -704,7 +704,9 @@ class ResumeService:
             resume.data
             and (
                 resume.resume_type in {"template", "ai"}
-                or resume.template_id in {"1", "2", "3", "4", "5", "6"}
+                or resume.template_id in {
+                    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"
+                }
             )
         )
 

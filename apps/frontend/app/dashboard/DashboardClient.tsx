@@ -6,18 +6,21 @@ import type { ResumeRecord } from "@/modules/resume/types";
 export default function DashboardClient({
   initialResumes,
   initialProfileIncomplete,
-  isAuthenticated,
+  hasSession,
+  isGuest,
 }: {
   initialResumes?: ResumeRecord[];
   initialProfileIncomplete?: boolean;
-  isAuthenticated: boolean;
+  hasSession: boolean;
+  isGuest: boolean;
 }) {
   return (
     <ResumeListClient
       dashboard
       initialResumes={initialResumes}
       initialProfileIncomplete={initialProfileIncomplete}
-      isAuthenticated={isAuthenticated}
+      hasSession={hasSession}
+      isGuest={isGuest}
     />
   );
 }
