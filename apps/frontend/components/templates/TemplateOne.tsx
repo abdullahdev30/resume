@@ -13,6 +13,8 @@ export interface ElementStyle {
   fontSize?: number;
   lineHeight?: number;
   fontFamily?: string;
+  offsetX?: number;
+  offsetY?: number;
 }
 
 export type ResumePageSize = "A4" | "Letter" | "Legal" | "A5" | "B5" | "Tabloid";
@@ -48,6 +50,7 @@ export interface ResumeData {
   avatarUrl?: string;
   summary: string;
   primaryColor?: string;
+  pageColor?: string;
   fontFamily?: string;
   isBold?: boolean;
   isItalic?: boolean;
@@ -60,6 +63,7 @@ export interface ResumeData {
   certificates?: ResumeCertificate[];
   elementStyles?: Record<string, ElementStyle>;
   pageSize?: ResumePageSize;
+  pageOrientation?: "portrait" | "landscape";
   pageMargin?: number;
   lineSpacing?: number;
   secondaryColor?: string;
@@ -95,6 +99,11 @@ export interface TemplateProps {
 export function getResumePageStyle(data: ResumeData): React.CSSProperties {
   return {
     lineHeight: data.lineSpacing ?? 1.15,
+    fontFamily: data.fontFamily || undefined,
+    fontWeight: data.isBold ? "bold" : undefined,
+    fontStyle: data.isItalic ? "italic" : undefined,
+    textDecoration: data.isUnderline ? "underline" : undefined,
+    textAlign: data.textAlign || undefined,
   };
 }
 
@@ -119,12 +128,16 @@ export default function TemplateOne({
       fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
       lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
       fontFamily: custom?.fontFamily || undefined,
+      position: custom?.offsetX || custom?.offsetY ? "relative" : undefined,
+      zIndex: custom?.offsetX || custom?.offsetY ? 2 : undefined,
+      transform: custom?.offsetX || custom?.offsetY ? `translate(${custom.offsetX || 0}px, ${custom.offsetY || 0}px)` : undefined,
     };
   };
 
   const getItemClass = (id: string, baseClass: string = "") => {
+    if (!onSelectElement) return baseClass;
     const isSelected = selectedElementId === id;
-    return `${baseClass} cursor-pointer transition p-0.5 rounded-xs ${
+    return `${baseClass} resume-draggable-text resume-element-id--${id} cursor-pointer transition p-0.5 rounded-xs ${
       isSelected ? "ring-2 ring-teal-500 ring-offset-1 bg-teal-500/10" : "hover:ring-1 hover:ring-teal-400/50"
     }`.trim();
   };
@@ -271,7 +284,7 @@ export default function TemplateOne({
       </div>
 
       {/* Right Content Area */}
-      <div className="w-[66%] p-8 space-y-6 bg-white">
+      <div className="w-[66%] p-8 space-y-6">
         {/* Summary */}
         {data.summary && (
           <div>

@@ -58,6 +58,7 @@
   --button-secondary-hover: var(--primary-tint);
   --button-secondary-text: var(--text);
   --button-danger-bg: var(--danger);
+  --on-danger: var(--color-white);
   --input-bg: var(--surface);
   --input-border: var(--border);
   --status-error-bg: color-mix(in srgb, var(--danger) 9%, var(--surface));

@@ -24,7 +24,11 @@ export function useTheme() {
 
   const setTheme = useCallback((nextTheme: Theme) => {
     document.documentElement.dataset.theme = nextTheme;
-    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    } catch {
+      // The DOM theme still works when storage is unavailable or disabled.
+    }
     setThemeState(nextTheme);
   }, []);
 

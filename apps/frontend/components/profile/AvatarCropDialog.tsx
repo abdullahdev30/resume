@@ -1,26 +1,29 @@
 "use client";
 
-import { Crop, ZoomIn, ZoomOut } from "lucide-react";
+import { Crop, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 
 const CROP_SIZE = 320;
-const OUTPUT_SIZE = 512;
+const OUTPUT_SIZE = 720;
 
 export function AvatarCropDialog({
   file,
+  shape = "circle",
   onClose,
   onConfirm,
 }: {
   file: File | null;
+  shape?: "circle" | "square";
   onClose: () => void;
   onConfirm: (file: File) => void;
 }) {
   const [sourceUrl, setSourceUrl] = useState("");
   const [naturalSize, setNaturalSize] = useState({ width: 1, height: 1 });
   const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [processing, setProcessing] = useState(false);
   const [imageReady, setImageReady] = useState(false);
@@ -35,24 +38,34 @@ export function AvatarCropDialog({
     }
     const nextUrl = URL.createObjectURL(file);
     setSourceUrl(nextUrl);
-    setZoom(1);
-    setOffset({ x: 0, y: 0 });
+    resetAdjustments();
     setImageReady(false);
     setCropError("");
     return () => URL.revokeObjectURL(nextUrl);
   }, [file]);
 
-  const renderedSize = useMemo(() => {
-    const ratio = naturalSize.width / naturalSize.height;
-    return ratio >= 1
-      ? { width: CROP_SIZE * ratio, height: CROP_SIZE }
-      : { width: CROP_SIZE, height: CROP_SIZE / ratio };
-  }, [naturalSize]);
-
+  const normalizedRotation = ((rotation % 360) + 360) % 360;
+  const swapsDimensions = normalizedRotation === 90 || normalizedRotation === 270;
+  const rotatedNaturalSize = useMemo(() => ({
+    width: swapsDimensions ? naturalSize.height : naturalSize.width,
+    height: swapsDimensions ? naturalSize.width : naturalSize.height,
+  }), [naturalSize, swapsDimensions]);
+  const coverScale = Math.max(
+    CROP_SIZE / rotatedNaturalSize.width,
+    CROP_SIZE / rotatedNaturalSize.height,
+  );
+  const renderedSize = useMemo(() => ({
+    width: naturalSize.width * coverScale,
+    height: naturalSize.height * coverScale,
+  }), [coverScale, naturalSize]);
+  const renderedBounds = useMemo(() => ({
+    width: rotatedNaturalSize.width * coverScale * zoom,
+    height: rotatedNaturalSize.height * coverScale * zoom,
+  }), [coverScale, rotatedNaturalSize, zoom]);
   const bounds = useMemo(() => ({
-    x: Math.max(0, (renderedSize.width * zoom - CROP_SIZE) / 2),
-    y: Math.max(0, (renderedSize.height * zoom - CROP_SIZE) / 2),
-  }), [renderedSize, zoom]);
+    x: Math.max(0, (renderedBounds.width - CROP_SIZE) / 2),
+    y: Math.max(0, (renderedBounds.height - CROP_SIZE) / 2),
+  }), [renderedBounds]);
 
   useEffect(() => {
     setOffset((current) => ({
@@ -76,35 +89,67 @@ export function AvatarCropDialog({
     move(deltaX, deltaY);
   };
 
+  const rotate = (degrees: number) => {
+    setRotation((current) => current + degrees);
+    setOffset({ x: 0, y: 0 });
+  };
+
+  function resetAdjustments() {
+    setZoom(1);
+    setRotation(0);
+    setOffset({ x: 0, y: 0 });
+  }
+
   const confirmCrop = async () => {
     if (!file || !imageRef.current || !imageReady) return;
     setProcessing(true);
     setCropError("");
     try {
-      const image = imageRef.current;
-      const displayScale = (renderedSize.width * zoom) / image.naturalWidth;
-      const displayLeft = (CROP_SIZE - renderedSize.width * zoom) / 2 + offset.x;
-      const displayTop = (CROP_SIZE - renderedSize.height * zoom) / 2 + offset.y;
-      const sourceX = Math.max(0, -displayLeft / displayScale);
-      const sourceY = Math.max(0, -displayTop / displayScale);
+      const sourceImage = imageRef.current;
+      const rotatedCanvas = document.createElement("canvas");
+      rotatedCanvas.width = rotatedNaturalSize.width;
+      rotatedCanvas.height = rotatedNaturalSize.height;
+      const rotatedContext = rotatedCanvas.getContext("2d");
+      if (!rotatedContext) throw new Error("Image cropping is not supported by this browser.");
+      rotatedContext.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+      rotatedContext.rotate((normalizedRotation * Math.PI) / 180);
+      rotatedContext.drawImage(sourceImage, -naturalSize.width / 2, -naturalSize.height / 2);
+
+      const displayScale = coverScale * zoom;
+      const displayLeft = (CROP_SIZE - rotatedNaturalSize.width * displayScale) / 2 + offset.x;
+      const displayTop = (CROP_SIZE - rotatedNaturalSize.height * displayScale) / 2 + offset.y;
+      const sourceX = clamp(-displayLeft / displayScale, 0, rotatedCanvas.width);
+      const sourceY = clamp(-displayTop / displayScale, 0, rotatedCanvas.height);
       const sourceSize = CROP_SIZE / displayScale;
-      const canvas = document.createElement("canvas");
-      canvas.width = OUTPUT_SIZE;
-      canvas.height = OUTPUT_SIZE;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Image cropping is not supported by this browser.");
-      context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+
+      const outputCanvas = document.createElement("canvas");
+      outputCanvas.width = OUTPUT_SIZE;
+      outputCanvas.height = OUTPUT_SIZE;
+      const outputContext = outputCanvas.getContext("2d");
+      if (!outputContext) throw new Error("Image cropping is not supported by this browser.");
+      outputContext.drawImage(
+        rotatedCanvas,
+        sourceX,
+        sourceY,
+        sourceSize,
+        sourceSize,
+        0,
+        0,
+        OUTPUT_SIZE,
+        OUTPUT_SIZE,
+      );
+
       const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (value) => value ? resolve(value) : reject(new Error("The cropped image could not be created.")),
+        outputCanvas.toBlob(
+          (value) => value ? resolve(value) : reject(new Error("The adjusted image could not be created.")),
           "image/jpeg",
           0.92,
         );
       });
       const baseName = file.name.replace(/\.[^.]+$/, "") || "profile";
-      onConfirm(new File([blob], `${baseName}-avatar.jpg`, { type: "image/jpeg" }));
+      onConfirm(new File([blob], `${baseName}-profile.jpg`, { type: "image/jpeg" }));
     } catch (error) {
-      setCropError(error instanceof Error ? error.message : "The cropped image could not be created.");
+      setCropError(error instanceof Error ? error.message : "The adjusted image could not be created.");
     } finally {
       setProcessing(false);
     }
@@ -113,8 +158,8 @@ export function AvatarCropDialog({
   return (
     <Dialog
       open={Boolean(file)}
-      title="Crop profile photo"
-      description="Drag to reposition, use the zoom control, then upload the square crop."
+      title="Adjust profile photo"
+      description="Drag to reposition, then use zoom and rotation to frame the photo. Processing stays in your browser."
       onClose={onClose}
       preventClose={processing}
     >
@@ -149,50 +194,49 @@ export function AvatarCropDialog({
           }}
         >
           {sourceUrl && (
-            <img
-              ref={imageRef}
-              src={sourceUrl}
-              alt="Profile photo crop preview"
-              draggable={false}
-              onLoad={(event) => {
-                setNaturalSize({
-                  width: event.currentTarget.naturalWidth,
-                  height: event.currentTarget.naturalHeight,
-                });
-                setImageReady(true);
-              }}
-              onError={() => setCropError("This image could not be opened. Choose another JPG, PNG, or WEBP file.")}
+            <div
+              className="avatar-crop-image-wrap"
               style={{
                 width: renderedSize.width,
                 height: renderedSize.height,
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${zoom})`,
+                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) rotate(${rotation}deg) scale(${zoom})`,
               }}
-            />
+            >
+              <img
+                ref={imageRef}
+                src={sourceUrl}
+                alt="Profile photo crop preview"
+                draggable={false}
+                onLoad={(event) => {
+                  setNaturalSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight });
+                  setImageReady(true);
+                }}
+                onError={() => setCropError("This image could not be opened. Choose another JPG, PNG, or WebP file.")}
+              />
+            </div>
           )}
-          <span className="avatar-crop-mask" aria-hidden="true" />
+          <span className={`avatar-crop-mask is-${shape}`} aria-hidden="true" />
         </div>
 
         <label className="avatar-crop-zoom">
           <ZoomOut size={17} aria-hidden="true" />
           <span className="sr-only">Zoom photo</span>
-          <input
-            type="range"
-            min="1"
-            max="3"
-            step="0.05"
-            value={zoom}
-            onChange={(event) => setZoom(Number(event.target.value))}
-          />
+          <input type="range" min="1" max="3" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} />
           <ZoomIn size={17} aria-hidden="true" />
         </label>
 
+        <div className="avatar-crop-tools" aria-label="Photo rotation controls">
+          <Button variant="secondary" size="sm" onClick={() => rotate(-90)}><RotateCcw size={15} /> Rotate left</Button>
+          <Button variant="secondary" size="sm" onClick={() => rotate(90)}><RotateCw size={15} /> Rotate right</Button>
+          <Button variant="ghost" size="sm" onClick={resetAdjustments}>Reset</Button>
+        </div>
+
         {cropError && <p className="field-error" role="alert">{cropError}</p>}
 
-        <div className="flex justify-end gap-3">
+        <div className="avatar-crop-actions">
           <Button variant="secondary" onClick={onClose} disabled={processing}>Cancel</Button>
-          <Button onClick={() => void confirmCrop()} loading={processing} loadingLabel="Preparing..." disabled={!imageReady}>
-            <Crop size={16} aria-hidden="true" />
-            Crop and upload
+          <Button onClick={() => void confirmCrop()} loading={processing} loadingLabel="Applying..." disabled={!imageReady}>
+            <Crop size={16} aria-hidden="true" /> Apply image
           </Button>
         </div>
       </div>

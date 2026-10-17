@@ -1,4 +1,5 @@
 import type { ResumeData } from "./TemplateOne";
+import { getResumePageDimensions } from "./ResumePage";
 
 export type ResumeItemOffsets = Partial<
   Record<"skills" | "languages" | "experience" | "education" | "projects" | "certificates" | "socialLinks", number>
@@ -69,8 +70,9 @@ export function paginateResumeData(data: ResumeData): ResumePageSlice[] {
 function getPageCapacity(data: ResumeData): number {
   const margin = data.pageMargin ?? 10;
   const lineSpacing = data.lineSpacing ?? 1.15;
+  const { height } = getResumePageDimensions(data);
   const defaultUsableHeight = 297 - 20;
-  const usableHeight = Math.max(120, 297 - margin * 2);
+  const usableHeight = Math.max(80, height - margin * 2);
   const density = (usableHeight / defaultUsableHeight) * (1.15 / lineSpacing);
   return Math.max(14, Math.round(PAGE_CAPACITY * density));
 }

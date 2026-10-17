@@ -38,12 +38,15 @@ export function AdditionalSections({
       fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
       lineHeight: custom?.lineHeight,
       fontFamily: custom?.fontFamily,
+      position: custom?.offsetX || custom?.offsetY ? "relative" : undefined,
+      zIndex: custom?.offsetX || custom?.offsetY ? 2 : undefined,
+      transform: custom?.offsetX || custom?.offsetY ? `translate(${custom.offsetX || 0}px, ${custom.offsetY || 0}px)` : undefined,
     };
   };
   const getItemClass = (id: string, baseClass = "") => {
     if (!onSelectElement) return baseClass;
     const selected = selectedElementId === id;
-    return `${baseClass} cursor-pointer rounded-xs p-0.5 transition ${
+    return `${baseClass} resume-draggable-text resume-element-id--${id} cursor-pointer rounded-xs p-0.5 transition ${
       selected
         ? "ring-2 ring-[var(--primary)] ring-offset-1 bg-[var(--primary-tint)]"
         : "hover:ring-1 hover:ring-[var(--primary)]/50"

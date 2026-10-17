@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     default: "Resume Builder",
     template: "%s | Resume Builder",
   },
-  description: "Build, tailor, and manage polished resumes from one secure workspace.",
+  description: "Build a professional resume for free in your browser and save it as a PDF. No sign-up required.",
   icons: {
     icon: "/favicon.ico",
     apple: "/resume_logo.png",

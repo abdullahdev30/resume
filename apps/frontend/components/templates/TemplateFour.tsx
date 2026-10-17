@@ -25,12 +25,16 @@ export default function TemplateFour({
       fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
       lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
       fontFamily: custom?.fontFamily || undefined,
+      position: custom?.offsetX || custom?.offsetY ? "relative" : undefined,
+      zIndex: custom?.offsetX || custom?.offsetY ? 2 : undefined,
+      transform: custom?.offsetX || custom?.offsetY ? `translate(${custom.offsetX || 0}px, ${custom.offsetY || 0}px)` : undefined,
     };
   };
 
   const getItemClass = (id: string, baseClass: string = "") => {
+    if (!onSelectElement) return baseClass;
     const isSelected = selectedElementId === id;
-    return `${baseClass} cursor-pointer transition p-0.5 rounded-xs ${
+    return `${baseClass} resume-draggable-text resume-element-id--${id} cursor-pointer transition p-0.5 rounded-xs ${
       isSelected ? "ring-2 ring-blue-400 ring-offset-1 bg-blue-500/10" : "hover:ring-1 hover:ring-blue-300/50"
     }`.trim();
   };

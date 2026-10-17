@@ -1,3 +1,5 @@
+"use client";
+
 import type { TemplateProps } from "./TemplateOne";
 import TemplateOne from "./TemplateOne";
 import TemplateTwo from "./TemplateTwo";
