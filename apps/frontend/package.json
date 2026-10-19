@@ -8,15 +8,30 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
-    "check-types": "next typegen && tsc --noEmit"
+    "check-types": "next typegen && tsc --noEmit",
+    "test": "playwright test"
   },
   "dependencies": {
+    "@tiptap/core": "^3.7.0",
+    "@tiptap/pm": "^3.7.0",
     "@repo/ui": "workspace:*",
     "libphonenumber-js": "^1.13.14",
     "lucide-react": "^1.47.0",
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "@fontsource/lato": "^5.2.0",
+    "@fontsource/lora": "^5.2.0",
+    "@fontsource/merriweather": "^5.2.0",
+    "@fontsource/open-sans": "^5.2.0",
+    "@fontsource/roboto": "^5.2.0",
+    "@fontsource/source-sans-3": "^5.2.0",
+    "@tiptap/extension-highlight": "^3.7.0",
+    "@tiptap/extension-text-align": "^3.7.0",
+    "@tiptap/extension-text-style": "^3.7.0",
+    "@tiptap/react": "^3.7.0",
+    "@tiptap/starter-kit": "^3.7.0",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
@@ -26,6 +41,10 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "eslint": "10.9.1",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "@playwright/test": "^1.56.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
+    "typescript": "^5.9.3"
   }
 }

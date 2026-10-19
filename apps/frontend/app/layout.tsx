@@ -2,18 +2,9 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, Figtree } from "next/font/google";
 import { ToastProvider } from "@/components/feedback/Toast";
 import "./globals.css";
+const figtree=Figtree({subsets:['latin'],weight:['400','500','600'],variable:'--font-figtree'});
+const bricolage=Bricolage_Grotesque({subsets:['latin'],weight:['600','700'],variable:'--font-bricolage'});
 
-const figtree = Figtree({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-figtree",
-});
-
-const bricolage = Bricolage_Grotesque({
-  subsets: ["latin"],
-  weight: ["600", "700"],
-  variable: "--font-bricolage",
-});
 
 export const metadata: Metadata = {
   applicationName: "Resume Builder",
@@ -28,15 +19,7 @@ export const metadata: Metadata = {
   },
 };
 
-const themeScript = `
-  try {
-    var storedTheme = localStorage.getItem("resume-builder-theme");
-    var theme = storedTheme === "dark" || storedTheme === "light"
-      ? storedTheme
-      : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    document.documentElement.dataset.theme = theme;
-  } catch (_) {}
-`;
+const themeScript = `document.documentElement.dataset.theme = "light";`;
 
 export default function RootLayout({
   children,
@@ -44,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${figtree.variable} ${bricolage.variable}`}>
+    <html lang="en" data-theme="light" suppressHydrationWarning className={`${figtree.variable} ${bricolage.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

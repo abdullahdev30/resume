@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import type { ElementStyle } from "@/components/templates/TemplateOne";
+import type { ReactNode } from 'react';
 import type { GuestResumeDocument } from "@/modules/guest-resume/types";
 
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 30, 36, 48];
@@ -131,12 +132,14 @@ export function GuestFormattingToolbar({
   onChange,
   onClearSelection,
   onResetFormatting,
+  trailingControls,
 }: {
   resume: GuestResumeDocument;
   selectedElementId: string | null;
   onChange: (resume: GuestResumeDocument) => void;
   onClearSelection: () => void;
   onResetFormatting: () => void;
+  trailingControls?: ReactNode;
 }) {
   const appearance = resume.appearance;
   const style = selectedElementId
@@ -170,12 +173,6 @@ export function GuestFormattingToolbar({
   const visibleFontSizes = FONT_SIZES.includes(fontSize)
     ? FONT_SIZES
     : [...FONT_SIZES, fontSize].sort((left, right) => left - right);
-  const selectedLabel = selectedElementId
-    ? selectedElementId
-        .replace(/([a-z])([A-Z])/gu, "$1 $2")
-        .replaceAll("-", " ")
-        .replace(/\b\w/gu, (letter) => letter.toUpperCase())
-    : "";
   const contextFontFamily = selectedElementId
     ? style.fontFamily || ""
     : appearance.fontFamily;
@@ -197,16 +194,8 @@ export function GuestFormattingToolbar({
 
   return (
     <div className="guest-format-toolbar" aria-label="Resume formatting">
-      <div className="guest-docs-menu-row">
-        <strong>{selectedElementId ? selectedLabel : "Resume document"}</strong>
-        <span>
-          {selectedElementId ? "Selected text" : "Document formatting"}
-        </span>
-        <span className="guest-docs-menu-hint">
-          {selectedElementId
-            ? "Drag on canvas to reposition"
-            : "Select any text to format it"}
-        </span>
+      <div className="guest-docs-toolbar">
+        {trailingControls && <div className="guest-toolbar-zoom">{trailingControls}</div>}
         {selectedElementId && (
           <button
             type="button"
@@ -214,12 +203,9 @@ export function GuestFormattingToolbar({
             aria-label="Clear text selection"
             title="Clear selection"
           >
-            <X size={13} /> Clear
+            <X size={13} />
           </button>
         )}
-      </div>
-
-      <div className="guest-docs-toolbar">
         <PageOptionsDropdown
           appearance={appearance}
           onChange={updateAppearance}

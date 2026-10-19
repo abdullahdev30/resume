@@ -1,20 +1,20 @@
 "use client";
 
-import { ArrowLeft, Eye, FileDown, LockKeyhole, PanelLeftClose, PanelLeftOpen, Pencil, ZoomIn, ZoomOut } from "lucide-react";
+import { Eye, FileDown, FileText, List, Pencil, Plus, ZoomIn, ZoomOut } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { BrandLogo } from "@/components/common/BrandLogo";
 import { AvatarCropDialog } from "@/components/profile/AvatarCropDialog";
 import { ResumeDocument } from "@/components/templates/ResumeDocument";
 import { ResumePreview } from "@/components/templates/ResumePreview";
 import { ResumePrintRoot } from "@/components/templates/ResumePrintRoot";
 import type { TemplateItem } from "@/components/templates/catalog";
 import { Button } from "@/components/ui/Button";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { Dialog } from '@/components/ui/Dialog';
 import { validateFile } from "@/lib/validation";
 import {
   createBlankGuestResume,
+  createSampleGuestResume,
   profilePhotoShape,
   supportsProfilePhoto,
   toTemplateResumeData,
@@ -22,6 +22,9 @@ import {
 
 import { GuestResumeForm } from "./GuestResumeForm";
 import { GuestFormattingToolbar } from "./GuestFormattingToolbar";
+import { InlineResumeInput } from './InlineResumeInput';
+import { getEditableResumeText } from '../templates/editableResumeText';
+import { editGuestText } from '@/modules/guest-resume/editText';
 
 const LEAVE_MESSAGE = "Your resume is not saved. Leaving this editor will discard your information.";
 const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -47,13 +50,24 @@ interface TextDragState {
 }
 
 export function GuestResumeEditor({ template }: { template: TemplateItem }) {
-  const [resume, setResume] = useState(() => createBlankGuestResume(template));
+  const [resume, setResume] = useState(() => createSampleGuestResume(template));
+  const [editingSection,setEditingSection] = useState<string|null>(null);
+  const closeSection = useCallback(()=>setEditingSection(null),[]);
+  const outlineLabels = {summary:'Professional summary',experience:'Work experience',education:'Education',skills:'Skills',projects:'Projects',certificates:'Certifications',languages:'Languages',social_links:'Personal information'};
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [zoom, setZoom] = useState(100);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState("");
   const [printStatus, setPrintStatus] = useState<"idle" | "preparing">("idle");
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [inlineField,setInlineField]=useState<{id:string;label:string;value:string;multiline?:boolean;target:HTMLElement;source:typeof resume}|null>(null);
+  const closeInline=useCallback(()=>setInlineField(null),[]);
+  const selectDocumentText=(id:string)=>{
+    setSelectedElementId(id);
+    const field=getEditableResumeText(templateData,id);
+    const target=document.querySelector<HTMLElement>(`.guest-preview-canvas .resume-element-id--${CSS.escape(id)}`);
+    if(field&&target)setInlineField({...field,target,source:resume});
+  };
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const photoUrlRef = useRef("");
   const textDragRef = useRef<TextDragState | null>(null);
@@ -115,6 +129,7 @@ export function GuestResumeEditor({ template }: { template: TemplateItem }) {
   };
 
   const startTextDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if(!event.altKey)return;
     if (event.button !== 0) return;
     const target = (event.target as HTMLElement).closest<HTMLElement>(".resume-draggable-text");
     const page = target?.closest<HTMLElement>(".resume-page");
@@ -205,17 +220,10 @@ export function GuestResumeEditor({ template }: { template: TemplateItem }) {
       <header className="guest-editor-header no-print">
         <div className="guest-editor-brand-group">
           <Link href="/" onClick={confirmNavigation} className="public-brand" aria-label="Resume Builder home">
-            <BrandLogo className="public-brand-logo" priority />
             <span>Resume Builder</span>
           </Link>
-          <span className="guest-editor-divider" aria-hidden="true" />
-          <div className="guest-editor-title">
-            <strong>{template.name}</strong>
-            <span><LockKeyhole size={12} aria-hidden="true" /> Temporary guest session</span>
-          </div>
         </div>
         <div className="guest-editor-header-actions">
-          <ThemeToggle />
           <Button onClick={() => void printResume()} loading={printStatus === "preparing"} loadingLabel="Preparing PDF...">
             <FileDown size={16} aria-hidden="true" /> Download PDF
           </Button>
@@ -227,71 +235,29 @@ export function GuestResumeEditor({ template }: { template: TemplateItem }) {
         <button role="tab" aria-selected={mobileView === "preview"} onClick={() => setMobileView("preview")}><Eye size={15} /> Preview</button>
       </div>
 
+      <div className="guest-editor-full-toolbar no-print">
+        <GuestFormattingToolbar
+          resume={resume}
+          selectedElementId={selectedElementId}
+          onChange={updateResume}
+          onClearSelection={() => setSelectedElementId(null)}
+          onResetFormatting={resetFormatting}
+          trailingControls={<div className="guest-zoom-controls" aria-label="Preview zoom"><button type="button" onClick={() => setZoom(value => Math.max(60,value-10))} aria-label="Zoom out"><ZoomOut size={16}/></button><output aria-live="polite">{zoom}%</output><button type="button" onClick={() => setZoom(value => Math.min(130,value+10))} aria-label="Zoom in"><ZoomIn size={16}/></button></div>}
+        />
+      </div>
       <main className={`guest-editor-workspace no-print ${sidebarOpen ? "" : "is-sidebar-collapsed"}`}>
         <aside id="guest-editor-details" className={`guest-editor-form-panel ${mobileView === "edit" ? "is-mobile-active" : ""}`}>
-          <div className="guest-editor-panel-heading">
-            <div className="guest-editor-panel-heading-row">
-              <Link href="/templates" onClick={confirmNavigation} className="template-back-link"><ArrowLeft size={15} /> Templates</Link>
-              <button
-                type="button"
-                className="guest-details-close"
-                onClick={() => {
-                  setSidebarOpen(false);
-                  setMobileView("preview");
-                }}
-                title="Close details panel"
-              >
-                <PanelLeftClose size={15} /> Close details
-              </button>
-            </div>
-            <h1>Resume details</h1>
-            <p>Changes appear in the preview instantly. Nothing is uploaded or saved.</p>
-          </div>
-          <GuestResumeForm
-            resume={resume}
-            onChange={updateResume}
-            photoSupported={photoSupported}
-            onChoosePhoto={choosePhoto}
-            photoError={photoError}
-          />
+          <nav className="guest-document-outline" aria-label="Document outline">
+            <div className="guest-outline-heading"><h2>Document tabs</h2><button type="button" aria-label="Manage resume sections" onClick={()=>setEditingSection('Section order')}><Plus size={18}/></button></div>
+            <button type="button" className="guest-outline-tab" onClick={()=>document.querySelector('.guest-preview-canvas .resume-page')?.scrollIntoView({block:'nearest'})}><FileText size={18}/><span>Tab 1</span></button>
+            <ul><li><button type="button" className={!editingSection||editingSection==='Personal information'?'is-active':''} onClick={()=>setEditingSection('Personal information')}>{resume.personal.fullName || 'Your Name'}</button></li>{resume.sectionOrder.map(section=><li key={section}><button type="button" className={editingSection===outlineLabels[section]?'is-active':''} onClick={()=>setEditingSection(outlineLabels[section])}>{section==='social_links'?'Contact links':outlineLabels[section]}</button>{section==='projects'&&resume.projects.map(project=><button type="button" className="guest-outline-entry" key={project.id} onClick={()=>setEditingSection('Projects')}>{project.title || 'Project Name'}</button>)}</li>)}</ul>
+          </nav>
         </aside>
 
         <section className={`guest-editor-preview-panel ${mobileView === "preview" ? "is-mobile-active" : ""}`} aria-label="Live resume preview">
-          <div className="guest-preview-toolbar">
-            <div>
-              <strong>Live {resume.appearance.pageSize} {resume.appearance.pageOrientation} preview</strong>
-              <span>{dirty ? "Unsaved changes" : "Start adding your details"}</span>
-            </div>
-            <div className="guest-preview-toolbar-actions">
-              {!sidebarOpen && (
-                <button
-                  type="button"
-                  className="guest-sidebar-toggle"
-                  onClick={() => setSidebarOpen(true)}
-                  aria-expanded="false"
-                  aria-controls="guest-editor-details"
-                  title="Open details panel"
-                >
-                  <PanelLeftOpen size={16} />
-                  <span>Open details</span>
-                </button>
-              )}
-              <div className="guest-zoom-controls" aria-label="Preview zoom">
-                <button type="button" onClick={() => setZoom((value) => Math.max(60, value - 10))} aria-label="Zoom out"><ZoomOut size={16} /></button>
-                <output aria-live="polite">{zoom}%</output>
-                <button type="button" onClick={() => setZoom((value) => Math.min(130, value + 10))} aria-label="Zoom in"><ZoomIn size={16} /></button>
-              </div>
-            </div>
-          </div>
-          <GuestFormattingToolbar
-            resume={resume}
-            selectedElementId={selectedElementId}
-            onChange={updateResume}
-            onClearSelection={() => setSelectedElementId(null)}
-            onResetFormatting={resetFormatting}
-          />
           <div
             className="guest-preview-canvas"
+            onClickCapture={event=>{if((event.target as HTMLElement).closest('.resume-draggable-text'))event.preventDefault();}}
             onClick={() => {
               if (ignoreCanvasClickRef.current) {
                 ignoreCanvasClickRef.current = false;
@@ -304,12 +270,14 @@ export function GuestResumeEditor({ template }: { template: TemplateItem }) {
             onPointerUp={finishTextDrag}
             onPointerCancel={finishTextDrag}
           >
+            <button type="button" className="guest-canvas-details-toggle" aria-label={sidebarOpen ? 'Hide resume details' : 'Show resume details'} aria-expanded={sidebarOpen} aria-controls="guest-editor-details" title={sidebarOpen ? 'Hide resume details' : 'Show resume details'} onPointerDown={event=>event.stopPropagation()} onClick={event=>{event.stopPropagation();setSidebarOpen(!sidebarOpen);setMobileView(sidebarOpen?'preview':'edit');}}><List size={22} aria-hidden="true"/></button>
             <ResumePreview zoomPercent={zoom}>
               <ResumeDocument
                 data={templateData}
                 templateId={template.id}
                 selectedElementId={selectedElementId}
-                onSelectElement={setSelectedElementId}
+                onSelectElement={selectDocumentText}
+                onPhotoUpload={photoSupported ? choosePhoto : undefined}
                 elementStyles={templateData.elementStyles}
               />
             </ResumePreview>
@@ -319,7 +287,10 @@ export function GuestResumeEditor({ template }: { template: TemplateItem }) {
           </div>
         </section>
       </main>
+      {photoError&&<p className="guest-canvas-photo-error no-print" role="alert">{photoError}</p>}
+      {inlineField&&<InlineResumeInput key={inlineField.id} {...inlineField} onChange={value=>setResume(current=>editGuestText(current,inlineField.id,value,inlineField.source))} onClose={closeInline}/>}
 
+      <Dialog open={Boolean(editingSection)} title={editingSection || 'Resume details'} onClose={closeSection} className="guest-section-edit-dialog"><GuestResumeForm key={editingSection} activeSection={editingSection} resume={resume} onChange={updateResume} photoSupported={photoSupported} onChoosePhoto={choosePhoto} photoError={photoError}/></Dialog>
       <ResumePrintRoot data={templateData} templateId={template.id} />
       <AvatarCropDialog
         file={cropFile}

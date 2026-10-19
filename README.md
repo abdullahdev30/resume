@@ -1,4 +1,12 @@
-# Turborepo starter
+# Resume Maker
+
+All frontend code lives in [apps/frontend](apps/frontend/README.md), with one Next.js application, dependency file, and build. Run `pnpm install`, then `pnpm dev` from the repository root. Use `pnpm build` for production and `pnpm test` for browser checks after building. The free resume maker uses TipTap and Zustand with sessionStorage only; it does not use the backend.
+
+The template editor, template gallery, and other existing routes are part of this same frontend. The backend is retained separately; start it only when needed with `pnpm dev:backend`. The older `dev:legacy` command starts the unified frontend together with that backend.
+
+---
+
+# Legacy application
 
 This Turborepo starter is maintained by the Turborepo core team.
 

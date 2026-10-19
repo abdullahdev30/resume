@@ -102,9 +102,10 @@ export default function TemplateTwo({
                 </div>
                 <input
                   type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && onPhotoUpload(e.target.files[0])}
+                    accept="image/jpeg,image/png,image/webp"
+                    aria-label="Upload profile photo"
+                    className="sr-only"
+                    onChange={(e) => {const file=e.currentTarget.files?.[0];if(file)onPhotoUpload(file);e.currentTarget.value='';}}
                 />
               </>
             )}

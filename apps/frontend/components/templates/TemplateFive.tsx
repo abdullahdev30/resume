@@ -51,6 +51,7 @@ export default function TemplateFive({
     if (file && onPhotoUpload) {
       onPhotoUpload(file);
     }
+    e.currentTarget.value = '';
   };
 
   return (
@@ -119,7 +120,7 @@ export default function TemplateFive({
                   <Camera className="w-4 h-4 mr-1" />
                   <span>Change</span>
                 </div>
-                <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                <input type="file" aria-label="Upload profile photo" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFileChange} />
               </>
             )}
           </label>

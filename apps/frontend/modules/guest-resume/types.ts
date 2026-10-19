@@ -21,6 +21,7 @@ export interface GuestPersonalInfo {
 }
 
 export interface GuestExperience {
+  displayPeriod?: string;
   id: string;
   jobTitle: string;
   company: string;
@@ -32,6 +33,7 @@ export interface GuestExperience {
 }
 
 export interface GuestEducation {
+  displayPeriod?: string;
   id: string;
   degree: string;
   institution: string;
@@ -50,6 +52,7 @@ export interface GuestProject {
 }
 
 export interface GuestCertificate {
+  displayDate?: string;
   id: string;
   name: string;
   issuer: string;
@@ -63,6 +66,7 @@ export interface GuestLanguage {
 }
 
 export interface GuestResumeDocument {
+  socialLabels?: Record<string,string>;
   personal: GuestPersonalInfo;
   summary: string;
   experience: GuestExperience[];

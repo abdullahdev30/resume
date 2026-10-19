@@ -1,0 +1,502 @@
+/* Scoped to the resume maker so existing template routes keep their styles. */
+@scope (.resume-maker-app) {
+  /* A single light editor surface, independent of OS color preferences. */
+  :scope {
+    color-scheme: light only;
+  }
+  @media screen {
+    .editor-app {
+      background: #f8fafd;
+      color: #444746;
+      font-family: Arial, "Segoe UI", sans-serif;
+    }
+    .editor-header {
+      background: #f8fafd;
+      min-height: 55px;
+      padding: 12px 22px 0;
+      gap: 16px;
+      border: 0;
+    }
+    .editor-header .back-button {
+      color: white;
+      background: #4285f4;
+      border: 0;
+      border-radius: 3px;
+      padding: 5px 3px;
+      width: 36px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+    }
+    .document-title input {
+      font:
+        400 22px Arial,
+        sans-serif;
+      letter-spacing: -0.4px;
+      width: min(470px, 45vw);
+      color: #202124;
+      padding: 3px 5px;
+      border-radius: 4px;
+    }
+    .local-document-status {
+      color: #5f6368;
+      display: inline-flex;
+      margin-left: 0;
+    }
+    .editor-header .download {
+      display: flex;
+      flex-direction: row-reverse;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid #747775;
+      background: transparent;
+      color: #444746;
+      font-size: 15px;
+      font-weight: 500;
+      border-radius: 25px;
+      padding: 11px 20px;
+    }
+    .editor-header .download:hover {
+      background: #e8eef7;
+    }
+    .menu-bar {
+      background: #f8fafd;
+      border: 0;
+      padding: 0 22px 10px 76px;
+      gap: 0;
+      min-height: 34px;
+    }
+    .menu-container > button {
+      background: transparent;
+      font-size: 14px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      color: #202124;
+    }
+    .menu-container > button:hover,
+    .menu-container > button[aria-expanded="true"] {
+      background: #e8edf4;
+    }
+    .dropdown {
+      top: 28px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      padding: 7px 0;
+      box-shadow: 0 3px 8px #3c40431c;
+    }
+    .template-label {
+      font-size: 11px;
+      color: #70757a;
+    }
+    .toolbar {
+      position: relative;
+      flex-wrap: nowrap;
+      flex-shrink: 0;
+      background: #edf2fa;
+      border: 0;
+      border-radius: 26px;
+      margin: 0 16px 8px;
+      padding: 6px 16px;
+      min-height: 44px;
+      gap: 7px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+    .tool-group {
+      flex-shrink: 0;
+      border-right: 1px solid #c7c7c7;
+      padding-right: 8px;
+      gap: 3px;
+    }
+    .toolbar .tool {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #444746;
+      min-width: 29px;
+      height: 31px;
+      padding: 5px;
+      font-size: 18px;
+      border-radius: 4px;
+    }
+    .toolbar .tool:hover {
+      background: #dfe5ee;
+    }
+    .toolbar .tool.active {
+      background: #d3e3fd;
+      border-color: transparent;
+      color: #174ea6;
+    }
+    .toolbar select {
+      flex-shrink: 0;
+      font:
+        14px Arial,
+        sans-serif;
+      height: 31px;
+      max-width: 145px;
+      padding: 3px 8px;
+      border-radius: 3px;
+      color: #444746;
+    }
+    .toolbar select[aria-label="Paragraph style"] {
+      width: 135px;
+      border-right: 1px solid #c7c7c7;
+    }
+    .toolbar select[aria-label="Font family"] {
+      width: 125px;
+    }
+    .toolbar .size-control input {
+      width: 38px;
+      height: 28px;
+      border: 1px solid #747775;
+      border-radius: 4px;
+      background: transparent;
+      font:
+        14px Arial,
+        sans-serif;
+    }
+    .toolbar .size-control button {
+      min-width: 24px;
+    }
+    .toolbar .tool b {
+      font-size: 18px;
+    }
+    .toolbar .tool i,
+    .toolbar .tool u {
+      font-size: 18px;
+    }
+    .align-icon {
+      width: 18px;
+      gap: 4px;
+    }
+    .align-icon i {
+      height: 1.5px;
+      width: 18px;
+    }
+    .editor-body {
+      border-top: 1px solid #c4c7c5;
+      background: #f8fafd;
+    }
+    .section-sidebar {
+      background: #f8fafd;
+      width: 278px;
+      border: 0;
+      padding: 12px 20px 26px 28px;
+    }
+    .outline-back {
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      background: #edeff1;
+      border: 0;
+      border-radius: 50%;
+      color: #555;
+      margin: 0 0 23px;
+    }
+    .sidebar-heading {
+      padding: 0 8px 0 12px;
+      margin-bottom: 18px;
+    }
+    .sidebar-heading h2 {
+      font-size: 14px;
+      font-weight: 500;
+      color: #3c4043;
+    }
+    .sidebar-heading > button {
+      color: #444746;
+      font-size: 21px;
+    }
+    .document-tab {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #d3e3fd;
+      color: #174ea6;
+      width: 100%;
+      border: 0;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 13px 20px;
+      text-align: left;
+    }
+    .document-tab:hover {
+      background: #c2d7f6;
+    }
+    .tab-section-count {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 400;
+    }
+    .section-sidebar ol {
+      margin: 10px 0 22px 27px;
+      padding: 0 0 0 20px;
+      border-left: 2px solid #dfe4ec;
+    }
+    .section-sidebar li {
+      position: relative;
+      border: 0;
+      padding: 7px 0;
+      min-height: 36px;
+    }
+    .section-sidebar li .section-name {
+      font-size: 13px;
+      font-weight: 400;
+      color: #5f6368;
+      padding: 3px 0;
+      max-width: 100%;
+    }
+    .section-sidebar li:not(:first-child) .section-name {
+      padding-left: 12px;
+    }
+    .section-sidebar li > div {
+      position: absolute;
+      right: -6px;
+      top: 5px;
+      opacity: 0;
+      background: #f8fafd;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .section-sidebar li:hover > div,
+    .section-sidebar li:focus-within > div {
+      opacity: 1;
+    }
+    .section-sidebar li > div > button {
+      font-size: 12px;
+      padding: 1px 5px;
+      border-color: #d4dce7;
+    }
+    .section-sidebar .add-section {
+      font-size: 12px;
+      border: 0;
+      text-align: left;
+      padding-left: 19px;
+      border-radius: 20px;
+    }
+    .section-sidebar .outline-help {
+      font-size: 10px;
+      margin: 16px 16px 20px;
+    }
+    .section-sidebar .section-options {
+      margin: 0 12px;
+      border-color: #e1e5eb;
+    }
+    .workspace {
+      background: #f8fafd;
+      padding: 40px 34px 60px;
+    }
+    .paper-background {
+      border: 1px solid #c4c7c5;
+      box-shadow: none;
+    }
+    .ruler {
+      top: -28px;
+      left: 0;
+      right: 0;
+      height: 12px;
+      border-bottom: 1px solid #c4c7c5;
+      display: block;
+      font:
+        10px Arial,
+        sans-serif;
+      color: #444746;
+      overflow: hidden;
+    }
+    .ruler > span {
+      position: absolute;
+      height: 4px;
+      bottom: 0;
+      border-left: 1px solid #9aa0a6;
+      padding: 0;
+      min-width: 1px;
+    }
+    .ruler > span.inch-tick {
+      height: 12px;
+      line-height: 8px;
+      text-indent: 4px;
+      border-color: #747775;
+    }
+    .ruler > span.half-tick {
+      height: 7px;
+    }
+    .ruler-handles {
+      position: absolute;
+      top: -28px;
+      left: 0;
+      width: 100%;
+      height: 12px;
+      z-index: 5;
+    }
+    .ruler-handles input {
+      appearance: none;
+      -webkit-appearance: none;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 12px;
+      padding: 0;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      pointer-events: none;
+    }
+    .ruler-handles input::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      clip-path: polygon(0 0, 100% 0, 100% 35%, 50% 100%, 0 35%);
+      background: #4285f4;
+      pointer-events: auto;
+      cursor: ew-resize;
+    }
+    .ruler-handles input::-moz-range-thumb {
+      border: 0;
+      border-radius: 0;
+      width: 12px;
+      height: 12px;
+      background: #4285f4;
+      pointer-events: auto;
+      cursor: ew-resize;
+    }
+    .ruler-handles input:focus-visible {
+      outline: 2px solid #4285f4;
+      outline-offset: 3px;
+    }
+    .vertical-ruler {
+      position: absolute;
+      left: -24px;
+      top: 0;
+      width: 12px;
+      height: var(--paper-height);
+      border-right: 1px solid #c4c7c5;
+      color: #5f6368;
+      font:
+        10px Arial,
+        sans-serif;
+    }
+    .vertical-ruler > span {
+      position: absolute;
+      right: 0;
+      border-top: 1px solid #9aa0a6;
+      width: 4px;
+    }
+    .vertical-ruler > span.inch-tick {
+      width: 12px;
+      writing-mode: vertical-rl;
+      text-indent: 5px;
+    }
+    .privacy-note {
+      order: 5;
+      border: 0;
+      padding: 4px 16px;
+      background: #f8fafd;
+      font-size: 10px;
+      color: #68717d;
+    }
+    .editor-footer {
+      background: #f8fafd;
+      border-top: 1px solid #e7eaee;
+      padding: 4px 20px;
+      font-size: 10px;
+    }
+    .find-bar {
+      position: fixed;
+      top: 143px;
+      right: 30px;
+      z-index: 30;
+      background: white;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      padding: 10px;
+      box-shadow: 0 2px 6px #0001;
+      display: flex;
+      gap: 6px;
+    }
+    .find-bar input {
+      width: 200px;
+    }
+    .toolbar .find-bar button {
+      font-size: 12px;
+      border: 1px solid #dadce0;
+      width: auto;
+    }
+    @media (min-width: 1700px) {
+      .section-sidebar {
+        width: 310px;
+      }
+      .workspace {
+        padding-left: 42px;
+        padding-right: 42px;
+      }
+    }
+    @media (max-width: 1000px) {
+      .section-sidebar {
+        width: 228px;
+        padding-left: 16px;
+        padding-right: 12px;
+      }
+      .document-title input {
+        width: 340px;
+      }
+      .workspace {
+        padding: 40px 30px 45px;
+      }
+    }
+    @media (max-width: 760px) {
+      .editor-header {
+        padding: 10px 12px 0;
+        gap: 10px;
+      }
+      .document-title input {
+        width: clamp(130px, 39vw, 280px);
+        font-size: 17px;
+      }
+      .local-document-status {
+        display: none;
+      }
+      .editor-header .download {
+        font-size: 11px;
+        padding: 8px 12px;
+        gap: 6px;
+      }
+      .editor-header .back-button {
+        width: 28px;
+        height: 34px;
+      }
+      .menu-bar {
+        padding-left: 46px;
+        padding-bottom: 8px;
+      }
+      .toolbar {
+        margin: 0 8px 8px;
+        min-height: 42px;
+        padding: 5px 10px;
+      }
+      .section-sidebar {
+        display: none;
+      }
+      .workspace {
+        padding: 40px 28px 40px;
+      }
+      .privacy-note {
+        font-size: 9px;
+      }
+      .mobile-editor-note {
+        order: 6;
+        background: #f8fafd;
+      }
+    }
+  }
+  @media print {
+    .ruler-handles,
+    .vertical-ruler,
+    .local-document-status,
+    .find-bar {
+      display: none !important;
+    }
+  }
+}

@@ -16,7 +16,7 @@ import {
   UserRound,
   Wrench,
 } from "lucide-react";
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -38,6 +38,7 @@ const SECTION_LABELS: Record<GuestSectionKey, string> = {
   languages: "Languages",
   social_links: "Links",
 };
+const ActiveFormSection = createContext<string | null>(null);
 
 export function GuestResumeForm({
   resume,
@@ -45,12 +46,14 @@ export function GuestResumeForm({
   photoSupported,
   onChoosePhoto,
   photoError,
+  activeSection = null,
 }: {
   resume: GuestResumeDocument;
   onChange: (resume: GuestResumeDocument) => void;
   photoSupported: boolean;
   onChoosePhoto: (file: File) => void;
   photoError: string;
+  activeSection?: string | null;
 }) {
   const [newSkill, setNewSkill] = useState("");
   const updatePersonal = (field: keyof GuestResumeDocument["personal"], value: string) => {
@@ -62,7 +65,7 @@ export function GuestResumeForm({
   };
 
   return (
-    <form className="guest-resume-form" onSubmit={(event) => event.preventDefault()}>
+    <ActiveFormSection.Provider value={activeSection}><form className="guest-resume-form" onSubmit={(event) => event.preventDefault()}>
       <FormSection icon={<UserRound size={18} />} title="Personal information" defaultOpen>
         {photoSupported && (
           <div className="guest-photo-control">
@@ -296,7 +299,7 @@ export function GuestResumeForm({
           ))}
         </div>
       </FormSection>
-    </form>
+    </form></ActiveFormSection.Provider>
   );
 }
 
@@ -313,8 +316,10 @@ function FormSection({
   defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
+  const activeSection = useContext(ActiveFormSection);
+  if (activeSection && activeSection !== title) return null;
   return (
-    <details className="guest-form-section" open={defaultOpen || undefined}>
+    <details className="guest-form-section" open={Boolean(activeSection) || defaultOpen || undefined}>
       <summary>
         <span className="guest-form-section-title">{icon}{title}</span>
         {count !== undefined && <span className="guest-form-count">{count}</span>}
@@ -382,7 +387,8 @@ function EntryListEmpty({ visible, children }: { visible: boolean; children: Rea
 }
 
 function updateItem<T>(items: T[], index: number, patch: Partial<T>): T[] {
-  return items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item);
+  const dateChanged=Object.keys(patch).some(key=>['startDate','endDate','current','date'].includes(key));
+  return items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch, ...(dateChanged?{displayPeriod:undefined,displayDate:undefined}:{}) } : item);
 }
 
 function removeItem<T>(items: T[], index: number): T[] {

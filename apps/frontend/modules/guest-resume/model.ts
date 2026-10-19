@@ -64,6 +64,17 @@ export function createBlankGuestResume(template: TemplateItem): GuestResumeDocum
   };
 }
 
+export function createSampleGuestResume(template: TemplateItem): GuestResumeDocument {
+  const resume = createBlankGuestResume(template);
+  return {...resume, personal:{...resume.personal,fullName:'Your Name',professionalTitle:'Your Professional Title',email:'name@example.com',phone:'+1 (555) 123-4567',location:'Your City, Country'},
+    summary:'Write a short introduction about your experience, strengths, and career goals. Replace this sample text with the value you bring to your next role.',
+    experience:[{id:'sample-experience',jobTitle:'Job Title',company:'Company Name',location:'City, Country',startDate:'2023-01',endDate:'',current:true,description:'Describe your responsibilities and highlight a measurable achievement. Replace this example with your own experience.'}],
+    education:[{id:'sample-education',degree:'Degree or Qualification',institution:'University or School Name',location:'City, Country',startDate:'2019-09',endDate:'2023-06',description:'Add relevant coursework, honors, or achievements.'}],
+    skills:['Your first skill','Your second skill','Your third skill'],
+    projects:[{id:'sample-project',title:'Project Name',description:'Explain what you built, your contribution, and the result.',technologies:'Technology, Tool',link:''}],
+    certificates:[{id:'sample-certificate',name:'Certification Name',issuer:'Issuing Organization',date:'2024-01'}],languages:[{id:'sample-language',name:'Language',proficiency:'Proficiency'}]};
+}
+
 export function toTemplateResumeData(guest: GuestResumeDocument): ResumeData {
   const links = [
     ["Website", guest.personal.website],
@@ -99,7 +110,7 @@ export function toTemplateResumeData(guest: GuestResumeDocument): ResumeData {
         id: item.id,
         role: item.jobTitle,
         company: joinVisible([item.company, item.location]),
-        period: formatPeriod(item.startDate, item.current ? "Present" : item.endDate),
+        period: item.displayPeriod ?? formatPeriod(item.startDate, item.current ? "Present" : item.endDate),
         details: item.description,
       })),
     education: guest.education
@@ -108,7 +119,7 @@ export function toTemplateResumeData(guest: GuestResumeDocument): ResumeData {
         id: item.id,
         degree: item.degree,
         institution: joinVisible([item.institution, item.location]),
-        period: formatPeriod(item.startDate, item.endDate),
+        period: item.displayPeriod ?? formatPeriod(item.startDate, item.endDate),
         grade: item.description,
       })),
     skills: guest.skills.filter(hasText),
@@ -123,13 +134,13 @@ export function toTemplateResumeData(guest: GuestResumeDocument): ResumeData {
       })),
     certificates: guest.certificates
       .filter(hasCertificateContent)
-      .map((item) => ({ id: item.id, title: item.name, issuer: item.issuer, date: formatMonth(item.date) })),
+      .map((item) => ({ id: item.id, title: item.name, issuer: item.issuer, date: item.displayDate ?? formatMonth(item.date) })),
     languages: guest.languages
       .filter((item) => hasText(item.name))
       .map((item) => joinVisible([item.name, item.proficiency], " — ")),
     socialLinks: links
       .filter((entry) => hasText(entry[1]))
-      .map(([platform, url]) => ({ platform, url })),
+      .map(([platform, url]) => ({ platform: guest.socialLabels?.[platform] ?? platform, url })),
   };
 }
 
