@@ -1,7 +1,4 @@
-import { RegisterForm } from "../../../modules/auth";
-import { getSessionUser } from "../../../modules/auth/server";
-
-export default async function RegisterPage() {
-  const sessionUser = await getSessionUser();
-  return <RegisterForm isGuestUpgrade={Boolean(sessionUser?.is_guest)} />;
+import { RegisterForm } from "@/modules/auth/components/RegisterForm";
+export default function RegisterPage() {
+  return <RegisterForm />;
 }

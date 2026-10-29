@@ -1,2 +1,4 @@
-import ResumeMaker from '@/features/resume-maker/ResumeMaker';
-export default function BuilderEditorPage(){return <ResumeMaker screen="editor"/>;}
+import { FreeResumeEditor } from "@/modules/resume/components/FreeResumeEditor";
+export default function BuilderEditorPage() {
+  return <FreeResumeEditor />;
+}

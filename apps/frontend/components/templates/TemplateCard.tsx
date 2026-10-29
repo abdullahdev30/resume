@@ -1,199 +1,40 @@
 "use client";
-
-import { ArrowRight, Eye, Printer } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-
-import { toast } from "@/components/feedback/Toast";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Tooltip } from "@/components/ui/Tooltip";
-import { ApiClientError } from "@/lib/api-client";
-import { authApi } from "@/modules/auth/api";
-import type { User } from "@/modules/auth/types";
-import { profileApi } from "@/modules/profile/api";
-import type { ProfileResponse } from "@/modules/profile/types";
-import { resumeApi } from "@/modules/resume/api";
-import { profileToResumeData, withProfileAvatarSnapshot } from "@/modules/resume/profileSnapshot";
-import type { ResumeData } from "./TemplateOne";
 import { ResumeTemplateRenderer } from "./ResumeTemplateRenderer";
 import type { TemplateItem } from "./catalog";
-
-export type { TemplateItem } from "./catalog";
-
-export const blankResumeData: ResumeData = {
-  fullName: "",
-  jobTitle: "",
-  email: "",
-  phone: "",
-  location: "",
-  summary: "",
-  primaryColor: "#0E7C7B",
-  fontFamily: "Inter, sans-serif",
-  skills: [],
-  languages: [],
-  experience: [],
-  education: [],
-  socialLinks: [],
-  projects: [],
-  certificates: [],
-  pageSize: "A4",
-  pageMargin: 10,
-  lineSpacing: 1.15,
-  elementStyles: {},
-};
-
+export function renderTemplate(item: TemplateItem) {
+  return <ResumeTemplateRenderer templateId={item.id} data={item.data} />;
+}
 export function TemplateCard({
   item,
   onPreview,
-  profile,
-  sessionUser,
+  onSelect,
 }: {
   item: TemplateItem;
   onPreview: (item: TemplateItem) => void;
-  profile?: ProfileResponse | null;
-  sessionUser: User | null;
+  onSelect: (item: TemplateItem) => void;
 }) {
-  const router = useRouter();
-  const isRegistered = Boolean(sessionUser && !sessionUser.is_guest);
-  const [creating, setCreating] = useState(false);
-
-  const handleUseTemplate = async () => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const resume = await createTemplateResumeFromItem(item, sessionUser, profile);
-      toast.success(
-        isRegistered
-          ? "A new independent resume was created from this template."
-          : "Your resume is saved to a temporary private guest workspace.",
-        "Resume created",
-      );
-      const guestParam = isRegistered ? "" : "&guest=1";
-      router.push(`/editor/${resume.template_id || item.id}?resumeId=${resume.id}${guestParam}`);
-    } catch (caught) {
-      const message = caught instanceof Error
-        ? caught.message
-        : "We could not create the resume. Check your profile connection and try again.";
-      toast.error(message, "Creation failed");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handlePrintSample = () => {
-    const printWindow = window.open(`/editor/${item.id}?sample=1`, "_blank", "noopener,noreferrer");
-    if (!printWindow) {
-      toast.warning("Allow pop-ups to print this template sample.");
-      return;
-    }
-    window.setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 900);
-  };
-
   return (
-    <Card padding="none" interactive className="group flex h-full flex-col overflow-hidden">
+    <article className="resume-workspace-template-card">
       <button
-        type="button"
+        className="resume-workspace-template-sheet"
         onClick={() => onPreview(item)}
-        className="template-card-preview relative aspect-[210/297] w-full overflow-hidden border-0 border-b border-[var(--border)] bg-white"
         aria-label={`Preview ${item.name}`}
       >
-        <div className="template-card-preview-sheet pointer-events-none min-h-[297mm] w-[210mm] bg-white shadow-sm">
+        <div className="resume-workspace-template-scale" aria-hidden="true">
           {renderTemplate(item)}
         </div>
-        <span className="absolute left-3 top-3"><Badge variant="primary">{item.tag}</Badge></span>
-        <span className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          <Eye size={16} aria-hidden="true" />
-        </span>
       </button>
-
-      <div className="flex flex-1 flex-col p-4">
-        <div className="flex items-center justify-between gap-3">
-          <Badge variant="neutral">{item.category}</Badge>
-          {item.updatedAt && <span className="text-[11px] text-[var(--text-muted)]">{item.updatedAt}</span>}
-        </div>
-        <h2 className="mt-3 text-base font-bold text-[var(--text)]">{item.name}</h2>
-        <p className="mt-2 line-clamp-3 text-xs leading-5 text-[var(--text-muted)]">{item.description}</p>
-
-        <div className="mt-auto flex items-center justify-between gap-2 border-t border-[var(--border)] pt-4">
-          <Tooltip label="Print template sample">
-            <Button variant="ghost" size="sm" iconOnly onClick={handlePrintSample} aria-label={`Print ${item.name} sample`}>
-              <Printer size={16} aria-hidden="true" />
-            </Button>
-          </Tooltip>
-          <Button
-            size="sm"
-            onClick={() => void handleUseTemplate()}
-            loading={creating}
-            loadingLabel="Creating..."
-          >
-            Use template
-            {!creating && <ArrowRight size={15} aria-hidden="true" />}
+      <div className="resume-workspace-template-copy">
+        <h2>{item.name}</h2>
+        <p>{item.description}</p>
+        <div className="resume-workspace-template-actions">
+          <Button variant="secondary" onClick={() => onPreview(item)}>
+            Preview
           </Button>
+          <Button onClick={() => onSelect(item)}>Use this template</Button>
         </div>
       </div>
-    </Card>
+    </article>
   );
-}
-
-export async function createTemplateResumeFromItem(
-  item: TemplateItem,
-  sessionUser: User | null,
-  profile?: ProfileResponse | null,
-) {
-  const isRegistered = Boolean(sessionUser && !sessionUser.is_guest);
-  if (!sessionUser) await authApi.createGuest();
-
-  if (!isRegistered) {
-    return resumeApi.createTemplate(buildTemplateResumePayload(item, null));
-  }
-
-  let resolvedProfile = profile;
-  if (resolvedProfile === undefined || resolvedProfile === null) {
-    try {
-      resolvedProfile = await profileApi.getProfile();
-    } catch (error) {
-      if (!(error instanceof ApiClientError) || error.status !== 404) throw error;
-      resolvedProfile = null;
-    }
-  }
-  if (resolvedProfile?.personal.avatar_url) {
-    resolvedProfile = await withProfileAvatarSnapshot(resolvedProfile);
-  }
-  return resumeApi.createTemplate(buildTemplateResumePayload(item, resolvedProfile));
-}
-
-export function buildTemplateResumePayload(
-  item: TemplateItem,
-  profile?: ProfileResponse | null,
-) {
-  const profileData = profile
-    ? profileToResumeData(profile)
-    : blankResumeData;
-  const resumeData: ResumeData = {
-    ...blankResumeData,
-    ...profileData,
-    primaryColor: item.data.primaryColor || blankResumeData.primaryColor,
-    secondaryColor: item.data.secondaryColor || blankResumeData.secondaryColor,
-    fontFamily: item.data.fontFamily || blankResumeData.fontFamily,
-    fontScale: item.data.fontScale || blankResumeData.fontScale,
-    pageSize: item.data.pageSize || blankResumeData.pageSize,
-    pageMargin: item.data.pageMargin ?? blankResumeData.pageMargin,
-    lineSpacing: item.data.lineSpacing ?? blankResumeData.lineSpacing,
-    sectionOrder: item.data.sectionOrder || blankResumeData.sectionOrder,
-  };
-
-  return {
-    title: item.name,
-    template_id: item.id,
-    resume_data: resumeData,
-  };
-}
-
-export function renderTemplate(item: TemplateItem) {
-  return <ResumeTemplateRenderer templateId={item.id} data={item.data} />;
 }

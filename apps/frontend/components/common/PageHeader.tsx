@@ -16,7 +16,12 @@ export function PageHeader({
   return (
     <header className="page-header">
       <div className="page-header-copy">
-        {eyebrow && <div className="page-eyebrow">{icon}{eyebrow}</div>}
+        {eyebrow && (
+          <div className="page-eyebrow">
+            {icon}
+            {eyebrow}
+          </div>
+        )}
         <h1>{title}</h1>
         {description && <p>{description}</p>}
       </div>

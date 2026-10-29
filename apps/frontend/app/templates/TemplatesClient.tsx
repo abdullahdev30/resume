@@ -1,163 +1,119 @@
 "use client";
-
-import { Check, LayoutTemplate, Search, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-
-import { EmptyState } from "@/components/common/EmptyState";
-import { PageHeader } from "@/components/common/PageHeader";
-import { Alert } from "@/components/feedback/Alert";
-import { toast } from "@/components/feedback/Toast";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import {
+  templateCatalog,
+  type TemplateItem,
+} from "@/components/templates/catalog";
+import {
+  TemplateCard,
+  renderTemplate,
+} from "@/components/templates/TemplateCard";
 import { Dialog } from "@/components/ui/Dialog";
-import { Input } from "@/components/ui/Input";
-import { Tabs } from "@/components/ui/Tabs";
-import { createTemplateResumeFromItem, renderTemplate, TemplateCard } from "@/components/templates/TemplateCard";
-import { templateCatalog, type TemplateItem } from "@/components/templates/catalog";
-import type { User } from "@/modules/auth/types";
-import type { ProfileResponse } from "@/modules/profile/types";
-
-type Category = "All" | TemplateItem["category"];
-const categories: Category[] = ["All", "Modern", "Creative", "Minimalist", "Executive"];
-
+import { Button } from "@/components/ui/Button";
+import { useFreeResume } from "@/modules/resume/store";
 export default function TemplatesClient({
-  profile,
-  sessionUser,
+  onSelect,
 }: {
-  profile: ProfileResponse | null;
-  sessionUser: User | null;
+  onSelect?: (template: TemplateItem) => void;
 }) {
   const router = useRouter();
-  const isRegistered = Boolean(sessionUser && !sessionUser.is_guest);
-  const [selectedCategory, setSelectedCategory] = useState<Category>("All");
-  const [searchQuery, setSearchQuery] = useState("");
   const [preview, setPreview] = useState<TemplateItem | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState("");
-
-  const filteredTemplates = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    return templateCatalog
-      .filter((template) => {
-        const categoryMatches = selectedCategory === "All" || template.category === selectedCategory;
-        const queryMatches = !query || `${template.name} ${template.description} ${template.category}`.toLowerCase().includes(query);
-        return categoryMatches && queryMatches;
-      });
-  }, [searchQuery, selectedCategory]);
-
-  const useTemplate = async (item: TemplateItem) => {
-    if (creating) return;
-    setCreating(true);
-    setError("");
-    try {
-      const resume = await createTemplateResumeFromItem(item, sessionUser, profile);
-      toast.success(
-        isRegistered
-          ? "A new independent resume was created from this template."
-          : "Your resume is saved to a temporary private guest workspace.",
-        "Resume created",
-      );
-      const guestParam = isRegistered ? "" : "&guest=1";
-      router.push(`/editor/${resume.template_id || item.id}?resumeId=${resume.id}${guestParam}`);
-    } catch (caught) {
-      const message = caught instanceof Error
-        ? caught.message
-        : "We could not create the resume. Check your connection and try again.";
-      setError(message);
-      toast.error(message, "Creation failed");
-    } finally {
-      setCreating(false);
+  const [filter, setFilter] = useState("All");
+  const [search, setSearch] = useState("");
+  const exists = useFreeResume((state) => state.exists);
+  const title = useFreeResume((state) => state.title);
+  const templateId = useFreeResume((state) => state.templateId);
+  useEffect(() => {
+    if (!onSelect) void useFreeResume.persist.rehydrate();
+  }, [onSelect]);
+  const select = (item: TemplateItem) => {
+    if (onSelect) {
+      onSelect(item);
+      return;
     }
+    useFreeResume.getState().start(item.id);
+    router.push(`/editor/${item.id}`);
   };
-
+  const categories = [
+    "All",
+    ...new Set(templateCatalog.map((item) => item.category)),
+  ];
   return (
     <div className="page-stack">
-      <Card padding="lg">
-        <PageHeader
-          eyebrow="Template gallery"
-          icon={<Sparkles size={15} aria-hidden="true" />}
-          title="Choose a professional starting point"
-          description={isRegistered
-            ? "Preview each complete sample layout, then create a resume prefilled from your saved profile."
-            : "Preview a complete sample, then create a blank resume saved to a private temporary guest workspace."}
-        />
-        <div className="mt-6 grid gap-5 border-t border-[var(--border)] pt-5">
-          <div className="max-w-md">
-            <Input
-              label="Search templates"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search by style or use case"
-              leading={<Search size={16} aria-hidden="true" />}
-            />
-          </div>
-          <Tabs
-            ariaLabel="Template categories"
-            items={categories.map((category) => ({ id: category, label: category }))}
-            value={selectedCategory}
-            onChange={setSelectedCategory}
-          />
-        </div>
-      </Card>
-
-      {error && <Alert variant="error">{error}</Alert>}
-
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-sm font-bold text-[var(--text)]">Available templates</h2>
-        <span className="text-xs text-[var(--text-muted)]" aria-live="polite">
-          {filteredTemplates.length} {filteredTemplates.length === 1 ? "template" : "templates"}
-        </span>
-      </div>
-
-      {filteredTemplates.length === 0 ? (
-        <EmptyState
-          title="No templates match"
-          description="Try a different search or browse every category."
-          icon={<LayoutTemplate size={22} aria-hidden="true" />}
-          action={<Button variant="secondary" onClick={() => { setSearchQuery(""); setSelectedCategory("All"); }}>Clear filters</Button>}
-        />
-      ) : (
-        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3" aria-label="Resume templates">
-          {filteredTemplates.map((template) => (
-            <TemplateCard
-              key={template.id}
-              item={template}
-              onPreview={setPreview}
-              profile={profile}
-              sessionUser={sessionUser}
-            />
-          ))}
+      {!onSelect && exists && (
+        <section className="rounded border border-[var(--border)] bg-white p-4">
+          <h2>Continue editing</h2>
+          <p>{title}</p>
+          <Button onClick={() => router.push(`/editor/${templateId}`)}>
+            Continue
+          </Button>
         </section>
       )}
-
+      <header>
+        <h1>Create your resume</h1>
+        <p>
+          Choose a template to get started. You can customize everything in the
+          editor.
+        </p>
+      </header>
+      <label>
+        Search templates
+        <input
+          className="field-control max-w-md"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </label>
+      <div role="tablist" aria-label="Template categories">
+        {categories.map((category) => (
+          <button
+            className="button button-secondary"
+            role="tab"
+            aria-selected={filter === category}
+            key={category}
+            onClick={() => setFilter(category)}
+          >
+            {category}
+          </button>
+        ))}
+      </div>
+      <section className="template-gallery-grid" aria-label="Resume templates">
+        <article className="resume-workspace-template-card p-5">
+          <h2>Blank resume</h2>
+          <p>Start with a clean page.</p>
+          <Button onClick={() => select(templateCatalog[0]!)}>
+            Start blank resume
+          </Button>
+        </article>
+        {templateCatalog
+          .filter(
+            (item) =>
+              (filter === "All" || item.category === filter) &&
+              `${item.name} ${item.description}`
+                .toLowerCase()
+                .includes(search.toLowerCase()),
+          )
+          .map((item) => (
+            <TemplateCard
+              key={item.id}
+              item={item}
+              onSelect={select}
+              onPreview={setPreview}
+            />
+          ))}
+      </section>
       <Dialog
         open={Boolean(preview)}
-        title={preview?.name}
-        description={preview?.description}
-        onClose={() => !creating && setPreview(null)}
-        preventClose={creating}
-        className="dialog-wide"
+        title={preview?.name || "Template preview"}
+        onClose={() => setPreview(null)}
+        className="max-w-4xl"
       >
+        <div className="overflow-auto">
+          {preview && renderTemplate(preview)}
+        </div>
         {preview && (
-          <>
-            <div className="max-h-[65vh] overflow-auto rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4 sm:p-6">
-              <div className="mx-auto w-full max-w-[210mm] overflow-hidden rounded-md bg-white shadow-xl">
-                {renderTemplate(preview)}
-              </div>
-            </div>
-            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button variant="secondary" onClick={() => setPreview(null)} disabled={creating}>Close preview</Button>
-              <Button
-                onClick={() => void useTemplate(preview)}
-                loading={creating}
-                loadingLabel="Creating resume..."
-              >
-                <Check size={16} aria-hidden="true" />
-                Use this template
-              </Button>
-            </div>
-          </>
+          <Button onClick={() => select(preview)}>Use this template</Button>
         )}
       </Dialog>
     </div>

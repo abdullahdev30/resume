@@ -1,0 +1,343 @@
+# How Resume Maker works
+
+This file explains the implemented code, including frontend creation, AI/design choices, frontend-to-backend requests, database storage, PDF storage and downloads. Paths are relative to the repository root. It describes the current consolidated implementation, rather than the removed guest/duplicate-editor architecture.
+
+## 1. The three creation options
+
+| Option | Where to start | Source of facts | Editable storage | PDF export |
+| --- | --- | --- | --- | --- |
+| Free template/blank | `/templates`, then `/editor/1` through `/editor/10` | User types everything | Browser tab sessionStorage only | Browser print dialog -> Save as PDF |
+| Account template | `/resumes/create/template` | Manual entry OR a copied persona | PostgreSQL owned resume row | Server WeasyPrint -> private Supabase object -> signed download URL |
+| Account AI | `/resumes/create/ai` | Selected owned persona, guided by instructions | Unsaved proposal first; accepted resume then uses the same PostgreSQL storage | Same server PDF path after Save |
+
+There is one Next.js frontend, a FastAPI backend, PostgreSQL, Supabase Auth and private Supabase Storage using its S3-compatible API. **Firestore/Firebase is not used.** Supabase Auth handles identities; PostgreSQL stores application records; object storage holds binary files. These are different responsibilities.
+
+The public gallery never creates an anonymous account or backend resume. Account features require a registered authenticated user. Existing marketing pages remain at `/` and `/about`; `/builder` redirects to the free gallery. A resume ID in `/editor/{templateId}?resumeId={id}` opens an owned account resume instead of the free draft.
+
+## 2. One editor, data shape and template system
+
+All three workflows use `modules/resume/components/ResumeEditor.tsx`, `ResumeForm.tsx`, `ResumeFormattingToolbar.tsx` and `InlineResumeInput.tsx`. The wrappers differ only in how data is acquired, persisted and exported:
+
+- `FreeResumeEditor.tsx` supplies the browser-only store and local print action.
+- `AccountTemplatePicker.tsx` supplies a new manual or persona snapshot.
+- `CreateAIResumeClient.tsx` supplies an AI proposal.
+- `AccountResumeEditor.tsx` loads saved records; its `EditorDocument` also handles new account drafts.
+
+The canonical TypeScript `ResumeData` is defined in `components/templates/TemplateOne.tsx`. `EditorResumeData` adds required normalized defaults; it is not another document format. `editorDocument.ts` initializes blank data and normalizes missing optional fields. Backend Pydantic `ResumeData` validates the same transport shape in `app/modules/resume/schemas.py`.
+
+Resume content includes fullName, jobTitle, email, phone, location, summary, avatarUrl, experience, education, skills, projects, certificates, languages and socialLinks. Each entry can preserve its own ID and fields. Design is stored beside the content: template ID, primary/secondary/page colors, font family and scale, per-element styles, page size/orientation, custom dimensions, margins, line spacing, section order and hidden sections. Removing a section hides it without destroying its content; adding it again restores it.
+
+`components/templates/catalog.ts` describes the ten supported designs. `ResumeTemplateRenderer.tsx` selects a design; `ResumeDocument.tsx` applies `pagination.ts` and renders each page using that design. `ResumePage.tsx` supplies dimensions and margins. The same components power gallery previews, editor preview, free print and saved HTML. The selected template stays fixed for that resume; the editor has no template switcher. AI edits also keep that template. Section ordering respects each template's column structure.
+
+There is no separate TipTap/ProseMirror builder or guest data adapter. The neutral editor operates directly on the same structured data rendered by the templates.
+
+## 3. Free resume: complete process
+
+1. Visit `/templates`. Choose Blank resume or Use this template. Preview opens a read-only preview first. Continue editing appears if the current tab has a draft.
+2. The store starts blank canonical content with the selected template's design defaults. The editor route opens without a backend resume ID.
+3. Type in the outline/form or select editable text on the canvas. Adjust template, font, per-element formatting, spacing, page size, orientation, colors, margins and zoom. Photo selection/cropping happens locally.
+4. React/Zustand updates memory immediately. A storage adapter debounces sessionStorage writes by about 500 ms. Pagehide/visibility changes flush pending writes.
+5. Refresh rehydrates the same document and settings, showing a loading state until restoration finishes. Invalid/outdated saved data is discarded safely. Storage failures keep editing in memory and show a small warning.
+6. Download PDF prepares fonts/images and calls `window.print()`. Choose Save as PDF in the browser dialog. Print CSS excludes app controls and supplies the document's page dimensions. Resume text remains native/selectable.
+7. Clear data asks for confirmation and clears the tab draft. Closing the tab normally ends retention; browser session-restoration behavior is controlled by the browser. Session storage is not an account backup.
+
+Storage key: `resume-maker-session`; Zustand schema version: `2`. Persisted fields are `exists`, title, templateId, canonical data and zoom. The data includes page setup, typography and section order. Transient loading states, menus and warnings are not persisted. There is no free-resume localStorage, IndexedDB, cookie, account, database row or uploaded PDF. Free printing does not call the resume API.
+
+`downloadResumePdf.ts` sanitizes the suggested document filename, waits for fonts and images, and restores the original browser title after printing. Browser print settings such as paper selection, backgrounds, headers/footers and output location remain under browser/user control. This path opens a print dialog; it does not silently download a server PDF.
+
+## 4. Account template: template first, persona or manual second
+
+1. Sign in and open `/resumes/create/template`.
+2. Choose one of the existing templates. Only then does the dialog ask how to populate it.
+3. Enter information manually creates a blank in-memory canonical document. Use existing persona fetches the selected owned persona and copies its facts. A photo is copied as an embedded snapshot, not an expiring signed URL.
+4. `profileSnapshot.ts` maps persona fields into canonical resume fields. Template colors/fonts remain the chosen design defaults.
+5. The shared editor opens with an unsaved draft. There is no resume row or intermediate PDF yet.
+6. Review/change all content and design. Click Save to accept the document and create an owned account resume.
+7. After the first save, subsequent changes automatically save the latest source after about 1.6 seconds. Save is also available explicitly. Account drafts/unsaved changes have navigation protection; free drafts rely on refresh-safe session storage.
+
+A resume is an independent snapshot. Later persona changes or deletion do not rewrite it; editing a resume does not update its persona. Account profile/settings are also separate from persona data.
+
+## 5. AI resume: OpenAI content and design generation
+
+1. Sign in, create/select a persona and open `/resumes/create/ai`.
+2. Choose the persona, a resume title and an instruction. Optional inputs are a target job description, public reference links and selected persona sections.
+3. Frontend sends `POST /api/v1/resumes/ai` with `persona_id`, prompt, optional guidance and selected sections. It does not send an AI API key.
+4. Backend authenticates the user, fetches that user's persona, filters the chosen sections and constructs the model input. Reference fetching rejects unsafe/private destinations and limits what it reads.
+5. Default provider is OpenAI, model `gpt-5-mini`, endpoint `https://api.openai.com/v1/responses`. The key comes from backend-only `OPENAI_API_KEY` (generic `AI_API_KEY` remains a compatibility alias). The request uses structured JSON schema output and `store: false`.
+6. The model returns separate content and design in `AIResumeDocument`. It must choose an existing template ID 1-10 and supported design settings; it does not invent an HTML template or execute code. Backend validates the result with Pydantic and retries once if output fails schema validation.
+7. Instructions constrain personal/career facts to the persona or existing resume. Prompts, job descriptions and references guide wording/design and are not proof of candidate history. This is a model instruction, not a guarantee of factual correctness: the user must review the proposal.
+8. Backend returns `ResumeAIEditProposal` containing template_id and resume_data. This endpoint does not create a resume row or generate a PDF.
+9. The shared editor displays the proposal. User changes are allowed before acceptance. Save sends the accepted data and styled HTML to the same `/resumes/template` endpoint, marked `resume_type: "ai"`. Storage/render/download behavior is then identical to a template resume.
+
+An existing account resume has an AI prompt bar. `POST /resumes/{id}/ai-edit` generates a proposal without changing the record. Apply proposal explicitly changes the draft; autosave commits it. A revision guard rejects proposals generated against older edits; Undo can restore the pre-application document. Failed prompts remain available for retry.
+
+Only authenticated AI workflows send selected persona/resume data to the configured model provider. `store:false` disables Responses API response storage; it does not assert that every form of provider-side retention is disabled. No AI key or provider request is exposed in the browser. Error logs avoid provider bodies and candidate data.
+
+## 6. Frontend -> backend -> database: exact save path
+
+```text
+Shared editor canonical content + template/design
+  -> templateHtml(data, templateId)
+  -> ResumeDocument rendered offscreen using the same template
+  -> serializeResumeHtml resolves computed CSS and embeds fonts/icons
+  -> frontend apiClient -> same-origin /api/v1/resumes/template
+  -> Next.js API proxy -> FastAPI authentication + Pydantic validation
+  -> ResumeService -> owned PostgreSQL source row
+  -> WeasyPrint worker -> PDF bytes -> private S3-compatible object
+  -> database PDF metadata/version updated
+  -> response -> editor retains resume ID/source_version
+```
+
+Typical first-save JSON (abbreviated):
+
+```json
+{
+  "title": "Alex Resume",
+  "template_id": "2",
+  "resume_type": "template",
+  "resume_data": {
+    "fullName": "Alex Morgan",
+    "jobTitle": "Software Engineer",
+    "email": "alex@example.com",
+    "phone": "",
+    "location": "",
+    "summary": "Reviewed professional summary.",
+    "experience": [],
+    "education": [],
+    "skills": ["Python"],
+    "languages": [],
+    "pageSize": "A4",
+    "pageOrientation": "portrait",
+    "pageMargin": 10,
+    "fontFamily": "Roboto, sans-serif"
+  },
+  "html_content": "<style>embedded fonts...</style><div class=...>resolved resume...</div>"
+}
+```
+
+Both AI and template saves use this contract. Template creation requires the rendered HTML; structured data alone is not silently converted into a plain fallback PDF. The real body includes all canonical fields, not just this example. Backend source-size/schema limits apply.
+
+Subsequent saves use `PUT /resumes/{id}` with the latest `source_version`. Backend rejects stale versions (409) rather than silently overwriting another edit. Autosave stores JSON, styled HTML and design, increments source_version, and leaves the old PDF stale until required. The server checks ownership independently of anything the client claims.
+
+Source is committed before initial PDF preparation. If the PDF runtime/storage fails, the document remains saved with `pdf_ready: false` and a friendly `pdf_error`; Download PDF retries the derivative. If the database insert fails, no PDF is uploaded. Editor data remains available for retry.
+
+## 7. What is stored where
+
+PostgreSQL table `resumes` (`app/modules/resume/models.py`):
+
+| Field | Purpose |
+| --- | --- |
+| id, user_id | Resume identity and authenticated owner |
+| title, resume_type, is_ai_generated | Display metadata and origin |
+| template_id, template_version | Chosen shared design and its revision |
+| data | Editable canonical JSON including design settings |
+| html_content | Sanitized, self-contained styled source for faithful PDF regeneration |
+| source_version | Optimistic concurrency/version of editable source |
+| storage_path, file_name, mime_type, file_size | Private PDF object metadata; no public bucket URL |
+| pdf_source_version | Which committed source produced the current PDF |
+| pdf_html | Optional cached extraction for older uploaded PDFs |
+| created_at, updated_at | Timestamps |
+
+PDF objects use versioned keys resembling `{user_id}/resumes/{resume_id}/v{source_version}-{random}.pdf`. Supabase Storage is private. New derivatives use unique keys; a compare-and-swap update checks owner, source version and previous path before changing the database reference. A concurrent losing render removes its own object. Successful replacement removes the previous derivative. Deleting an owned resume removes its row and PDF; failed delete cleanup can be recorded in `resume_storage_cleanup` for later repair.
+
+Personas have their own PostgreSQL records and private avatar/certificate objects. Auth identities remain in Supabase Auth. Browser cookies contain HttpOnly authentication tokens for account workflows, not resume content.
+
+## 8. How the PDF keeps the frontend design
+
+Sending plain text, or sending Tailwind class names without the stylesheet, loses the design. There were also concrete serializer/sanitizer problems. Browser CSSOM combined properties into `flex-flow`, `grid-area` and `inset`, but the allowlist dropped those shorthands, losing column direction and placement. Missing overflow capture lost photo clipping. Another problem: HTML entity quotes such as `&quot;Times New Roman&quot;` reached the CSS parser undecoded and swallowed later declarations, breaking fonts and layout.
+
+The current pipeline captures computed typography/layout rather than depending on remote frontend CSS. It converts modern browser color syntax to printable RGB, preserves page sizes, colors, spacing, borders, columns and transformations, embeds self-hosted Roboto/Lora WOFF2 font faces, and rasterizes SVG icons locally to PNG while keeping text native. Font URLs are resolved against the stylesheet URL, not the page route. CSS-only bullets are real text elements in the canonical templates. Template Four contact symbols use locally rasterized Lucide icons instead of relying on an installed emoji font.
+
+Backend `ResolvedCSSSanitizer` decodes HTML entities before sanitizing allowed CSS, including the required layout shorthands and overflow. Single-line browser headings remain single-line despite small server font-metric differences. It removes unsafe elements/attributes and wraps the fragment in a document with exact `@page` dimensions. `pdf_renderer.py` runs a bounded `pdf_worker.py` subprocess. WeasyPrint renders; PyMuPDF optimizes/checks the result. The worker accepts embedded raster images and validated WOFF2 fonts only, and does not fetch arbitrary network or local-file URLs. It limits page count to 50 and applies time/resource bounds.
+
+Supported presets: A4, A3, A5, B5, Letter, Legal, Tabloid and Executive, portrait/landscape, plus custom dimensions and individual margins. The browser and WeasyPrint are different layout engines; automated structural checks and visual inspection are both needed, especially for long content and complex columns. Long content is not intentionally clipped to a fixed page height.
+
+## 9. How account PDF download reaches the frontend
+
+1. User clicks Download PDF in the shared account editor. It awaits in-flight saves and commits the latest revision first. If editing changes during this synchronization, it requests another attempt instead of downloading stale content.
+2. `downloadStoredPdf.ts` calls `GET /api/v1/resumes/{id}/pdf` through the same-origin proxy.
+3. Backend verifies the owner. If no derivative exists or pdf_source_version differs from source_version, `ensure_pdf` renders the latest committed HTML, uploads a unique private object and updates metadata safely.
+4. Backend returns a short-lived signed `download_url` with PDF metadata. Default expiry is 300 seconds.
+5. Frontend creates/clicks an anchor to that URL. Storage sends PDF bytes with Content-Disposition; the browser saves the file. The frontend does not regenerate an account PDF or store its content in sessionStorage.
+
+If a signed link expires, click Download again for a fresh URL. Missing native PDF libraries, unavailable storage, stale source versions and failed saves have explicit errors/retry paths. Existing saved records missing styled HTML must be opened and saved in the editor before a new faithful derivative can be made.
+
+## 10. Important API map
+
+All paths below are under `/api/v1`, and account resume/persona endpoints require authentication.
+
+| Method/path | Purpose |
+| --- | --- |
+| GET /personas, GET /personas/{id} | List/read owned persona sources |
+| POST /resumes/ai | Unsaved validated AI content/design proposal |
+| POST /resumes/template | Accept/save template or AI source; attempt first PDF |
+| GET /resumes | Owned resume metadata list |
+| GET /resumes/{id} | Owned source and metadata for editing |
+| PUT /resumes/{id} | Version-checked source update/autosave |
+| POST /resumes/{id}/ai-edit | Unsaved edit proposal for existing source |
+| GET /resumes/{id}/pdf | Prepare latest derivative and issue signed download |
+| GET /resumes/{id}/html | Sanitized source or requested legacy PDF extraction |
+| DELETE /resumes/{id} | Delete owned resume and associated PDF |
+
+Legacy PDF upload/replacement/extraction and editable-copy APIs remain for previously uploaded records; they are compatibility capabilities, not a fourth promoted creation workflow. Editable-copy generation returns a reviewable proposal and preserves the original PDF.
+
+## 11. Anonymous workspace retirement and migration safety
+
+Anonymous registration, guest resume limits/expiry, upgrade prompts, guest repository/service/routes and automatic guest cleanup jobs have been removed from active code. Anonymous Supabase sessions are rejected. Public gallery/free editing does not create a server workspace.
+
+Keep historical migrations intact. Migration `014_retire_anonymous_workspaces.sql` conditionally renames `guest_accounts` to `retired_anonymous_workspaces` and adds `resumes.template_version` if missing. It does not delete auth identities, owned resumes, historical anonymous resumes, personas or PDF objects. Historical ownership/storage needs an operator audit before any separately approved cleanup. Re-running the migration is safe. Earlier persona/PDF migrations retain compatibility with existing source and uploaded files.
+
+## 12. Source folder guide and cleanup
+
+- `apps/frontend/app/`: Next.js routes and API proxy.
+- `apps/frontend/modules/resume/`: canonical editor helpers, free store, account/AI lifecycle, serializer and downloads.
+- `apps/frontend/components/templates/`: ten common designs, page sizing, pagination, preview/print.
+- `apps/frontend/modules/persona/`, `modules/auth/`: retained owned personas and real authentication.
+- `apps/backend/app/modules/resume/`: validation, service, repository, model and bounded PDF rendering.
+- `apps/backend/app/modules/persona/`, `modules/auth/`: owned sources and real authentication.
+- `apps/backend/app/database/migrations/`: ordered historical and new safe migrations.
+- `packages/eslint-config`, `packages/typescript-config`: retained shared tooling.
+
+Removed duplicate/dead areas: `features/resume-maker/`, `components/guest-editor/`, `modules/guest-resume/`, the standalone SavedResumeEditor and its account document adapter, backend guest cleanup/repository/constants, unused starter `packages/ui`, unused demo SVG assets, unreachable layout/UI/hooks/domain API barrels and old generated scratch files. Removed dependencies include all seven @tiptap packages (core, pm, extension-highlight, extension-text-align, extension-text-style, react, starter-kit), @repo/ui, @fontsource/lato, @fontsource/merriweather, @fontsource/open-sans, @fontsource/source-sans-3, duplicate root TypeScript, eslint-plugin-only-warn and unused @babel/preset-typescript; shared editor fonts remain. The stale npm package-lock was removed; pnpm-lock.yaml is the canonical lockfile. There is one frontend build/package and one PDF worker path. The unrelated existing user work in this checkout was preserved.
+
+## 13. Setup and verification
+
+See README.md for setup, service environment variables, OTP email settings and native PDF libraries. Never paste credentials in this document. Configure OpenAI securely in `apps/backend/.env`:
+
+```dotenv
+OPENAI_API_KEY=your-key-in-the-ignored-file
+AI_PROVIDER=openai
+AI_MODEL=gpt-5-mini
+AI_BASE_URL=https://api.openai.com/v1
+AI_TIMEOUT_SECONDS=90
+```
+
+The local provider/model/base URL have been switched from Gemini to these OpenAI settings. A separate OpenAI key is still required; a Gemini credential cannot authenticate an OpenAI request.
+
+Checks exercised during this refactor include production compilation/type checking; strict frontend lint; backend Ruff and pytest; browser-only persistence/no-API checks; all preset dimensions in both orientations; custom sizing/margins; text/font/photo edits and refresh; account source save/reload/version checks; all ten server template PDFs; AI proposal review/application/failure handling; ownership, independent persona snapshots and storage cleanup. Browser integration fixtures isolate auth, database and storage while running the real service, renderer and proxy. They do not prove live OpenAI generation or real email delivery.
+
+Live PostgreSQL migration/CRUD/concurrency probes used temporary data and rollback. Private storage upload/download/sign/delete probes removed their verification objects. Those checks passed. The former Gemini provider returned HTTP 503; OpenAI live validation is pending the OpenAI key. Current test totals/results are recorded after the final verification run below.
+
+## 14. Deleted tracked files
+
+The following tracked obsolete files were removed during consolidation. Removed duplicate builder directories that were already untracked are also listed in section 12.
+
+- `apps/backend/app/jobs/__init__.py`
+- `apps/backend/app/jobs/guest_cleanup.py`
+- `apps/backend/app/modules/auth/constants.py`
+- `apps/backend/app/modules/auth/guest_repository.py`
+- `apps/backend/check.txt`
+- `apps/backend/tests/auth/test_guest_auth_service.py`
+- `apps/frontend/app/editor/[templateId]/SavedResumeEditor.tsx`
+- `apps/frontend/components/feedback/ErrorMessage.tsx`
+- `apps/frontend/components/guest-editor/GuestFormattingToolbar.tsx`
+- `apps/frontend/components/guest-editor/GuestResumeEditor.tsx`
+- `apps/frontend/components/guest-editor/GuestResumeForm.tsx`
+- `apps/frontend/components/guest-editor/InlineResumeInput.tsx`
+- `apps/frontend/components/layout/Container.tsx`
+- `apps/frontend/components/layout/Footer.tsx`
+- `apps/frontend/components/layout/Header.tsx`
+- `apps/frontend/components/layout/Navbar.tsx`
+- `apps/frontend/components/layout/Sidebar.tsx`
+- `apps/frontend/components/ui/Badge.tsx`
+- `apps/frontend/components/ui/Checkbox.tsx`
+- `apps/frontend/components/ui/Drawer.tsx`
+- `apps/frontend/components/ui/Dropdown.tsx`
+- `apps/frontend/components/ui/FileUpload.tsx`
+- `apps/frontend/components/ui/Modal.tsx`
+- `apps/frontend/components/ui/Pagination.tsx`
+- `apps/frontend/components/ui/Radio.tsx`
+- `apps/frontend/components/ui/Select.tsx`
+- `apps/frontend/components/ui/Spinner.tsx`
+- `apps/frontend/components/ui/Switch.tsx`
+- `apps/frontend/components/ui/Table.tsx`
+- `apps/frontend/components/ui/Tabs.tsx`
+- `apps/frontend/components/ui/ValidatedUrlInput.tsx`
+- `apps/frontend/features/resume-maker/ResumeMaker.tsx`
+- `apps/frontend/features/resume-maker/components/ColorPicker.tsx`
+- `apps/frontend/features/resume-maker/components/EditorIcon.tsx`
+- `apps/frontend/features/resume-maker/components/Modal.tsx`
+- `apps/frontend/features/resume-maker/components/PageSetup.tsx`
+- `apps/frontend/features/resume-maker/components/Thumbnail.tsx`
+- `apps/frontend/features/resume-maker/components/Toolbar.tsx`
+- `apps/frontend/features/resume-maker/editor-light.css`
+- `apps/frontend/features/resume-maker/env.d.ts`
+- `apps/frontend/features/resume-maker/main.tsx`
+- `apps/frontend/features/resume-maker/pages/Dashboard.tsx`
+- `apps/frontend/features/resume-maker/pages/Editor.tsx`
+- `apps/frontend/features/resume-maker/store/resume.ts`
+- `apps/frontend/features/resume-maker/styles.css`
+- `apps/frontend/features/resume-maker/templates/catalog.ts`
+- `apps/frontend/features/resume-maker/utils/editorExtensions.ts`
+- `apps/frontend/features/resume-maker/utils/fonts.ts`
+- `apps/frontend/features/resume-maker/utils/navigation.tsx`
+- `apps/frontend/features/resume-maker/utils/print.ts`
+- `apps/frontend/hooks/useFetch.ts`
+- `apps/frontend/hooks/useTheme.ts`
+- `apps/frontend/lib/server-api.ts`
+- `apps/frontend/modules/certificates/api.ts`
+- `apps/frontend/modules/certificates/index.ts`
+- `apps/frontend/modules/education/api.ts`
+- `apps/frontend/modules/education/index.ts`
+- `apps/frontend/modules/experience/api.ts`
+- `apps/frontend/modules/experience/index.ts`
+- `apps/frontend/modules/guest-resume/editText.ts`
+- `apps/frontend/modules/guest-resume/model.ts`
+- `apps/frontend/modules/guest-resume/types.ts`
+- `apps/frontend/modules/profile/index.ts`
+- `apps/frontend/modules/profile/server.ts`
+- `apps/frontend/modules/projects/api.ts`
+- `apps/frontend/modules/projects/index.ts`
+- `apps/frontend/modules/resume/components/ProfileSectionPicker.tsx`
+- `apps/frontend/modules/resume/index.ts`
+- `apps/frontend/modules/resume/server.ts`
+- `apps/frontend/modules/skills/api.ts`
+- `apps/frontend/modules/skills/index.ts`
+- `apps/frontend/modules/social-links/api.ts`
+- `apps/frontend/modules/social-links/index.ts`
+- `apps/frontend/public/file-text.svg`
+- `apps/frontend/public/globe.svg`
+- `apps/frontend/public/next.svg`
+- `apps/frontend/public/turborepo-dark.svg`
+- `apps/frontend/public/turborepo-light.svg`
+- `apps/frontend/public/vercel.svg`
+- `apps/frontend/public/window.svg`
+- `packages/ui/eslint.config.mjs`
+- `packages/ui/package.json`
+- `packages/ui/src/button.tsx`
+- `packages/ui/src/card.tsx`
+- `packages/ui/src/code.tsx`
+- `packages/ui/tsconfig.json`
+
+- `package-lock.json` (stale npm lockfile; project uses pnpm)
+
+## 15. Final verification results
+
+- Production Next.js build and TypeScript: passed on the final source.
+- Frontend ESLint with zero warnings: passed.
+- Backend Ruff checks and formatting: passed (102 files checked).
+- Backend pytest: 171 passed; two upstream FastAPI/Starlette deprecation warnings.
+- Free/editor browser suite: 24 passed, including no backend resume traffic, no cookies/localStorage, refresh recovery, malformed data, section recovery, fonts, photo cropping and every preset/orientation.
+- Authentication browser suite: 7 passed, including OTP/session/refresh-cookie behavior with isolated providers.
+- Persona browser suite: 4 passed, including CRUD/isolation, photo/certificate uploads, refresh, responsive layout and account-profile separation.
+- PDF/workflow browser suite: 16 passed, including ten templates, manual/persona flows, independent snapshots, AI preview/accept/apply/error behavior, stored download/reload/delete, cache failures and complete long-resume text.
+- The final Template Four contact-icon change was rebuilt and its server PDF integration check separately passed. PDFs were visually inspected against browser previews for the corrected columns, heading wrapping, photo crop and contact icons.
+- Configured live PostgreSQL migration/ownership/version/CRUD checks and private object-storage upload/download/sign/delete probes passed using temporary verification data.
+
+Live OpenAI generation remains pending: the ignored backend environment is configured for OpenAI gpt-5-mini but has no OpenAI key. Set OPENAI_API_KEY securely in apps/backend/.env and restart the backend, then run the synthetic AI integration probe. Deterministic AI workflow tests passed; they do not establish external provider availability. No production data was deleted or deployment performed. Historical anonymous workspace data remains quarantined for a separate ownership audit.
+
+## Frontend prompt overlay update
+
+The account editor now shows only a compact prompt input and send button floating over the document. Hover or keyboard focus expands the input; moving away collapses it. The wide assistant background, badge, extra action icons and always-visible help line were removed. Generation errors and proposal review remain accessible. Template selection happens before editing; no template dropdown appears in the editor, and AI proposals cannot switch the selected template.
+
+## Resume library and Home presentation
+
+My Resumes shows each saved resume as the first page of its selected template, with its title underneath; clicking the preview opens the shared editor. Inline view/edit/download actions are removed. PDF downloads remain in the editor; Delete resume is in the editor File menu with confirmation. Legacy non-editable PDFs still open their details page. Thumbnails load owned source only when near the viewport and never record an editor visit. Home places compact curated templates on white above two responsive rows of recently opened resumes on light gray. Catalog selections go directly to the persona/manual choice for that template. No usage analytics were added: trending is a curated catalog section. Recent-opening metadata stores only resume IDs and timestamps in this browser tab's sessionStorage (with an in-memory fallback); it is not a cross-device history or another resume-content store. Only records in the authenticated user's owned list can appear.
+
+Resume HTML preparation retries once after a transient asset-fetch failure, before sending the save request; it does not retry creation requests. A browser regression check deliberately fails the first font fetch to verify recovery.
+
+Gallery update verification: production build, TypeScript and zero-warning ESLint passed. Browser integration passed for actual saved-template thumbnails, direct editor navigation, most-recent-open ordering, different Home backgrounds, compact template initialization, editor deletion and mobile width. The AI editor regression also passed with an intentionally failed first font request to verify preparation retry.
+
+## Shared frontend typography and editor branding
+
+The interface now uses the free template gallery's Arial body text (16px) and Georgia heading family, with shared body, title, section and caption tokens in styles/tokens.css. The same UI hierarchy applies to marketing, authentication, account pages, persona pages, dialogs and galleries. Editor toolbar text stays compact. Resume pages, thumbnails and print/export content retain their template typography and user font choices. The editor header uses the existing resume_logo.png followed by the editable document title on one line; the Resume Builder text and boxed title field are removed. On mobile, the logo/title remain together above the actions.

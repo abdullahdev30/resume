@@ -42,21 +42,36 @@ export function RegistrationFieldsForm({
     confirm_password: "",
   });
   const [formError, setFormError] = useState("");
-  const [passwordErrors, setPasswordErrors] = useState({ password: "", confirmation: "" });
+  const [passwordErrors, setPasswordErrors] = useState({
+    password: "",
+    confirmation: "",
+  });
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.name || !form.email || !form.phone || !form.password || !form.confirm_password) {
+    if (
+      !form.name ||
+      !form.email ||
+      !form.phone ||
+      !form.password ||
+      !form.confirm_password
+    ) {
       setFormError("Fill in every required field.");
       return;
     }
     if (!passwordsMatch(form.password, form.confirm_password)) {
-      setPasswordErrors({ password: "", confirmation: "Passwords do not match." });
+      setPasswordErrors({
+        password: "",
+        confirmation: "Passwords do not match.",
+      });
       setFormError("");
       return;
     }
     if (!isStrongPassword(form.password)) {
-      setPasswordErrors({ password: "Password must meet every rule below.", confirmation: "" });
+      setPasswordErrors({
+        password: "Password must meet every rule below.",
+        confirmation: "",
+      });
       setFormError("");
       return;
     }
@@ -71,7 +86,9 @@ export function RegistrationFieldsForm({
 
   return (
     <form className="form-stack" onSubmit={submit}>
-      {(formError || error) && <Alert variant="error">{formError || error}</Alert>}
+      {(formError || error) && (
+        <Alert variant="error">{formError || error}</Alert>
+      )}
       <ValidatedInput
         label="Full name"
         autoComplete="name"
@@ -130,7 +147,12 @@ export function RegistrationFieldsForm({
         maxLength={128}
         error={passwordErrors.confirmation}
       />
-      <Button type="submit" loading={loading} loadingLabel={loadingLabel} fullWidth>
+      <Button
+        type="submit"
+        loading={loading}
+        loadingLabel={loadingLabel}
+        fullWidth
+      >
         {submitLabel}
       </Button>
       {footer}

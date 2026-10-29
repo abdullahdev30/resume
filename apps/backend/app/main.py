@@ -1,7 +1,6 @@
-import asyncio
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,9 +10,9 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
 from app.database.migration_runner import run_migrations
-from app.jobs.guest_cleanup import run_guest_cleanup_loop
 from app.modules.auth.router import limiter
 from app.modules.auth.router import router as auth_router
+from app.modules.persona.router import router as persona_router
 from app.modules.profile.router import router as profile_router
 from app.modules.resume.router import router as resume_router
 
@@ -35,13 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             settings.ai_timeout_seconds,
         )
     run_migrations()
-    guest_cleanup_task = asyncio.create_task(run_guest_cleanup_loop())
-    try:
-        yield
-    finally:
-        guest_cleanup_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await guest_cleanup_task
+    yield
 
 
 app = FastAPI(
@@ -70,7 +63,10 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api/v1")
-app.include_router(profile_router, prefix="/api/v1")
+# Retained for saved-resume compatibility. Account identity is /auth/profile;
+# persona details have their own documented Persona API.
+app.include_router(profile_router, prefix="/api/v1", include_in_schema=False)
+app.include_router(persona_router, prefix="/api/v1")
 app.include_router(resume_router, prefix="/api/v1")
 
 

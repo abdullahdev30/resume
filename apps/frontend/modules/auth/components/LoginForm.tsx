@@ -29,9 +29,14 @@ export function LoginForm() {
   };
 
   return (
-    <AuthLayout title="Welcome back" subtitle="Log in to continue building your profile.">
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Log in to continue building your profile."
+    >
       <form className="form-stack" onSubmit={onSubmit}>
-        {(formError || error) && <Alert variant="error">{formError || error}</Alert>}
+        {(formError || error) && (
+          <Alert variant="error">{formError || error}</Alert>
+        )}
         <ValidatedInput
           label="Email"
           type="email"
@@ -60,13 +65,22 @@ export function LoginForm() {
             Forgot password?
           </Link>
         </div>
-        <Button type="submit" loading={loading} loadingLabel="Signing in..." fullWidth>
+        <Button
+          type="submit"
+          loading={loading}
+          loadingLabel="Signing in..."
+          fullWidth
+        >
           Log in
         </Button>
-        <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]" aria-hidden="true">
-          <span className="h-px flex-1 bg-[var(--border)]" /> or <span className="h-px flex-1 bg-[var(--border)]" />
+        <div
+          className="flex items-center gap-3 text-xs text-[var(--text-muted)]"
+          aria-hidden="true"
+        >
+          <span className="h-px flex-1 bg-[var(--border)]" /> or{" "}
+          <span className="h-px flex-1 bg-[var(--border)]" />
         </div>
-        <Link href="/dashboard" className="button button-secondary w-full">
+        <Link href="/builder" className="button button-secondary w-full">
           Continue free without an account
         </Link>
         <p>
@@ -76,7 +90,6 @@ export function LoginForm() {
           </Link>
         </p>
       </form>
-
     </AuthLayout>
   );
 }

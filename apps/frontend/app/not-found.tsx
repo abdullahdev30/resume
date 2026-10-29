@@ -8,7 +8,11 @@ export default function NotFound() {
         <EmptyState
           title="Page not found"
           description="The page may have moved, or the link may no longer be available."
-          action={<Link href="/dashboard" className="button button-primary">Back to dashboard</Link>}
+          action={
+            <Link href="/dashboard" className="button button-primary">
+              Back to dashboard
+            </Link>
+          }
         />
       </div>
     </main>

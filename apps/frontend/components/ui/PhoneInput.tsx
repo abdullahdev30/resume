@@ -2,7 +2,11 @@
 
 import { Search } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { getCountryCallingCode, parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/min";
+import {
+  getCountryCallingCode,
+  parsePhoneNumberFromString,
+  type CountryCode,
+} from "libphonenumber-js/min";
 
 import {
   analyzePhoneNumber,
@@ -13,32 +17,43 @@ import {
 } from "../../lib/phone";
 import { FormField } from "./FormField";
 
-const PRIORITY_COUNTRIES: CountryCode[] = ["PK", "US", "GB", "AE", "SA", "QA", "KW", "BH", "OM", "AU"];
+const PRIORITY_COUNTRIES: CountryCode[] = [
+  "PK",
+  "US",
+  "GB",
+  "AE",
+  "SA",
+  "QA",
+  "KW",
+  "BH",
+  "OM",
+  "AU",
+];
 
 function countryName(country: CountryCode): string {
   try {
-    return new Intl.DisplayNames(["en"], { type: "region" }).of(country) || country;
+    return (
+      new Intl.DisplayNames(["en"], { type: "region" }).of(country) || country
+    );
   } catch {
     return country;
   }
 }
 
-const COUNTRY_OPTIONS = PHONE_COUNTRIES
-  .map((country) => ({
-    country,
-    name: countryName(country),
-    callingCode: getCountryCallingCode(country),
-  }))
-  .sort((left, right) => {
-    const leftPriority = PRIORITY_COUNTRIES.indexOf(left.country);
-    const rightPriority = PRIORITY_COUNTRIES.indexOf(right.country);
-    if (leftPriority >= 0 || rightPriority >= 0) {
-      if (leftPriority < 0) return 1;
-      if (rightPriority < 0) return -1;
-      return leftPriority - rightPriority;
-    }
-    return left.name.localeCompare(right.name);
-  });
+const COUNTRY_OPTIONS = PHONE_COUNTRIES.map((country) => ({
+  country,
+  name: countryName(country),
+  callingCode: getCountryCallingCode(country),
+})).sort((left, right) => {
+  const leftPriority = PRIORITY_COUNTRIES.indexOf(left.country);
+  const rightPriority = PRIORITY_COUNTRIES.indexOf(right.country);
+  if (leftPriority >= 0 || rightPriority >= 0) {
+    if (leftPriority < 0) return 1;
+    if (rightPriority < 0) return -1;
+    return leftPriority - rightPriority;
+  }
+  return left.name.localeCompare(right.name);
+});
 
 type PhoneInputProps = {
   value: string;
@@ -71,13 +86,19 @@ export function PhoneInput({
   const menuRef = useRef<HTMLDetailsElement>(null);
   const initial = analyzePhoneNumber(value, defaultCountry);
   const [country, setCountry] = useState<CountryCode>(initial.country);
-  const [displayValue, setDisplayValue] = useState(() => formatPhoneNumber(value, initial.country));
+  const [displayValue, setDisplayValue] = useState(() =>
+    formatPhoneNumber(value, initial.country),
+  );
   const [search, setSearch] = useState("");
   const [touched, setTouched] = useState(false);
   const analysis = analyzePhoneNumber(displayValue, country);
   const error = !displayValue.trim()
-    ? required ? "Enter a phone number." : null
-    : analysis.valid ? null : `Enter a valid phone number for ${countryName(country)}.`;
+    ? required
+      ? "Enter a phone number."
+      : null
+    : analysis.valid
+      ? null
+      : `Enter a valid phone number for ${countryName(country)}.`;
   const visibleError = touched ? error || undefined : undefined;
 
   useEffect(() => {
@@ -94,13 +115,15 @@ export function PhoneInput({
     const external = analyzePhoneNumber(value, country);
     setCountry(external.country);
     setDisplayValue(formatPhoneNumber(value, external.country));
-  }, [value]);
+  }, [value, displayValue, country]);
 
   const filteredCountries = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     if (!query) return COUNTRY_OPTIONS;
     return COUNTRY_OPTIONS.filter((option) =>
-      `${option.name} ${option.country} +${option.callingCode}`.toLocaleLowerCase().includes(query),
+      `${option.name} ${option.country} +${option.callingCode}`
+        .toLocaleLowerCase()
+        .includes(query),
     );
   }, [search]);
 
@@ -129,11 +152,17 @@ export function PhoneInput({
       label={label}
       optional={optional}
       error={visibleError}
-      hint={!visibleError ? "Select a country, then enter or paste the complete number." : undefined}
+      hint={
+        !visibleError
+          ? "Select a country, then enter or paste the complete number."
+          : undefined
+      }
     >
       <div className="phone-input-wrap">
         <details className="phone-country" ref={menuRef}>
-          <summary aria-label={`Country: ${countryName(country)}, +${getCountryCallingCode(country)}`}>
+          <summary
+            aria-label={`Country: ${countryName(country)}, +${getCountryCallingCode(country)}`}
+          >
             <span aria-hidden="true">{countryFlag(country)}</span>
             <span>+{getCountryCallingCode(country)}</span>
           </summary>
@@ -148,7 +177,11 @@ export function PhoneInput({
                 autoComplete="off"
               />
             </label>
-            <div className="phone-country-options" role="listbox" aria-label="Countries">
+            <div
+              className="phone-country-options"
+              role="listbox"
+              aria-label="Countries"
+            >
               {filteredCountries.map((option) => (
                 <button
                   key={option.country}
@@ -170,14 +203,18 @@ export function PhoneInput({
           ref={inputRef}
           id={inputId}
           type="tel"
-          className={["field-control", "phone-number-control", className].filter(Boolean).join(" ")}
+          className={["field-control", "phone-number-control", className]
+            .filter(Boolean)
+            .join(" ")}
           value={displayValue}
           required={required}
           autoFocus={autoFocus}
           autoComplete="tel"
           inputMode="tel"
           aria-invalid={Boolean(visibleError)}
-          aria-describedby={visibleError ? `${inputId}-error` : `${inputId}-hint`}
+          aria-describedby={
+            visibleError ? `${inputId}-error` : `${inputId}-hint`
+          }
           placeholder="+92 300 1234567"
           onFocus={onFocus}
           onChange={(event) => updateValue(event.target.value)}
@@ -191,7 +228,9 @@ export function PhoneInput({
             setTouched(true);
             const normalized = analyzePhoneNumber(displayValue, country);
             if (normalized.valid) {
-              setDisplayValue(formatPhoneNumber(normalized.e164, normalized.country));
+              setDisplayValue(
+                formatPhoneNumber(normalized.e164, normalized.country),
+              );
               onValueChange(normalized.e164);
             }
           }}

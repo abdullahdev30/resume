@@ -1,12 +1,30 @@
-import { ArrowRight, CheckCircle2, FileText, LockKeyhole, Printer } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  FileText,
+  LockKeyhole,
+  Printer,
+} from "lucide-react";
 import Link from "next/link";
 
 import { PublicHeader } from "@/components/layout/PublicHeader";
 
 const steps = [
-  { icon: FileText, title: "Choose a template", copy: "Start with one of the existing professional layouts." },
-  { icon: CheckCircle2, title: "Add your details", copy: "Edit every section and see the resume update immediately." },
-  { icon: Printer, title: "Save as PDF", copy: "Use your browser's print dialog to download an A4 PDF." },
+  {
+    icon: FileText,
+    title: "Choose a template",
+    copy: "Start with one of the existing professional layouts.",
+  },
+  {
+    icon: CheckCircle2,
+    title: "Add your details",
+    copy: "Edit every section and see the resume update immediately.",
+  },
+  {
+    icon: Printer,
+    title: "Save as PDF",
+    copy: "Use your browser's print dialog to download an A4 PDF.",
+  },
 ];
 
 export default function HomePage() {
@@ -16,14 +34,18 @@ export default function HomePage() {
       <main>
         <section className="landing-hero" aria-labelledby="hero-title">
           <div className="landing-hero-copy">
-            <span className="landing-eyebrow">Free guest resume builder</span>
+            <span className="landing-eyebrow">Free resume builder</span>
             <h1 id="hero-title">Build Your Resume for Free</h1>
             <p>
-              Select a proven template, enter your details, and save a professional resume as a PDF.
-              Your information stays in this tab and is never uploaded.
+              Select a proven template, enter your details, and save a
+              professional resume as a PDF. Your information stays in this tab
+              and is never uploaded.
             </p>
             <div className="landing-actions">
-              <Link href="/templates" className="button button-primary button-lg">
+              <Link
+                href="/templates"
+                className="button button-primary button-lg"
+              >
                 Create Resume <ArrowRight size={17} aria-hidden="true" />
               </Link>
               <span className="landing-private-note">
@@ -32,24 +54,48 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="landing-document-preview" aria-label="Example professional resume">
-              <div className="landing-document-sheet">
-                <div className="landing-resume-mock" aria-hidden="true">
-                  <header>
-                    <span className="landing-resume-avatar" />
-                    <div><strong>Alex Morgan</strong><span>Senior Product Designer</span></div>
-                  </header>
-                  <div className="landing-resume-rule" />
-                  <section><strong>Professional profile</strong><span /><span /></section>
-                  <section><strong>Experience</strong><span /><span /><span /></section>
-                  <section><strong>Education</strong><span /><span /></section>
-                  <div className="landing-resume-tags"><span /><span /><span /><span /></div>
+          <div
+            className="landing-document-preview"
+            aria-label="Example professional resume"
+          >
+            <div className="landing-document-sheet">
+              <div className="landing-resume-mock" aria-hidden="true">
+                <header>
+                  <span className="landing-resume-avatar" />
+                  <div>
+                    <strong>Alex Morgan</strong>
+                    <span>Senior Product Designer</span>
+                  </div>
+                </header>
+                <div className="landing-resume-rule" />
+                <section>
+                  <strong>Professional profile</strong>
+                  <span />
+                  <span />
+                </section>
+                <section>
+                  <strong>Experience</strong>
+                  <span />
+                  <span />
+                  <span />
+                </section>
+                <section>
+                  <strong>Education</strong>
+                  <span />
+                  <span />
+                </section>
+                <div className="landing-resume-tags">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
                 </div>
               </div>
-              <div className="landing-document-caption">
-                <span>Professional template</span>
-                <span>A4 ready</span>
-              </div>
+            </div>
+            <div className="landing-document-caption">
+              <span>Professional template</span>
+              <span>A4 ready</span>
+            </div>
           </div>
         </section>
 
@@ -73,14 +119,19 @@ export default function HomePage() {
         <section className="landing-privacy">
           <div>
             <span className="landing-eyebrow">Private by default</span>
-            <h2>Your resume data disappears when you refresh or close the tab.</h2>
+            <h2>
+              Your resume data disappears when you refresh or close the tab.
+            </h2>
           </div>
-          <p>No account, database record, cloud upload, tracking payload, or persistent browser storage is used for guest resumes.</p>
+          <p>
+            No account, database record, cloud upload, tracking payload, or
+            persistent browser storage is used for free resumes.
+          </p>
         </section>
       </main>
       <footer className="public-footer">
         <span>Resume Builder</span>
-        <span>Free guest resumes, created locally in your browser.</span>
+        <span>Free free resumes, created locally in your browser.</span>
       </footer>
     </div>
   );

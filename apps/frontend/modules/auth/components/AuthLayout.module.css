@@ -1,0 +1,15 @@
+.layout :global(.field) > :global(.field-error),
+.layout :global(.field) > :global(.field-hint) {
+  min-height: 20px;
+}
+
+/* Reserve validation space so blurring an autofocused field cannot move the
+   link or button under the pointer between pointer-down and click. */
+.layout
+  :global(.field):not(:has(> :global(.field-error))):not(
+    :has(> :global(.field-hint))
+  )::after {
+  content: "";
+  display: block;
+  height: 20px;
+}

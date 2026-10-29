@@ -14,7 +14,11 @@ export function ResumePrintRoot({
     <div
       id="resume-print-root"
       className="resume-print-root"
-      style={{ width: `${width}mm`, minWidth: `${width}mm`, maxWidth: `${width}mm` }}
+      style={{
+        width: `${width}mm`,
+        minWidth: `${width}mm`,
+        maxWidth: `${width}mm`,
+      }}
       aria-hidden="true"
       inert
     >

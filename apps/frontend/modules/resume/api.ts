@@ -1,9 +1,8 @@
-import { apiClient, apiClientUpload } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import type {
   AIEditPayload,
   AIEditProposal,
   AIResumePayload,
-  ResumeListResponse,
   ResumePdfResponse,
   ResumeRecord,
   ResumeUpdatePayload,
@@ -11,40 +10,30 @@ import type {
 } from "./types";
 
 export const resumeApi = {
-  list: () => apiClient<ResumeListResponse>("/resumes"),
-
-  get: (id: string) => apiClient<ResumeRecord>(`/resumes/${id}`),
-
-  getPdf: (id: string) => apiClient<ResumePdfResponse>(`/resumes/${id}/pdf`),
-
+  getPdf: (id: string) =>
+    apiClient<ResumePdfResponse>(`/resumes/${id}/pdf`, {
+      timeoutMs: 60000,
+      retry: false,
+    }),
   createTemplate: (payload: TemplateResumePayload) =>
     apiClient<ResumeRecord>("/resumes/template", {
-      method: "POST",
-      body: payload,
-    }),
-
-  createAI: (payload: AIResumePayload) =>
-    apiClient<ResumeRecord>("/resumes/ai", {
       method: "POST",
       body: payload,
       timeoutMs: 60000,
     }),
 
-  uploadPdf: (
-    file: File,
-    title?: string,
-    options?: { onProgress?: (percent: number) => void; signal?: AbortSignal },
-  ) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    if (title) formData.append("title", title);
-    return apiClientUpload<ResumeRecord>("/resumes", formData, options);
-  },
+  createAI: (payload: AIResumePayload) =>
+    apiClient<AIEditProposal>("/resumes/ai", {
+      method: "POST",
+      body: payload,
+      timeoutMs: 150000,
+    }),
 
   update: (id: string, payload: ResumeUpdatePayload) =>
     apiClient<ResumeRecord>(`/resumes/${id}`, {
       method: "PUT",
       body: payload,
+      timeoutMs: 60000,
     }),
 
   aiEdit: (id: string, payload: AIEditPayload) =>

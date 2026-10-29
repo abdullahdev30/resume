@@ -24,8 +24,6 @@ USER_A_ID = "550e8400-e29b-41d4-a716-446655440000"
 USER_B_ID = "6b5d1f2c-6f2e-4a4a-9f6f-1a2b3c4d5e6f"
 USER_A_TOKEN = "user-a-token"
 USER_B_TOKEN = "user-b-token"
-GUEST_ID = "3b9250fd-8c98-4d34-9f4c-f73a8a9dc411"
-GUEST_TOKEN = "guest-token"
 MISSING_RESUME_ID = "11111111-2222-3333-4444-555555555555"
 
 PDF_BYTES = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n"
@@ -56,14 +54,13 @@ def ai_document(data: dict | None = None, template_id: int = 2) -> AIResumeDocum
     )
 
 
-def user(user_id: str, *, is_guest: bool = False) -> UserResponse:
+def user(user_id: str) -> UserResponse:
     return UserResponse(
         id=user_id,
-        email=None if is_guest else "john@example.com",
-        name=None if is_guest else "John Doe",
-        number=None if is_guest else "03001234567",
-        email_verified=not is_guest,
-        is_guest=is_guest,
+        email="john@example.com",
+        name="John Doe",
+        number="03001234567",
+        email_verified=True,
     )
 
 
@@ -76,8 +73,6 @@ class FakeAuthService:
             return user(USER_A_ID)
         if access_token == USER_B_TOKEN:
             return user(USER_B_ID)
-        if access_token == GUEST_TOKEN:
-            return user(GUEST_ID, is_guest=True)
         raise invalid_session_error()
 
 
@@ -107,6 +102,9 @@ class FakeResumeRepository:
         data=None,
         resume_type="legacy_pdf",
         is_ai_generated=False,
+        html_content=None,
+        pdf_source_version=None,
+        pdf_html=None,
     ) -> Resume:
         if self.fail_on_create:
             raise RuntimeError("database unavailable")
@@ -124,6 +122,9 @@ class FakeResumeRepository:
             resume_type=resume_type,
             source_version=1,
             is_ai_generated=is_ai_generated,
+            html_content=html_content,
+            pdf_source_version=pdf_source_version,
+            pdf_html=pdf_html,
             created_at=now,
             updated_at=now,
         )
@@ -142,6 +143,7 @@ class FakeResumeRepository:
         data,
         resume_type,
         is_ai_generated,
+        pdf_values=None,
     ) -> Resume:
         return self.create(
             resume_id=resume_id,
@@ -151,6 +153,7 @@ class FakeResumeRepository:
             data=data,
             resume_type=resume_type,
             is_ai_generated=is_ai_generated,
+            **(pdf_values or {}),
         )
 
     def get(self, user_id: str, resume_id: str) -> Resume | None:
@@ -188,6 +191,16 @@ class FakeResumeRepository:
             return None
         return self.update(user_id, resume_id, values)
 
+    def replace_pdf(self, user_id, resume_id, source_version, previous_path, values):
+        row = self.get(user_id, resume_id)
+        if (
+            row is None
+            or row.source_version != source_version
+            or row.storage_path != previous_path
+        ):
+            return None
+        return self.update(user_id, resume_id, values)
+
     def delete(self, user_id: str, resume_id: str) -> bool:
         if self.fail_on_delete:
             raise RuntimeError("database unavailable")
@@ -199,6 +212,15 @@ class FakeResumeRepository:
 
     def enqueue_storage_cleanup(self, **values) -> None:
         self.cleanup_queue.append(values)
+
+
+class FakeRenderer:
+    async def render(self, html):
+        return PDF_BYTES
+
+    @staticmethod
+    def extract(pdf):
+        return "<p>Extracted resume</p>", "Extracted resume"
 
 
 class FakeStorage:
@@ -231,6 +253,10 @@ class FakeStorage:
         self.deleted.append(storage_path)
         self.objects.pop(storage_path, None)
 
+    async def download_bytes(self, storage_path):
+        item = self.objects[storage_path]
+        return item["data"], item["content_type"]
+
     def generate_signed_url(
         self,
         storage_path: str,
@@ -243,6 +269,7 @@ class FakeStorage:
             "https://storage.example.supabase.co/signed/"
             f"{storage_path}?token=test-signature"
         )
+
 
 class FakeProfileDocument:
     def model_dump(self, mode="json"):
@@ -283,17 +310,26 @@ class Harness:
 
 
 @pytest.fixture(autouse=True)
-def resume_overrides():
+def resume_overrides(monkeypatch):
     limiter.enabled = False
     repository = FakeResumeRepository()
     storage = FakeStorage()
     profile_service = FakeProfileService()
+    monkeypatch.setattr(
+        "app.modules.persona.service.PersonaService.get",
+        lambda self, owner, persona_id: type(
+            "Persona",
+            (),
+            {"data": profile_service.get_profile(owner).model_dump(mode="json")},
+        )(),
+    )
 
     app.dependency_overrides[get_auth_service] = lambda: FakeAuthService()
     app.dependency_overrides[get_resume_service] = lambda: ResumeService(
         repository=repository,
         storage=storage,
         profile_service=profile_service,
+        renderer=FakeRenderer(),
     )
     yield Harness(
         repository=repository,
@@ -458,11 +494,12 @@ def test_create_resume_reports_storage_failure(client, resume_overrides):
     assert resume_overrides.repository.rows == {}
 
 
-def test_create_template_resume_stores_only_editable_source(
+def test_create_template_resume_stores_source_and_versioned_pdf(
     client, resume_overrides
 ):
     authenticate(client)
     payload = {
+        "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
         "title": "Template Resume",
         "template_id": "1",
         "resume_data": {
@@ -488,90 +525,54 @@ def test_create_template_resume_stores_only_editable_source(
     assert body["file_size"] is None
     assert body["mime_type"] is None
     assert body["download_url"] is None
-    assert resume_overrides.storage.objects == {}
+    assert len(resume_overrides.storage.objects) == 1
     assert resume_overrides.storage.signed_paths == []
 
     row = resume_overrides.repository.rows[body["id"]]
-    assert row.storage_path is None
+    assert row.storage_path in resume_overrides.storage.objects
+    assert row.pdf_source_version == row.source_version
+    assert "John Doe" in row.html_content
     assert row.data["fullName"] == "John Doe"
 
 
-def test_saved_guest_can_use_owned_template_resume_crud(client, resume_overrides):
-    authenticate(client, GUEST_TOKEN)
-
-    create_response = client.post(
+def test_template_source_survives_pdf_failure_and_download_repairs_it(
+    client, resume_overrides
+):
+    authenticate(client)
+    resume_overrides.storage.fail_upload = True
+    response = client.post(
         "/api/v1/resumes/template",
         json={
-            "title": "Guest Resume",
+            "title": "Recoverable",
             "template_id": "1",
-            "resume_data": {"fullName": "Guest Candidate"},
+            "resume_data": {"fullName": "Alex"},
+            "html_content": "<h1>Alex</h1>",
         },
     )
+    assert response.status_code == 201
+    record = response.json()
+    assert record["pdf_ready"] is False and record["pdf_error"]
+    assert len(resume_overrides.repository.rows) == 1
+    assert resume_overrides.storage.objects == {}
+    resume_overrides.storage.fail_upload = False
+    assert client.get(f"/api/v1/resumes/{record['id']}/pdf").status_code == 200
+    assert client.get(f"/api/v1/resumes/{record['id']}").json()["pdf_ready"] is True
 
-    assert create_response.status_code == 201
-    created_body = create_response.json()
-    resume_id = created_body["id"]
-    created = resume_overrides.repository.rows[resume_id]
-    assert created.user_id == GUEST_ID
 
-    list_response = client.get("/api/v1/resumes")
-    assert list_response.status_code == 200
-    assert [item["id"] for item in list_response.json()["resumes"]] == [resume_id]
-
-    get_response = client.get(f"/api/v1/resumes/{resume_id}")
-    assert get_response.status_code == 200
-    assert get_response.json()["resume_data"]["fullName"] == "Guest Candidate"
-
-    update_response = client.put(
-        f"/api/v1/resumes/{resume_id}",
+def test_template_database_failure_does_not_upload_an_orphan(client, resume_overrides):
+    authenticate(client)
+    resume_overrides.repository.fail_on_create = True
+    response = client.post(
+        "/api/v1/resumes/template",
         json={
-            "resume_data": {"fullName": "Guest Candidate Updated"},
-            "source_version": created_body["source_version"],
+            "title": "No orphan",
+            "template_id": "1",
+            "resume_data": {"fullName": "Alex"},
+            "html_content": "<h1>Alex</h1>",
         },
     )
-    assert update_response.status_code == 200
-    assert update_response.json()["resume_data"]["fullName"] == (
-        "Guest Candidate Updated"
-    )
-
-    delete_response = client.delete(f"/api/v1/resumes/{resume_id}")
-    assert delete_response.status_code == 200
-    assert client.get("/api/v1/resumes").json()["resumes"] == []
-
-
-@pytest.mark.parametrize(
-    ("method", "path", "kwargs"),
-    [
-        (
-            "post",
-            "/api/v1/resumes",
-            {"files": {"file": ("resume.pdf", PDF_BYTES, "application/pdf")}},
-        ),
-        (
-            "post",
-            "/api/v1/resumes/ai",
-            {"json": {"title": "AI", "prompt": "Write a resume"}},
-        ),
-        (
-            "post",
-            f"/api/v1/resumes/{MISSING_RESUME_ID}/ai-edit",
-            {"json": {"instruction": "Improve it"}},
-        ),
-        ("get", f"/api/v1/resumes/{MISSING_RESUME_ID}/pdf", {}),
-    ],
-)
-def test_saved_guest_is_blocked_from_expensive_or_storage_routes(
-    client,
-    method,
-    path,
-    kwargs,
-):
-    authenticate(client, GUEST_TOKEN)
-
-    response = getattr(client, method)(path, **kwargs)
-
-    assert response.status_code == 403
-    assert error_code(response) == "guest_permission_denied"
+    assert response.status_code == 500
+    assert resume_overrides.storage.objects == {}
 
 
 @pytest.mark.parametrize(
@@ -582,6 +583,7 @@ def test_all_catalog_template_ids_create_real_resumes(client, template_id):
     response = client.post(
         "/api/v1/resumes/template",
         json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
             "title": f"Template {template_id}",
             "template_id": template_id,
             "resume_data": {"fullName": "John Doe"},
@@ -597,6 +599,7 @@ def test_template_creation_rejects_unknown_template_id(client):
     response = client.post(
         "/api/v1/resumes/template",
         json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
             "title": "Unknown template",
             "template_id": "999",
             "resume_data": {"fullName": "John Doe"},
@@ -615,6 +618,7 @@ def test_create_ai_resume_requires_server_api_key(
     response = client.post(
         "/api/v1/resumes/ai",
         json={
+            "persona_id": USER_A_ID,
             "title": "AI Resume",
             "prompt": "Target backend engineering roles using only my existing data.",
         },
@@ -625,7 +629,7 @@ def test_create_ai_resume_requires_server_api_key(
     assert resume_overrides.repository.rows == {}
 
 
-def test_create_ai_resume_uses_backend_profile_and_persists_validated_draft(
+def test_create_ai_resume_returns_validated_proposal_without_saving(
     client,
     resume_overrides,
     monkeypatch,
@@ -650,6 +654,7 @@ def test_create_ai_resume_uses_backend_profile_and_persists_validated_draft(
     response = client.post(
         "/api/v1/resumes/ai",
         json={
+            "persona_id": USER_A_ID,
             "title": "AI Resume",
             "prompt": "Focus on backend roles.",
             "selected_sections": ["personal", "skills"],
@@ -659,7 +664,7 @@ def test_create_ai_resume_uses_backend_profile_and_persists_validated_draft(
     assert response.status_code == 201
     body = response.json()
     assert body["template_id"] == "4"
-    assert body["resume_type"] == "ai"
+    assert "resume_type" not in body
     assert body["resume_data"]["fullName"] == "John Doe"
     assert captured["profile_context"]["personal"]["first_name"] == "John"
     assert "summary" not in captured["profile_context"]["personal"]
@@ -674,6 +679,7 @@ def test_create_ai_resume_rejects_client_supplied_profile_context(client, monkey
     response = client.post(
         "/api/v1/resumes/ai",
         json={
+            "persona_id": USER_A_ID,
             "title": "AI Resume",
             "prompt": "Use this fake identity.",
             "profile_context": {"fullName": "Another User"},
@@ -700,6 +706,23 @@ def test_ai_design_rejects_unsafe_values(field, value):
 
     with pytest.raises(ValidationError):
         AIResumeDocument.model_validate(payload)
+
+
+def test_shared_editor_appearance_survives_schema_round_trip():
+    from app.modules.resume.schemas import ResumeData
+
+    stored = ResumeData.model_validate(
+        {
+            "fontFamily": "'Times New Roman', serif",
+            "pageOrientation": "landscape",
+            "pageColor": "#f5f5f5",
+            "elementStyles": {"fullName": {"offsetX": 12.5, "offsetY": -4}},
+        }
+    ).to_storage()
+    assert stored["pageOrientation"] == "landscape"
+    assert stored["pageColor"] == "#f5f5f5"
+    assert stored["fontFamily"] == "'Times New Roman', serif"
+    assert stored["elementStyles"]["fullName"] == {"offsetX": 12.5, "offsetY": -4}
 
 
 @pytest.mark.parametrize(
@@ -736,7 +759,11 @@ def test_ai_provider_errors_have_clear_status_codes(
     authenticate(client)
     response = client.post(
         "/api/v1/resumes/ai",
-        json={"title": "AI Resume", "prompt": "Focus on backend roles."},
+        json={
+            "persona_id": USER_A_ID,
+            "title": "AI Resume",
+            "prompt": "Focus on backend roles.",
+        },
     )
 
     assert response.status_code == expected_status
@@ -783,7 +810,9 @@ async def test_ai_provider_retries_invalid_structured_output_once(
             self.calls += 1
             if self.calls == 1:
                 return FakeResponse("not valid json")
-            return FakeResponse(json.dumps(ai_document().model_dump(mode="json", by_alias=True)))
+            return FakeResponse(
+                json.dumps(ai_document().model_dump(mode="json", by_alias=True))
+            )
 
     fake_client = FakeAsyncClient()
     monkeypatch.setattr(
@@ -888,13 +917,12 @@ def test_pdf_endpoint_signs_only_an_owned_legacy_upload(client, resume_overrides
     assert error_code(denied) == "resume_not_found"
 
 
-def test_editable_resume_has_no_signed_url_or_server_pdf_routes(
-    client, resume_overrides
-):
+def test_editable_resume_downloads_the_current_stored_pdf(client, resume_overrides):
     authenticate(client)
     created = client.post(
         "/api/v1/resumes/template",
         json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
             "title": "Browser PDF",
             "template_id": "2",
             "resume_data": {"fullName": "John Doe"},
@@ -902,19 +930,18 @@ def test_editable_resume_has_no_signed_url_or_server_pdf_routes(
     ).json()
 
     assert created["download_url"] is None
-    assert resume_overrides.storage.objects == {}
+    assert len(resume_overrides.storage.objects) == 1
     assert resume_overrides.storage.signed_paths == []
 
     pdf_response = client.get(f"/api/v1/resumes/{created['id']}/pdf")
-    assert pdf_response.status_code == 409
-    assert error_code(pdf_response) == "resume_pdf_unavailable"
+    assert pdf_response.status_code == 200
+    assert "download_url" in pdf_response.json()
 
-    assert client.post(
-        f"/api/v1/resumes/{created['id']}/generate-pdf"
-    ).status_code in {404, 405}
-    assert client.get(
-        f"/api/v1/resumes/{created['id']}/print-data"
-    ).status_code == 404
+    assert client.post(f"/api/v1/resumes/{created['id']}/generate-pdf").status_code in {
+        404,
+        405,
+    }
+    assert client.get(f"/api/v1/resumes/{created['id']}/print-data").status_code == 404
 
 
 def test_get_resume_returns_not_found_for_unknown_id(client):
@@ -1018,6 +1045,7 @@ def test_update_template_resume_accepts_json_source_changes(client, resume_overr
     created = client.post(
         "/api/v1/resumes/template",
         json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
             "title": "Template Resume",
             "template_id": "1",
             "resume_data": {"fullName": "John Doe", "skills": []},
@@ -1026,6 +1054,7 @@ def test_update_template_resume_accepts_json_source_changes(client, resume_overr
     response = client.put(
         f"/api/v1/resumes/{created['id']}",
         json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
             "title": "Updated Template",
             "template_id": "2",
             "resume_data": {"fullName": "John Updated", "skills": ["Python"]},
@@ -1041,8 +1070,11 @@ def test_update_template_resume_accepts_json_source_changes(client, resume_overr
     assert body["source_version"] == 2
     assert body["file_name"] is None
     assert body["download_url"] is None
-    assert resume_overrides.storage.objects == {}
-    assert resume_overrides.storage.signed_paths == []
+    assert len(resume_overrides.storage.objects) == 1
+    assert "/v1-" in next(iter(resume_overrides.storage.objects))
+    assert client.get(f"/api/v1/resumes/{created['id']}/pdf").status_code == 200
+    assert "/v2-" in next(iter(resume_overrides.storage.objects))
+    assert len(resume_overrides.storage.signed_paths) == 1
 
 
 def test_ai_edit_returns_proposal_without_saving(client, resume_overrides, monkeypatch):
@@ -1058,6 +1090,7 @@ def test_ai_edit_returns_proposal_without_saving(client, resume_overrides, monke
     created = client.post(
         "/api/v1/resumes/template",
         json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
             "title": "Template Resume",
             "template_id": "1",
             "resume_data": {"fullName": "John Doe", "skills": []},
@@ -1084,12 +1117,18 @@ def test_update_rejects_stale_source_version_without_overwriting(client):
     authenticate(client)
     created = client.post(
         "/api/v1/resumes/template",
-        json={"title": "Shared", "template_id": "1", "resume_data": {"fullName": "Original"}},
+        json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
+            "title": "Shared",
+            "template_id": "1",
+            "resume_data": {"fullName": "Original"},
+        },
     ).json()
 
     first = client.put(
         f"/api/v1/resumes/{created['id']}",
         json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
             "resume_data": {"fullName": "First tab"},
             "source_version": created["source_version"],
         },
@@ -1097,6 +1136,7 @@ def test_update_rejects_stale_source_version_without_overwriting(client):
     second = client.put(
         f"/api/v1/resumes/{created['id']}",
         json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
             "resume_data": {"fullName": "Second tab"},
             "source_version": created["source_version"],
         },
@@ -1229,7 +1269,9 @@ def test_delete_resume_requires_authentication(client, resume_overrides):
     assert response.status_code == 401
 
 
-def test_delete_resume_succeeds_and_enqueues_cleanup_when_storage_delete_fails(client, resume_overrides):
+def test_delete_resume_succeeds_and_enqueues_cleanup_when_storage_delete_fails(
+    client, resume_overrides
+):
     created = create_resume(client).json()
     resume_overrides.storage.fail_delete = True
 
@@ -1243,11 +1285,12 @@ def test_delete_resume_succeeds_and_enqueues_cleanup_when_storage_delete_fails(c
     )
 
 
-def test_delete_editable_resume_removes_only_database_source(client, resume_overrides):
+def test_delete_editable_resume_removes_source_and_pdf(client, resume_overrides):
     authenticate(client)
     created = client.post(
         "/api/v1/resumes/template",
         json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
             "title": "Editable",
             "template_id": "1",
             "resume_data": {"fullName": "John Doe"},
@@ -1259,7 +1302,7 @@ def test_delete_editable_resume_removes_only_database_source(client, resume_over
     assert response.status_code == 200
     assert created["id"] not in resume_overrides.repository.rows
     assert resume_overrides.storage.objects == {}
-    assert resume_overrides.storage.deleted == []
+    assert len(resume_overrides.storage.deleted) == 1
     assert resume_overrides.repository.cleanup_queue == []
 
 
@@ -1282,3 +1325,116 @@ def test_resume_response_never_exposes_internal_paths_or_secrets(client):
     assert "secret" not in body
     assert "access_key" not in body
     assert "amazonaws.com" not in body
+
+
+def test_pdf_is_reused_until_source_changes_and_failed_render_keeps_saved_resume(
+    client, resume_overrides, monkeypatch
+):
+    authenticate(client)
+    calls = []
+
+    async def render(self, html):
+        calls.append(html)
+        return PDF_BYTES
+
+    monkeypatch.setattr(FakeRenderer, "render", render)
+    created = client.post(
+        "/api/v1/resumes/template",
+        json={
+            "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
+            "title": "Versioned",
+            "template_id": "1",
+            "resume_data": {"fullName": "Original"},
+        },
+    ).json()
+    base = f"/api/v1/resumes/{created['id']}"
+    first_path = resume_overrides.repository.rows[created["id"]].storage_path
+    assert client.get(base + "/pdf").status_code == 200
+    assert client.get(base + "/pdf").status_code == 200
+    assert len(calls) == 1
+    updated = client.put(
+        base,
+        json={
+            "resume_data": {"fullName": "Updated"},
+            "html_content": "<h1>Updated source</h1>",
+            "source_version": 1,
+        },
+    )
+    assert updated.status_code == 200
+    assert len(calls) == 1
+    assert client.get(base + "/pdf").status_code == 200
+    assert len(calls) == 2
+    assert first_path not in resume_overrides.storage.objects
+    assert "Updated source" in client.get(base + "/html").json()["html"]
+
+    async def failing_render(self, html):
+        raise RuntimeError("renderer temporarily unavailable")
+
+    monkeypatch.setattr(FakeRenderer, "render", failing_render)
+    assert (
+        client.put(
+            base,
+            json={
+                "html_content": "<main><h1>John Doe</h1><p>Styled template source</p></main>",
+                "resume_data": {"fullName": "Unsaved"},
+                "source_version": 2,
+            },
+        ).status_code
+        == 200
+    )
+    assert client.get(base).json()["resume_data"]["fullName"] == "Unsaved"
+    assert client.get(base + "/pdf").status_code == 503
+
+
+def test_pdf_can_create_a_new_editable_ai_copy_without_changing_original(
+    client, resume_overrides, monkeypatch
+):
+    monkeypatch.setattr(settings, "ai_api_key", "test-only")
+    captured = {}
+
+    async def generate(self, **kwargs):
+        captured.update(kwargs)
+        return ai_document({"fullName": "Imported Candidate"})
+
+    monkeypatch.setattr(ResumeService, "_generate_with_ai_provider", generate)
+    original = create_resume(client).json()
+    response = client.post(f"/api/v1/resumes/{original['id']}/editable")
+    assert response.status_code == 201
+    assert response.json()["resume_data"]["fullName"] == "Imported Candidate"
+    assert "id" not in response.json()
+    assert captured["profile_context"]["pdf_text"] == "Extracted resume"
+    assert (
+        client.get(f"/api/v1/resumes/{original['id']}").json()["resume_type"]
+        == "legacy_pdf"
+    )
+    assert len(resume_overrides.storage.objects) == 1
+
+
+def test_ai_resume_uses_the_selected_owned_persona(client, monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(settings, "ai_api_key", "test-only")
+    captured = {}
+
+    def get_persona(self, owner, persona_id):
+        captured["owner"] = owner
+        captured["persona"] = persona_id
+        return SimpleNamespace(data=FakeProfileDocument().model_dump())
+
+    monkeypatch.setattr("app.modules.persona.service.PersonaService.get", get_persona)
+
+    async def generate(self, **kwargs):
+        return ai_document()
+
+    monkeypatch.setattr(ResumeService, "_generate_with_ai_provider", generate)
+    authenticate(client)
+    response = client.post(
+        "/api/v1/resumes/ai",
+        json={
+            "title": "Persona draft",
+            "prompt": "Use this persona",
+            "persona_id": MISSING_RESUME_ID,
+        },
+    )
+    assert response.status_code == 201
+    assert captured == {"owner": USER_A_ID, "persona": MISSING_RESUME_ID}

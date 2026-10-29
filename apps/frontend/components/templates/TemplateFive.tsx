@@ -1,6 +1,10 @@
+import {
+  orderTemplateSections,
+  createTemplateTools,
+} from "./templatePrimitives";
 import React from "react";
 import { Camera, User as UserIcon } from "lucide-react";
-import { getResumePageStyle, type ResumeData, type TemplateProps } from "./TemplateOne";
+import { getResumePageStyle, type TemplateProps } from "./TemplateOne";
 import { AdditionalSections } from "./AdditionalSections";
 import { ResumePage } from "./ResumePage";
 
@@ -13,48 +17,27 @@ export default function TemplateFive({
   indexOffsets = {},
 }: TemplateProps) {
   const primaryColor = data.primaryColor || "#0E7C7B";
-
-  const getItemStyle = (id: string, defaultColor?: string): React.CSSProperties => {
-    const custom = elementStyles[id];
-    return {
-      fontWeight: custom?.isBold !== undefined ? (custom.isBold ? "bold" : "normal") : undefined,
-      fontStyle: custom?.isItalic !== undefined ? (custom.isItalic ? "italic" : "normal") : undefined,
-      textDecoration: custom?.isUnderline !== undefined ? (custom.isUnderline ? "underline" : "none") : undefined,
-      textAlign: custom?.align || undefined,
-      color: custom?.color || defaultColor || undefined,
-      fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
-      lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
-      fontFamily: custom?.fontFamily || undefined,
-      position: custom?.offsetX || custom?.offsetY ? "relative" : undefined,
-      zIndex: custom?.offsetX || custom?.offsetY ? 2 : undefined,
-      transform: custom?.offsetX || custom?.offsetY ? `translate(${custom.offsetX || 0}px, ${custom.offsetY || 0}px)` : undefined,
-    };
-  };
-
-  const getItemClass = (id: string, baseClass: string = "") => {
-    if (!onSelectElement) return baseClass;
-    const isSelected = selectedElementId === id;
-    return `${baseClass} resume-draggable-text resume-element-id--${id} cursor-pointer transition p-0.5 rounded-xs ${
-      isSelected ? "ring-2 ring-[var(--primary)] ring-offset-1 bg-[var(--primary-tint)]" : "hover:ring-1 hover:ring-teal-400/50"
-    }`.trim();
-  };
-
-  const handleSelect = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onSelectElement) {
-      onSelectElement(id);
-    }
-  };
+  const {
+    itemStyle: getItemStyle,
+    itemClass: getItemClass,
+    select: handleSelect,
+  } = createTemplateTools({
+    data,
+    elementStyles,
+    selectedElementId,
+    onSelectElement,
+    selectionColor: primaryColor,
+  });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && onPhotoUpload) {
       onPhotoUpload(file);
     }
-    e.currentTarget.value = '';
+    e.currentTarget.value = "";
   };
 
-  return (
+  return orderTemplateSections(
     <ResumePage
       data={data}
       className="bg-white shadow-xl mx-auto font-sans text-slate-800 flex flex-col"
@@ -68,30 +51,48 @@ export default function TemplateFive({
       }}
     >
       {/* Top Banner with Headshot Photo Container */}
-      <div className="p-8 bg-slate-900 text-white flex items-center justify-between gap-6 border-b-4" style={{ borderColor: primaryColor }}>
+      <div
+        className="p-8 bg-slate-900 text-white flex items-center justify-between gap-6 border-b-4"
+        style={{ borderColor: primaryColor }}
+      >
         <div className="flex-1 space-y-2">
           <h1
             onClick={(e) => handleSelect("fullName", e)}
-            className={getItemClass("fullName", "text-3xl font-extrabold uppercase tracking-wide text-white")}
+            className={getItemClass(
+              "fullName",
+              "text-3xl font-extrabold uppercase tracking-wide text-white",
+            )}
             style={getItemStyle("fullName", "#ffffff")}
           >
             {data.fullName}
           </h1>
           <p
             onClick={(e) => handleSelect("jobTitle", e)}
-            className={getItemClass("jobTitle", "text-xs uppercase font-semibold tracking-widest text-teal-300")}
+            className={getItemClass(
+              "jobTitle",
+              "text-xs uppercase font-semibold tracking-widest text-teal-300",
+            )}
             style={getItemStyle("jobTitle", "#2dd4bf")}
           >
             {data.jobTitle}
           </p>
           <div className="flex flex-wrap gap-4 text-xs text-slate-300 pt-2 font-medium">
-            <span onClick={(e) => handleSelect("contact-phone", e)} className={getItemClass("contact-phone")}>
+            <span
+              onClick={(e) => handleSelect("contact-phone", e)}
+              className={getItemClass("contact-phone")}
+            >
               Phone: {data.phone}
             </span>
-            <span onClick={(e) => handleSelect("contact-email", e)} className={getItemClass("contact-email")}>
+            <span
+              onClick={(e) => handleSelect("contact-email", e)}
+              className={getItemClass("contact-email")}
+            >
               Email: {data.email}
             </span>
-            <span onClick={(e) => handleSelect("contact-location", e)} className={getItemClass("contact-location")}>
+            <span
+              onClick={(e) => handleSelect("contact-location", e)}
+              className={getItemClass("contact-location")}
+            >
               Location: {data.location}
             </span>
           </div>
@@ -101,7 +102,11 @@ export default function TemplateFive({
         <div className="relative group flex-shrink-0 cursor-pointer">
           <label className="block w-28 h-28 rounded-2xl overflow-hidden border-4 border-white/20 bg-slate-800 shadow-xl cursor-pointer relative group-hover:border-teal-400 transition">
             {data.avatarUrl ? (
-              <img src={data.avatarUrl} alt="Candidate Photo" className="w-full h-full object-cover" />
+              <img
+                src={data.avatarUrl}
+                alt="Candidate Photo"
+                className="w-full h-full object-cover"
+              />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-2 text-center bg-slate-800 hover:bg-slate-700 transition">
                 <UserIcon className="w-10 h-10 text-slate-300 mb-1" />
@@ -120,7 +125,13 @@ export default function TemplateFive({
                   <Camera className="w-4 h-4 mr-1" />
                   <span>Change</span>
                 </div>
-                <input type="file" aria-label="Upload profile photo" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFileChange} />
+                <input
+                  type="file"
+                  aria-label="Upload profile photo"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={handleFileChange}
+                />
               </>
             )}
           </label>
@@ -133,17 +144,26 @@ export default function TemplateFive({
         <div className="col-span-2 space-y-6">
           {/* Summary */}
           {data.summary && (
-            <div>
+            <div data-resume-section="summary">
               <h3
                 onClick={(e) => handleSelect("section-summary", e)}
-                className={getItemClass("section-summary", "text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 pb-1 mb-2")}
-                style={{ borderColor: primaryColor, ...getItemStyle("section-summary") }}
+                className={getItemClass(
+                  "section-summary",
+                  "text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 pb-1 mb-2",
+                )}
+                style={{
+                  borderColor: primaryColor,
+                  ...getItemStyle("section-summary"),
+                }}
               >
                 Executive Summary
               </h3>
               <p
                 onClick={(e) => handleSelect("summary", e)}
-                className={getItemClass("summary", "text-xs text-slate-600 leading-relaxed")}
+                className={getItemClass(
+                  "summary",
+                  "text-xs text-slate-600 leading-relaxed",
+                )}
                 style={getItemStyle("summary")}
               >
                 {data.summary}
@@ -153,11 +173,17 @@ export default function TemplateFive({
 
           {/* Work History */}
           {data.experience && data.experience.length > 0 && (
-            <div>
+            <div data-resume-section="experience">
               <h3
                 onClick={(e) => handleSelect("section-experience", e)}
-                className={getItemClass("section-experience", "text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 pb-1 mb-4")}
-                style={{ borderColor: primaryColor, ...getItemStyle("section-experience") }}
+                className={getItemClass(
+                  "section-experience",
+                  "text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 pb-1 mb-4",
+                )}
+                style={{
+                  borderColor: primaryColor,
+                  ...getItemStyle("section-experience"),
+                }}
               >
                 Work Experience
               </h3>
@@ -169,27 +195,42 @@ export default function TemplateFive({
                   const detailsId = `exp-${itemIndex}-details`;
 
                   return (
-                    <div key={exp.id || itemIndex} className="resume-item space-y-1 pl-3 border-l-2" style={{ borderColor: primaryColor }}>
+                    <div
+                      key={exp.id || itemIndex}
+                      className="resume-item space-y-1 pl-3 border-l-2"
+                      style={{ borderColor: primaryColor }}
+                    >
                       <div className="flex justify-between items-baseline">
                         <h4
                           onClick={(e) => handleSelect(roleId, e)}
-                          className={getItemClass(roleId, "text-xs font-bold text-slate-900")}
+                          className={getItemClass(
+                            roleId,
+                            "text-xs font-bold text-slate-900",
+                          )}
                           style={getItemStyle(roleId)}
                         >
                           {exp.role}
                         </h4>
-                        <span className="text-[10px] font-semibold text-slate-400">{exp.period}</span>
+                        <span className="text-[10px] font-semibold text-slate-400">
+                          {exp.period}
+                        </span>
                       </div>
                       <p
                         onClick={(e) => handleSelect(companyId, e)}
-                        className={getItemClass(companyId, "text-[11px] font-semibold text-teal-700")}
+                        className={getItemClass(
+                          companyId,
+                          "text-[11px] font-semibold text-teal-700",
+                        )}
                         style={getItemStyle(companyId)}
                       >
                         {exp.company}
                       </p>
                       <p
                         onClick={(e) => handleSelect(detailsId, e)}
-                        className={getItemClass(detailsId, "text-xs text-slate-600 leading-relaxed whitespace-pre-line")}
+                        className={getItemClass(
+                          detailsId,
+                          "text-xs text-slate-600 leading-relaxed whitespace-pre-line",
+                        )}
                         style={getItemStyle(detailsId)}
                       >
                         {exp.details}
@@ -206,7 +247,7 @@ export default function TemplateFive({
         <div className="col-span-1 space-y-6 border-l border-slate-100 pl-6">
           {/* Skills */}
           {data.skills && data.skills.length > 0 && (
-            <div>
+            <div data-resume-section="skills">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1 mb-3">
                 Core Competencies
               </h3>
@@ -217,7 +258,10 @@ export default function TemplateFive({
                     <div
                       key={index}
                       onClick={(e) => handleSelect(id, e)}
-                      className={getItemClass(id, "text-xs font-medium bg-slate-100 text-slate-800 px-3 py-1.5 rounded border border-slate-200")}
+                      className={getItemClass(
+                        id,
+                        "text-xs font-medium bg-slate-100 text-slate-800 px-3 py-1.5 rounded border border-slate-200",
+                      )}
                       style={getItemStyle(id)}
                     >
                       {skill}
@@ -230,7 +274,7 @@ export default function TemplateFive({
 
           {/* Education */}
           {data.education && data.education.length > 0 && (
-            <div>
+            <div data-resume-section="education">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1 mb-3">
                 Education
               </h3>
@@ -243,13 +287,20 @@ export default function TemplateFive({
                     <div key={edu.id || itemIndex} className="resume-item">
                       <h4
                         onClick={(e) => handleSelect(degreeId, e)}
-                        className={getItemClass(degreeId, "text-xs font-bold text-slate-900")}
+                        className={getItemClass(
+                          degreeId,
+                          "text-xs font-bold text-slate-900",
+                        )}
                         style={getItemStyle(degreeId)}
                       >
                         {edu.degree}
                       </h4>
-                      <p className="text-[11px] text-slate-500">{edu.institution}</p>
-                      <span className="text-[10px] text-slate-400 font-semibold">{edu.period}</span>
+                      <p className="text-[11px] text-slate-500">
+                        {edu.institution}
+                      </p>
+                      <span className="text-[10px] text-slate-400 font-semibold">
+                        {edu.period}
+                      </span>
                     </div>
                   );
                 })}
@@ -259,8 +310,16 @@ export default function TemplateFive({
         </div>
       </div>
       <div className="px-8 pb-8">
-        <AdditionalSections data={data} accentColor={primaryColor} selectedElementId={selectedElementId} onSelectElement={onSelectElement} elementStyles={elementStyles} indexOffsets={indexOffsets} />
+        <AdditionalSections
+          data={data}
+          accentColor={primaryColor}
+          selectedElementId={selectedElementId}
+          onSelectElement={onSelectElement}
+          elementStyles={elementStyles}
+          indexOffsets={indexOffsets}
+        />
       </div>
-    </ResumePage>
+    </ResumePage>,
+    data.sectionOrder,
   );
 }

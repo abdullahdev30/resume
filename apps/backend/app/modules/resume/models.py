@@ -1,5 +1,14 @@
 # backend/app/modules/resume/models.py
-from sqlalchemy import JSON, BigInteger, Boolean, Column, DateTime, String, Text
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    Integer,
+    String,
+    Text,
+)
 
 from app.database.connection import Base
 
@@ -20,9 +29,13 @@ class Resume(Base):
 
     # Owned by the editor / AI resume flow. Legacy uploads keep these empty.
     template_id = Column(String(255), nullable=True)
+    template_version = Column(Integer, nullable=False, default=1)
     data = Column(JSON, nullable=True)
     resume_type = Column(String(30), nullable=True)
     source_version = Column(BigInteger, nullable=True)
+    html_content = Column(Text, nullable=True)
+    pdf_source_version = Column(BigInteger, nullable=True)
+    pdf_html = Column(Text, nullable=True)
     is_ai_generated = Column(Boolean, nullable=True)
 
     created_at = Column(DateTime(timezone=True), nullable=True)

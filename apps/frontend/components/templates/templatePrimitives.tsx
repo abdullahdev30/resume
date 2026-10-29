@@ -1,7 +1,51 @@
 import { Camera, User as UserIcon } from "lucide-react";
 import type { CSSProperties, ChangeEvent, MouseEvent } from "react";
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 
 import type { ElementStyle, ResumeData } from "./TemplateOne";
+
+/** Order sections within each template column while retaining its header/layout. */
+export function orderTemplateSections(
+  element: ReactElement,
+  order: ResumeData["sectionOrder"],
+): ReactElement {
+  const node = element as ReactElement<{
+    children?: ReactNode;
+    "data-resume-section"?: string;
+  }>;
+  if (!node.props.children) return element;
+  const children = Children.toArray(node.props.children).map((child) =>
+    isValidElement(child) ? orderTemplateSections(child, order) : child,
+  );
+  const section = (child: ReactNode) =>
+    isValidElement(child)
+      ? (child.props as { "data-resume-section"?: string })[
+          "data-resume-section"
+        ]
+      : undefined;
+  const rank = (child: ReactNode) => {
+    const key = section(child);
+    const index =
+      order?.indexOf(key as NonNullable<ResumeData["sectionOrder"]>[number]) ??
+      -1;
+    return index < 0 ? 999 : index;
+  };
+  const sorted = children
+    .filter((child) => section(child))
+    .sort((a, b) => rank(a) - rank(b));
+  let index = 0;
+  return cloneElement(
+    node,
+    {},
+    children.map((child) => (section(child) ? sorted[index++] : child)),
+  );
+}
 
 export function createTemplateTools({
   data,
@@ -19,9 +63,24 @@ export function createTemplateTools({
   const itemStyle = (id: string, defaultColor?: string): CSSProperties => {
     const custom = elementStyles[id];
     return {
-      fontWeight: custom?.isBold !== undefined ? (custom.isBold ? "bold" : "normal") : undefined,
-      fontStyle: custom?.isItalic !== undefined ? (custom.isItalic ? "italic" : "normal") : undefined,
-      textDecoration: custom?.isUnderline !== undefined ? (custom.isUnderline ? "underline" : "none") : undefined,
+      fontWeight:
+        custom?.isBold !== undefined
+          ? custom.isBold
+            ? "bold"
+            : "normal"
+          : undefined,
+      fontStyle:
+        custom?.isItalic !== undefined
+          ? custom.isItalic
+            ? "italic"
+            : "normal"
+          : undefined,
+      textDecoration:
+        custom?.isUnderline !== undefined
+          ? custom.isUnderline
+            ? "underline"
+            : "none"
+          : undefined,
       textAlign: custom?.align,
       color: custom?.color || defaultColor,
       fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
@@ -29,7 +88,10 @@ export function createTemplateTools({
       fontFamily: custom?.fontFamily,
       position: custom?.offsetX || custom?.offsetY ? "relative" : undefined,
       zIndex: custom?.offsetX || custom?.offsetY ? 2 : undefined,
-      transform: custom?.offsetX || custom?.offsetY ? `translate(${custom.offsetX || 0}px, ${custom.offsetY || 0}px)` : undefined,
+      transform:
+        custom?.offsetX || custom?.offsetY
+          ? `translate(${custom.offsetX || 0}px, ${custom.offsetY || 0}px)`
+          : undefined,
     };
   };
 
@@ -79,15 +141,25 @@ export function ResumePhoto({
       ) : (
         <span className="flex h-full w-full flex-col items-center justify-center gap-1 bg-slate-100 text-slate-400">
           <UserIcon className="h-8 w-8" aria-hidden="true" />
-          {onPhotoUpload && <span className="text-[9px] font-bold uppercase tracking-wider">Add photo</span>}
+          {onPhotoUpload && (
+            <span className="text-[9px] font-bold uppercase tracking-wider">
+              Add photo
+            </span>
+          )}
         </span>
       )}
       {onPhotoUpload && (
         <>
           <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-[9px] font-bold uppercase tracking-wider text-white opacity-0 transition group-hover:opacity-100">
-            <Camera className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> Change photo
+            <Camera className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> Change
+            photo
           </span>
-          <input className="hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleChange} />
+          <input
+            className="hidden"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleChange}
+          />
         </>
       )}
     </label>

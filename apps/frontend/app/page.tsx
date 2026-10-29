@@ -1,1 +1,1 @@
-export {default} from '@/features/marketing/LandingPage';
+export { default } from "@/features/marketing/LandingPage";

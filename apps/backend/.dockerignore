@@ -1,0 +1,12 @@
+venv
+.venv
+.runtime
+.env
+.env.*
+__pycache__
+**/__pycache__
+.pytest_cache
+.ruff_cache
+uploads
+tests
+*.sqlite3

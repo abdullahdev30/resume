@@ -15,16 +15,24 @@ function compactPhoneInput(value: string): string {
   return trimmed.startsWith("+") ? `+${digits}` : digits;
 }
 
-function internationalCandidate(value: string, defaultCountry: CountryCode): string {
+function internationalCandidate(
+  value: string,
+  defaultCountry: CountryCode,
+): string {
   const compact = compactPhoneInput(value);
-  if (!compact || compact.startsWith("+") || compact.startsWith("0")) return compact;
+  if (!compact || compact.startsWith("+") || compact.startsWith("0"))
+    return compact;
 
   const defaultCallingCode = getCountryCallingCode(defaultCountry);
-  if (compact.startsWith(defaultCallingCode) && compact.length >= 8) return `+${compact}`;
+  if (compact.startsWith(defaultCallingCode) && compact.length >= 8)
+    return `+${compact}`;
 
-  const callingCodes = [...new Set(PHONE_COUNTRIES.map(getCountryCallingCode))]
-    .sort((left, right) => right.length - left.length);
-  const detectedCode = callingCodes.find((code) => compact.startsWith(code) && compact.length - code.length >= 7);
+  const callingCodes = [
+    ...new Set(PHONE_COUNTRIES.map(getCountryCallingCode)),
+  ].sort((left, right) => right.length - left.length);
+  const detectedCode = callingCodes.find(
+    (code) => compact.startsWith(code) && compact.length - code.length >= 7,
+  );
   return detectedCode ? `+${compact}` : compact;
 }
 
@@ -35,13 +43,18 @@ export type PhoneAnalysis = {
   valid: boolean;
 };
 
-export function analyzePhoneNumber(value: string, defaultCountry: CountryCode = DEFAULT_PHONE_COUNTRY): PhoneAnalysis {
+export function analyzePhoneNumber(
+  value: string,
+  defaultCountry: CountryCode = DEFAULT_PHONE_COUNTRY,
+): PhoneAnalysis {
   const candidate = internationalCandidate(value, defaultCountry);
   const parsed = candidate.startsWith("+")
     ? parsePhoneNumberFromString(candidate)
     : parsePhoneNumberFromString(candidate, defaultCountry);
   const country = parsed?.country || defaultCountry;
-  const formatter = candidate.startsWith("+") ? new AsYouType() : new AsYouType(country);
+  const formatter = candidate.startsWith("+")
+    ? new AsYouType()
+    : new AsYouType(country);
   const formatted = candidate ? formatter.input(candidate) : "";
   return {
     country,
@@ -51,7 +64,10 @@ export function analyzePhoneNumber(value: string, defaultCountry: CountryCode = 
   };
 }
 
-export function formatPhoneNumber(value: string, defaultCountry: CountryCode = DEFAULT_PHONE_COUNTRY): string {
+export function formatPhoneNumber(
+  value: string,
+  defaultCountry: CountryCode = DEFAULT_PHONE_COUNTRY,
+): string {
   if (!value) return "";
   const analysis = analyzePhoneNumber(value, defaultCountry);
   if (analysis.valid) {
@@ -64,5 +80,7 @@ export function formatPhoneNumber(value: string, defaultCountry: CountryCode = D
 export function countryFlag(country: CountryCode): string {
   return country
     .toUpperCase()
-    .replace(/./gu, (character) => String.fromCodePoint(127397 + character.charCodeAt(0)));
+    .replace(/./gu, (character) =>
+      String.fromCodePoint(127397 + character.charCodeAt(0)),
+    );
 }

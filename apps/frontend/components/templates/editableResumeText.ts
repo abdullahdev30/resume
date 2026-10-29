@@ -7,9 +7,13 @@ export interface EditableResumeText {
   multiline?: boolean;
 }
 
-type StringField = "fullName" | "jobTitle" | "email" | "phone" | "location" | "summary";
+type StringField =
+  "fullName" | "jobTitle" | "email" | "phone" | "location" | "summary";
 
-const directFields: Record<string, { field: StringField; label: string; multiline?: boolean }> = {
+const directFields: Record<
+  string,
+  { field: StringField; label: string; multiline?: boolean }
+> = {
   fullName: { field: "fullName", label: "Full name" },
   jobTitle: { field: "jobTitle", label: "Professional title" },
   "contact-email": { field: "email", label: "Email" },
@@ -18,10 +22,19 @@ const directFields: Record<string, { field: StringField; label: string; multilin
   summary: { field: "summary", label: "Professional summary", multiline: true },
 };
 
-export function getEditableResumeText(data: ResumeData, id: string | null): EditableResumeText | null {
+export function getEditableResumeText(
+  data: ResumeData,
+  id: string | null,
+): EditableResumeText | null {
   if (!id) return null;
   const direct = directFields[id];
-  if (direct) return { id, label: direct.label, value: data[direct.field], multiline: direct.multiline };
+  if (direct)
+    return {
+      id,
+      label: direct.label,
+      value: data[direct.field],
+      multiline: direct.multiline,
+    };
 
   let match = id.match(/^skill-(\d+)$/);
   if (match) return arrayValue(id, "Skill", data.skills, match[1] || "");
@@ -46,7 +59,10 @@ export function getEditableResumeText(data: ResumeData, id: string | null): Edit
     const item = data.education?.[Number(match[1])];
     if (!item) return null;
     const requestedField = match[2];
-    const field = requestedField === "inst" ? "institution" : requestedField as "degree" | "institution" | "period" | "grade";
+    const field =
+      requestedField === "inst"
+        ? "institution"
+        : (requestedField as "degree" | "institution" | "period" | "grade");
     return { id, label: `Education ${field}`, value: item[field] || "" };
   }
 
@@ -58,7 +74,10 @@ export function getEditableResumeText(data: ResumeData, id: string | null): Edit
     return {
       id,
       label: `Project ${field}`,
-      value: field === "technologies" ? item.technologies.join(", ") : item[field] || "",
+      value:
+        field === "technologies"
+          ? item.technologies.join(", ")
+          : item[field] || "",
       multiline: field === "description",
     };
   }
@@ -82,14 +101,19 @@ export function getEditableResumeText(data: ResumeData, id: string | null): Edit
   return null;
 }
 
-export function updateEditableResumeText(data: ResumeData, id: string, value: string): ResumeData {
+export function updateEditableResumeText(
+  data: ResumeData,
+  id: string,
+  value: string,
+): ResumeData {
   const direct = directFields[id];
   if (direct) return { ...data, [direct.field]: value };
 
   let match = id.match(/^skill-(\d+)$/);
   if (match) return updateStringArray(data, "skills", Number(match[1]), value);
   match = id.match(/^language-(\d+)$/);
-  if (match) return updateStringArray(data, "languages", Number(match[1]), value);
+  if (match)
+    return updateStringArray(data, "languages", Number(match[1]), value);
 
   match = id.match(/^exp-(\d+)-(role|company|period|details)$/);
   if (match) {
@@ -108,7 +132,10 @@ export function updateEditableResumeText(data: ResumeData, id: string, value: st
     const education = [...(data.education || [])];
     if (!education[index]) return data;
     const requestedField = match[2];
-    const field = requestedField === "inst" ? "institution" : requestedField as "degree" | "institution" | "period" | "grade";
+    const field =
+      requestedField === "inst"
+        ? "institution"
+        : (requestedField as "degree" | "institution" | "period" | "grade");
     education[index] = { ...education[index], [field]: value };
     return { ...data, education };
   }
@@ -121,9 +148,13 @@ export function updateEditableResumeText(data: ResumeData, id: string, value: st
     const field = match[2] as "name" | "description" | "technologies" | "url";
     projects[index] = {
       ...projects[index],
-      [field]: field === "technologies"
-        ? value.split(",").map((item) => item.trim()).filter(Boolean)
-        : value,
+      [field]:
+        field === "technologies"
+          ? value
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean)
+          : value,
     };
     return { ...data, projects };
   }
@@ -151,7 +182,12 @@ export function updateEditableResumeText(data: ResumeData, id: string, value: st
   return data;
 }
 
-function arrayValue(id: string, label: string, values: string[], rawIndex: string): EditableResumeText | null {
+function arrayValue(
+  id: string,
+  label: string,
+  values: string[],
+  rawIndex: string,
+): EditableResumeText | null {
   const value = values[Number(rawIndex)];
   return value === undefined ? null : { id, label, value };
 }

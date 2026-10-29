@@ -1,32 +1,84 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { Alert } from "../../../components/feedback/Alert";
 import { Button } from "../../../components/ui/Button";
 import { AuthLayout } from "./AuthLayout";
 import { OtpInput } from "./OtpInput";
 import { useAuth } from "../hooks";
+import { readAuthState } from "../session";
+import { AUTH_EMAIL_STORAGE_KEY } from "../constants";
+import { ValidatedInput } from "@/components/ui/ValidatedInput";
+import { normalizeEmail, validateEmail } from "@/lib/validation";
 
 export function VerifyRecoveryOtpForm() {
   const [otp, setOtp] = useState("");
-  const { handleVerifyRecoveryOtp, loading, error } = useAuth();
+  const [email, setEmail] = useState("");
+  useEffect(() => {
+    setEmail(readAuthState(AUTH_EMAIL_STORAGE_KEY));
+  }, []);
+  const { handleVerifyRecoveryOtp, handleForgotPassword, loading, error } =
+    useAuth();
 
   const submit = (code = otp) => {
-    if (code.length === 6) {
-      void handleVerifyRecoveryOtp(code);
+    if (/^\d{6}$/.test(code) && !loading && !validateEmail(email)) {
+      void handleVerifyRecoveryOtp(code, normalizeEmail(email));
     }
   };
 
   return (
-    <AuthLayout title="Verify recovery code" subtitle="Enter the code before choosing a new password.">
-      <div className="form-stack">
+    <AuthLayout
+      title="Verify recovery code"
+      subtitle="Enter the code before choosing a new password."
+    >
+      <form
+        className="form-stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
         {error && <Alert variant="error">{error}</Alert>}
-        <OtpInput value={otp} onChange={setOtp} onComplete={submit} />
-        <Button type="button" onClick={() => submit()} loading={loading} loadingLabel="Verifying..." disabled={otp.length !== 6} fullWidth>
+        <ValidatedInput
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onValueChange={(value) => {
+            setEmail(value);
+            setOtp("");
+          }}
+          validate={validateEmail}
+          normalize={normalizeEmail}
+          maxLength={254}
+        />
+        <OtpInput value={otp} onChange={setOtp} disabled={loading} />
+        <Button
+          type="submit"
+          loading={loading}
+          loadingLabel="Verifying..."
+          disabled={!/^\d{6}$/.test(otp) || Boolean(validateEmail(email))}
+          fullWidth
+        >
           Verify recovery code
         </Button>
-      </div>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={loading || Boolean(validateEmail(email))}
+          onClick={() =>
+            void handleForgotPassword({ email: normalizeEmail(email) })
+          }
+        >
+          Resend recovery code
+        </Button>
+        <Link href="/auth/login" className="text-link text-center">
+          Back to sign in
+        </Link>
+      </form>
     </AuthLayout>
   );
 }

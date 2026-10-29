@@ -1,6 +1,5 @@
 import re
 import unicodedata
-from datetime import datetime
 from typing import Any
 
 from pydantic import (
@@ -90,22 +89,6 @@ class RegisterRequest(AuthBaseModel):
         return self
 
 
-class GuestUpgradeRequest(RegisterRequest):
-    pass
-
-
-class GuestUpgradeVerifyRequest(GuestUpgradeRequest):
-    otp: str = Field(min_length=6, max_length=6, strict=True)
-
-    @field_validator("otp")
-    @classmethod
-    def validate_otp(cls, value: str) -> str:
-        otp = value.strip()
-        if not OTP_PATTERN.fullmatch(otp):
-            raise ValueError("OTP must be a 6-digit code.")
-        return otp
-
-
 class RegisterResponse(BaseModel):
     message: str
     email: str
@@ -177,13 +160,31 @@ class UserResponse(BaseModel):
     name: str | None = None
     number: str | None = None
     email_verified: bool | None = None
-    is_guest: bool = False
-    guest_expires_at: datetime | None = None
 
 
 class VerifyEmailResponse(BaseModel):
     message: str
     user: UserResponse
+
+
+class AccountProfileResponse(BaseModel):
+    """Account identity from registration; independent of resume/persona data."""
+
+    id: str
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    email_verified: bool = False
+
+    @classmethod
+    def from_user(cls, user: UserResponse) -> "AccountProfileResponse":
+        return cls(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            phone=user.number,
+            email_verified=bool(user.email_verified),
+        )
 
 
 class SessionResponse(BaseModel):

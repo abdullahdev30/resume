@@ -1,4 +1,5 @@
 import { isSuccessfulHttpStatus } from "./http-status";
+import { apiQueryKey, getQueryClient } from "./query-client";
 
 // Browser requests stay on the Next.js origin. The Route Handler forwards
 // them to the backend and converts backend session cookies to host-only
@@ -9,6 +10,7 @@ type ApiClientOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
   timeoutMs?: number;
   retry?: boolean;
+  queryCache?: boolean;
 };
 
 let sessionRefreshPromise: Promise<boolean> | null = null;
@@ -18,7 +20,12 @@ export class ApiClientError extends Error {
   code?: string;
   details: unknown;
 
-  constructor(message: string, status: number, code?: string, details?: unknown) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    details?: unknown,
+  ) {
     super(message);
     this.name = "ApiClientError";
     this.status = status;
@@ -29,9 +36,53 @@ export class ApiClientError extends Error {
 
 export function apiClient<T = unknown>(
   endpoint: string,
-  options: ApiClientOptions = {}
+  options: ApiClientOptions = {},
 ): Promise<T> {
-  return executeApiRequest<T>(endpoint, options);
+  const { queryCache = true, ...requestOptions } = options;
+  const method = (requestOptions.method || "GET").toUpperCase();
+  const client = getQueryClient();
+  if (
+    (method === "GET" || method === "HEAD") &&
+    queryCache &&
+    typeof window !== "undefined"
+  ) {
+    return client.fetchQuery({
+      queryKey: apiQueryKey(endpoint),
+      queryFn: () => executeApiRequest<T>(endpoint, requestOptions),
+      staleTime: endpoint.endsWith("/pdf") ? 30_000 : 120_000,
+    });
+  }
+  return executeApiRequest<T>(endpoint, requestOptions).then((data) => {
+    if (
+      method !== "GET" &&
+      method !== "HEAD" &&
+      typeof window !== "undefined"
+    ) {
+      if (
+        ["/auth/login", "/auth/logout", "/auth/verify-email"].includes(endpoint)
+      )
+        client.clear();
+      const resource = `/${endpoint.split("/")[1]}`;
+      void client.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey[0] === "api" &&
+          String(query.queryKey[1]).startsWith(resource),
+      });
+      if (
+        data &&
+        typeof data === "object" &&
+        "id" in data &&
+        method !== "DELETE"
+      )
+        client.setQueryData(
+          apiQueryKey(`${resource}/${String(data.id)}`),
+          data,
+        );
+      if (method === "DELETE")
+        client.removeQueries({ queryKey: apiQueryKey(endpoint), exact: true });
+    }
+    return data;
+  });
 }
 
 async function executeApiRequest<T>(
@@ -68,9 +119,13 @@ async function executeApiRequest<T>(
 }
 
 function shouldRefreshSession(endpoint: string, error: unknown) {
-  return error instanceof ApiClientError
-    && error.status === 401
-    && !endpoint.startsWith("/auth/");
+  return (
+    error instanceof ApiClientError &&
+    error.status === 401 &&
+    (!endpoint.startsWith("/auth/") ||
+      endpoint === "/auth/me" ||
+      endpoint === "/auth/profile")
+  );
 }
 
 function refreshSession() {
@@ -91,16 +146,23 @@ function refreshSession() {
 
 function redirectToLogin() {
   if (typeof window !== "undefined") {
-    window.location.assign("/auth/login?reason=session-expired");
+    window.location.replace("/auth/login?reason=session-expired");
   }
 }
 
 async function apiClientAttempt<T = unknown>(
   endpoint: string,
-  options: Omit<ApiClientOptions, "retry"> = {}
+  options: Omit<ApiClientOptions, "retry"> = {},
 ): Promise<T> {
-  const { body, headers, timeoutMs = 15000, signal, ...customOptions } = options;
-  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const {
+    body,
+    headers,
+    timeoutMs = 15000,
+    signal,
+    ...customOptions
+  } = options;
+  const isFormData =
+    typeof FormData !== "undefined" && body instanceof FormData;
   const controller = new AbortController();
   let timedOut = false;
   const timeout = setTimeout(() => {
@@ -152,7 +214,7 @@ async function apiClientAttempt<T = unknown>(
   }
 
   // Response parsing
-  let data: unknown = null;
+  let data: unknown;
   try {
     const text = await response.text();
     data = text ? JSON.parse(text) : null;
@@ -181,22 +243,30 @@ function parseApiError(data: unknown): { message?: string; code?: string } {
     error?: unknown;
   };
   if (typeof payload.detail === "string") return { message: payload.detail };
-  const detailMessage = typeof payload.detail?.message === "string" ? payload.detail.message : undefined;
-  const detailCode = typeof payload.detail?.code === "string" ? payload.detail.code : undefined;
-  const message = detailMessage
-    || (typeof payload.message === "string" ? payload.message : undefined)
-    || (typeof payload.error === "string" ? payload.error : undefined);
+  const detailMessage =
+    typeof payload.detail?.message === "string"
+      ? payload.detail.message
+      : undefined;
+  const detailCode =
+    typeof payload.detail?.code === "string" ? payload.detail.code : undefined;
+  const message =
+    detailMessage ||
+    (typeof payload.message === "string" ? payload.message : undefined) ||
+    (typeof payload.error === "string" ? payload.error : undefined);
   return { message, code: detailCode };
 }
 
 function defaultStatusMessage(status: number) {
-  if (status === 400 || status === 422) return "Some submitted information is invalid.";
+  if (status === 400 || status === 422)
+    return "Some submitted information is invalid.";
   if (status === 401) return "Your session has expired. Please sign in again.";
-  if (status === 403) return "You do not have permission to perform this action.";
+  if (status === 403)
+    return "You do not have permission to perform this action.";
   if (status === 404) return "The requested item could not be found.";
   if (status === 409) return "This change conflicts with existing data.";
   if (status === 429) return "Too many requests. Please wait and try again.";
-  if (status >= 500) return "The service is temporarily unavailable. Please try again.";
+  if (status >= 500)
+    return "The service is temporarily unavailable. Please try again.";
   return `Request failed with status ${status}`;
 }
 
@@ -223,16 +293,32 @@ export async function apiClientUpload<T>(
   } = {},
 ): Promise<T> {
   try {
-    return await apiClientUploadAttempt<T>(endpoint, body, options);
+    const data = await apiClientUploadAttempt<T>(endpoint, body, options);
+    invalidateUpload(endpoint, data);
+    return data;
   } catch (error) {
     if (shouldRefreshSession(endpoint, error) && !options.signal?.aborted) {
       if (await refreshSession()) {
-        return apiClientUploadAttempt<T>(endpoint, body, options);
+        const data = await apiClientUploadAttempt<T>(endpoint, body, options);
+        invalidateUpload(endpoint, data);
+        return data;
       }
       redirectToLogin();
     }
     throw error;
   }
+}
+
+function invalidateUpload(endpoint: string, data: unknown) {
+  const client = getQueryClient();
+  const resource = `/${endpoint.split("/")[1]}`;
+  void client.invalidateQueries({
+    predicate: (query) =>
+      query.queryKey[0] === "api" &&
+      String(query.queryKey[1]).startsWith(resource),
+  });
+  if (data && typeof data === "object" && "id" in data)
+    client.setQueryData(apiQueryKey(`${resource}/${String(data.id)}`), data);
 }
 
 function apiClientUploadAttempt<T>(
@@ -256,7 +342,7 @@ function apiClientUploadAttempt<T>(
       }
     });
     request.addEventListener("load", () => {
-      let data: unknown = null;
+      let data: unknown;
       try {
         data = request.responseText ? JSON.parse(request.responseText) : null;
       } catch {
@@ -267,18 +353,38 @@ function apiClientUploadAttempt<T>(
         resolve(data as T);
         return;
       }
-      const payload = data as { detail?: { message?: string; code?: string } | string; message?: string; error?: string } | null;
-      const detail = typeof payload?.detail === "string" ? payload.detail : payload?.detail?.message;
-      reject(new ApiClientError(
-        detail || payload?.message || payload?.error || defaultStatusMessage(request.status),
-        request.status,
-        typeof payload?.detail === "object" ? payload.detail?.code : undefined,
-        data,
-      ));
+      const payload = data as {
+        detail?: { message?: string; code?: string } | string;
+        message?: string;
+        error?: string;
+      } | null;
+      const detail =
+        typeof payload?.detail === "string"
+          ? payload.detail
+          : payload?.detail?.message;
+      reject(
+        new ApiClientError(
+          detail ||
+            payload?.message ||
+            payload?.error ||
+            defaultStatusMessage(request.status),
+          request.status,
+          typeof payload?.detail === "object"
+            ? payload.detail?.code
+            : undefined,
+          data,
+        ),
+      );
     });
-    request.addEventListener("error", () => reject(new ApiClientError("Network request failed.", 0)));
-    request.addEventListener("timeout", () => reject(new ApiClientError("Upload timed out. Please try again.", 408)));
-    request.addEventListener("abort", () => reject(new ApiClientError("Upload canceled.", 499)));
+    request.addEventListener("error", () =>
+      reject(new ApiClientError("Network request failed.", 0)),
+    );
+    request.addEventListener("timeout", () =>
+      reject(new ApiClientError("Upload timed out. Please try again.", 408)),
+    );
+    request.addEventListener("abort", () =>
+      reject(new ApiClientError("Upload canceled.", 499)),
+    );
 
     const abort = () => request.abort();
     if (options.signal?.aborted) {
@@ -286,7 +392,9 @@ function apiClientUploadAttempt<T>(
       return;
     }
     options.signal?.addEventListener("abort", abort, { once: true });
-    request.addEventListener("loadend", () => options.signal?.removeEventListener("abort", abort));
+    request.addEventListener("loadend", () =>
+      options.signal?.removeEventListener("abort", abort),
+    );
     request.send(body);
   });
 }

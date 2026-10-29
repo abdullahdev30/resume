@@ -14,5 +14,7 @@ def normalize_phone_number(value: str, default_calling_code: str = "92") -> str:
         normalized = f"+{normalized}"
 
     if not E164_PHONE_PATTERN.fullmatch(normalized):
-        raise ValueError("Phone number must be a valid international number in E.164 format.")
+        raise ValueError(
+            "Phone number must be a valid international number in E.164 format."
+        )
     return normalized

@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 TRUSTED_FRONTEND_ORIGINS = (
@@ -47,7 +48,10 @@ class Settings(BaseSettings):
     resume_max_file_size_bytes: int = 10 * 1024 * 1024
     resume_signed_url_expires_in_seconds: int = 300
     # Server-side AI resume generation. Keys are never returned to clients.
-    ai_api_key: str | None = None
+    ai_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OPENAI_API_KEY", "AI_API_KEY", "ai_api_key"),
+    )
     ai_provider: str = "openai"
     ai_model: str = "gpt-5-mini"
     ai_base_url: str = "https://api.openai.com/v1"
@@ -63,11 +67,13 @@ class Settings(BaseSettings):
         ]
         # Origin headers never contain a trailing slash. Normalizing configured
         # URLs prevents an easy-to-miss exact-match failure in production.
-        return list(dict.fromkeys(
-            origin.strip().rstrip("/")
-            for origin in configured_origins
-            if origin.strip()
-        ))
+        return list(
+            dict.fromkeys(
+                origin.strip().rstrip("/")
+                for origin in configured_origins
+                if origin.strip()
+            )
+        )
 
     @property
     def allowed_cors_origin_regex(self) -> str | None:

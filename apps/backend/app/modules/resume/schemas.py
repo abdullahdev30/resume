@@ -1,10 +1,13 @@
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ResumeKind = Literal["template", "ai", "legacy_pdf"]
-ResumePageSize = Literal["A4", "Letter", "Legal", "A5", "B5", "Tabloid"]
+ResumePageSize = Literal[
+    "A4", "A3", "Executive", "Custom", "Letter", "Legal", "A5", "B5", "Tabloid"
+]
 TemplateId = Literal["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
 EditorTemplateId = TemplateId
 ResumeSection = Literal[
@@ -29,6 +32,8 @@ ResumeDesignSection = Literal[
     "social_links",
 ]
 ResumeFontFamily = Literal[
+    "Roboto, sans-serif",
+    "Lora, serif",
     "Inter, sans-serif",
     "Georgia, serif",
     "Bricolage Grotesque, sans-serif",
@@ -50,6 +55,8 @@ class ResumeElementStyle(ResumeSchema):
     font_size: float | None = Field(default=None, alias="fontSize", ge=6, le=96)
     line_height: float | None = Field(default=None, alias="lineHeight", ge=0.8, le=3)
     font_family: str | None = Field(default=None, alias="fontFamily", max_length=100)
+    offset_x: float | None = Field(default=None, alias="offsetX", ge=-2000, le=2000)
+    offset_y: float | None = Field(default=None, alias="offsetY", ge=-2000, le=2000)
 
 
 class ResumeExperienceItem(ResumeSchema):
@@ -97,6 +104,13 @@ class ResumeCertificateItem(ResumeSchema):
     url: str | None = Field(default=None, max_length=2048)
 
 
+class ResumeMargins(ResumeSchema):
+    top: float = Field(default=10, ge=0, le=100)
+    bottom: float = Field(default=10, ge=0, le=100)
+    left: float = Field(default=10, ge=0, le=100)
+    right: float = Field(default=10, ge=0, le=100)
+
+
 class ResumeData(ResumeSchema):
     full_name: str = Field(default="", alias="fullName", max_length=255)
     job_title: str = Field(default="", alias="jobTitle", max_length=255)
@@ -113,9 +127,19 @@ class ResumeData(ResumeSchema):
     secondary_color: str = Field(
         default="#0f172a", alias="secondaryColor", pattern=r"^#[0-9a-fA-F]{6}$"
     )
-    font_family: ResumeFontFamily = Field(
-        default="Inter, sans-serif", alias="fontFamily"
+    page_color: str = Field(
+        default="#ffffff", alias="pageColor", pattern=r"^#[0-9a-fA-F]{6}$"
     )
+    font_family: Literal[
+        "Roboto, sans-serif",
+        "Lora, serif",
+        "Inter, sans-serif",
+        "Georgia, serif",
+        "Bricolage Grotesque, sans-serif",
+        "Arial, sans-serif",
+        "'Times New Roman', serif",
+        "'Courier New', monospace",
+    ] = Field(default="Inter, sans-serif", alias="fontFamily")
     font_scale: float = Field(default=1.0, alias="fontScale", ge=0.85, le=1.15)
     is_bold: bool | None = Field(default=None, alias="isBold")
     is_italic: bool | None = Field(default=None, alias="isItalic")
@@ -138,7 +162,13 @@ class ResumeData(ResumeSchema):
         default_factory=dict, alias="elementStyles"
     )
     page_size: ResumePageSize = Field(default="A4", alias="pageSize")
+    page_orientation: Literal["portrait", "landscape"] = Field(
+        default="portrait", alias="pageOrientation"
+    )
     page_margin: float = Field(default=10, alias="pageMargin", ge=5, le=40)
+    page_width: float | None = Field(default=None, alias="pageWidth", ge=50, le=1200)
+    page_height: float | None = Field(default=None, alias="pageHeight", ge=50, le=1200)
+    page_margins: ResumeMargins | None = Field(default=None, alias="pageMargins")
     line_spacing: float = Field(default=1.15, alias="lineSpacing", ge=0.8, le=3)
     section_order: list[ResumeDesignSection] = Field(
         default_factory=lambda: [
@@ -152,6 +182,9 @@ class ResumeData(ResumeSchema):
         ],
         alias="sectionOrder",
         max_length=8,
+    )
+    hidden_sections: list[ResumeDesignSection] = Field(
+        default_factory=list, alias="hiddenSections", max_length=8
     )
 
     @field_validator("skills", "languages")
@@ -169,7 +202,9 @@ class ResumeData(ResumeSchema):
 
     @field_validator("section_order")
     @classmethod
-    def unique_sections(cls, values: list[ResumeDesignSection]) -> list[ResumeDesignSection]:
+    def unique_sections(
+        cls, values: list[ResumeDesignSection]
+    ) -> list[ResumeDesignSection]:
         return list(dict.fromkeys(values))
 
     def to_storage(self) -> dict:
@@ -177,9 +212,13 @@ class ResumeData(ResumeSchema):
 
 
 class TemplateResumeRequest(ResumeSchema):
+    resume_type: Literal["template", "ai"] = "template"
+    template_version: Literal[1] = 1
+    persona_id: UUID | None = None
     title: str = Field(min_length=1, max_length=255)
     template_id: TemplateId
     resume_data: ResumeData = Field(default_factory=ResumeData)
+    html_content: str | None = Field(default=None, max_length=2_500_000)
 
 
 class AIResumeRequest(ResumeSchema):
@@ -188,6 +227,7 @@ class AIResumeRequest(ResumeSchema):
     job_description: str | None = Field(default=None, max_length=20_000)
     reference_links: list[str] = Field(default_factory=list, max_length=20)
     selected_sections: list[ResumeSection] | None = None
+    persona_id: UUID
 
     @field_validator("reference_links")
     @classmethod
@@ -212,8 +252,12 @@ class AIResumeDesign(ResumeSchema):
     font_scale: float = Field(alias="fontScale", ge=0.85, le=1.15)
     line_spacing: float = Field(alias="lineSpacing", ge=1.0, le=2.0)
     page_margin: float = Field(alias="pageMargin", ge=10, le=30)
-    section_order: list[ResumeDesignSection] = Field(alias="sectionOrder", min_length=1, max_length=8)
-    element_styles: dict[str, ResumeElementStyle] = Field(alias="elementStyles", default_factory=dict)
+    section_order: list[ResumeDesignSection] = Field(
+        alias="sectionOrder", min_length=1, max_length=8
+    )
+    element_styles: dict[str, ResumeElementStyle] = Field(
+        alias="elementStyles", default_factory=dict
+    )
 
     @field_validator("section_order")
     @classmethod
@@ -245,7 +289,9 @@ class AIResumeDocument(ResumeSchema):
             },
             pageSize="A4",
         )
-        return ResumeData.model_validate(resume_data).to_storage(), str(design.template_id)
+        return ResumeData.model_validate(resume_data).to_storage(), str(
+            design.template_id
+        )
 
 
 class ResumeUpdateRequest(ResumeSchema):
@@ -253,6 +299,13 @@ class ResumeUpdateRequest(ResumeSchema):
     template_id: EditorTemplateId | None = None
     resume_data: ResumeData | None = None
     source_version: int | None = Field(default=None, ge=1)
+    html_content: str | None = Field(default=None, max_length=2_500_000)
+
+
+class ResumeHTMLResponse(BaseModel):
+    html: str
+    source_version: int
+    extracted: bool = False
 
 
 class ResumeAIEditRequest(ResumeSchema):
@@ -281,6 +334,7 @@ class ResumeResponse(BaseModel):
     resume_type: ResumeKind
     editable: bool
     template_id: str | None = None
+    template_version: int = 1
     resume_data: dict | None = None
     file_name: str | None = None
     file_size: int | None = None
@@ -289,6 +343,8 @@ class ResumeResponse(BaseModel):
     updated_at: datetime
     download_url: str | None = None
     source_version: int
+    pdf_ready: bool = False
+    pdf_error: str | None = None
 
 
 class ResumeListResponse(BaseModel):

@@ -1,4 +1,9 @@
-import type { AvatarSnapshotResponse, PersonalInfo, PersonalInfoPayload, ProfileResponse } from "./types";
+import type {
+  AvatarSnapshotResponse,
+  PersonalInfo,
+  PersonalInfoPayload,
+  ProfileResponse,
+} from "./types";
 
 import { apiClient, apiClientUpload } from "../../lib/api-client";
 
@@ -29,7 +34,11 @@ export const profileApi = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const res = await apiClientUpload<PersonalInfo>("/profile/avatar", formData, options);
+    const res = await apiClientUpload<PersonalInfo>(
+      "/profile/avatar",
+      formData,
+      options,
+    );
     const avatarUrl = res.avatar_url;
     if (avatarUrl) {
       return { url: avatarUrl, personal: res };
@@ -37,5 +46,4 @@ export const profileApi = {
 
     throw new Error("Avatar upload did not return a file URL.");
   },
-
 };

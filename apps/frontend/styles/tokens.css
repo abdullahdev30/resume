@@ -20,7 +20,11 @@
   --surface-raised: var(--color-white);
   --surface-subtle: var(--color-slate-50);
   --border: var(--color-slate-200);
-  --border-strong: color-mix(in srgb, var(--color-slate-600) 38%, var(--color-slate-200));
+  --border-strong: color-mix(
+    in srgb,
+    var(--color-slate-600) 38%,
+    var(--color-slate-200)
+  );
   --text: var(--color-slate-950);
   --text-muted: var(--color-slate-600);
   --primary: var(--color-teal-600);
@@ -90,8 +94,15 @@
   --shadow-sm: 0 8px 24px rgb(15 27 45 / 7%);
   --shadow-md: 0 18px 42px rgb(15 27 45 / 11%);
   --shadow-popover: 0 24px 70px rgb(15 27 45 / 16%);
-  --font-body: var(--font-figtree), system-ui, sans-serif;
-  --font-heading: var(--font-bricolage), var(--font-figtree), system-ui, sans-serif;
+  --font-body: Arial, "Segoe UI", system-ui, sans-serif;
+  --font-heading: Georgia, "Times New Roman", serif;
+  /* Shared interface typography, matching the free template gallery. */
+  --type-body: 1rem;
+  --type-page-title: 1rem;
+  --type-section-title: 1.05rem;
+  --type-caption: 0.82rem;
+  --type-small: 0.75rem;
+  --type-document-title: 1.5rem;
   --ease-out: 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --transition: var(--ease-out);
 }

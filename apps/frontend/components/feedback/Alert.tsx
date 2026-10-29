@@ -10,11 +10,7 @@ export function Alert({
   return (
     <div
       role={variant === "error" ? "alert" : "status"}
-      className={[
-        "alert",
-        `alert-${variant}`,
-        className,
-      ]
+      className={["alert", `alert-${variant}`, className]
         .filter(Boolean)
         .join(" ")}
       {...props}

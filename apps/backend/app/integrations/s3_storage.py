@@ -119,7 +119,9 @@ class S3StorageService:
         try:
             params = {"Bucket": self.bucket_name, "Key": storage_path}
             if download_name:
-                safe_name = download_name.replace('"', "").replace("\r", "").replace("\n", "")
+                safe_name = (
+                    download_name.replace('"', "").replace("\r", "").replace("\n", "")
+                )
                 params.update(
                     ResponseContentDisposition=f'attachment; filename="{safe_name}"',
                     ResponseContentType=PDF_CONTENT_TYPE,
@@ -127,9 +129,7 @@ class S3StorageService:
             return self.client.generate_presigned_url(
                 "get_object",
                 Params=params,
-                ExpiresIn=(
-                    expires_in or settings.resume_signed_url_expires_in_seconds
-                ),
+                ExpiresIn=(expires_in or settings.resume_signed_url_expires_in_seconds),
             )
         except (BotoCoreError, ClientError, ValueError) as exc:
             logger.exception("Storage signing failed for object '%s'", storage_path)
@@ -145,7 +145,14 @@ class S3StorageService:
             stream,
             self.bucket_name,
             key,
-            ExtraArgs={"ContentType": content_type},
+            ExtraArgs={
+                "ContentType": content_type,
+                **(
+                    {"CacheControl": "private, max-age=31536000, immutable"}
+                    if "/v" in key and key.endswith(".pdf")
+                    else {}
+                ),
+            },
         )
 
     def _upload_bytes(self, key: str, data: bytes, content_type: str) -> None:
@@ -164,6 +171,8 @@ class S3StorageService:
         response = self.client.get_object(Bucket=self.bucket_name, Key=key)
         body = response["Body"]
         try:
-            return body.read(), response.get("ContentType") or "application/octet-stream"
+            return body.read(), response.get(
+                "ContentType"
+            ) or "application/octet-stream"
         finally:
             body.close()

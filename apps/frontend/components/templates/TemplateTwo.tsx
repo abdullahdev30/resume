@@ -1,6 +1,10 @@
+import {
+  orderTemplateSections,
+  createTemplateTools,
+} from "./templatePrimitives";
 import React from "react";
 import { Camera, User as UserIcon } from "lucide-react";
-import { getResumePageStyle, type ResumeData, type TemplateProps } from "./TemplateOne";
+import { getResumePageStyle, type TemplateProps } from "./TemplateOne";
 import { AdditionalSections } from "./AdditionalSections";
 import { ResumePage } from "./ResumePage";
 
@@ -13,40 +17,19 @@ export default function TemplateTwo({
   indexOffsets = {},
 }: TemplateProps) {
   const primaryColor = data.primaryColor || "#059669";
+  const {
+    itemStyle: getItemStyle,
+    itemClass: getItemClass,
+    select: handleSelect,
+  } = createTemplateTools({
+    data,
+    elementStyles,
+    selectedElementId,
+    onSelectElement,
+    selectionColor: primaryColor,
+  });
 
-  const getItemStyle = (id: string, defaultColor?: string): React.CSSProperties => {
-    const custom = elementStyles[id];
-    return {
-      fontWeight: custom?.isBold !== undefined ? (custom.isBold ? "bold" : "normal") : undefined,
-      fontStyle: custom?.isItalic !== undefined ? (custom.isItalic ? "italic" : "normal") : undefined,
-      textDecoration: custom?.isUnderline !== undefined ? (custom.isUnderline ? "underline" : "none") : undefined,
-      textAlign: custom?.align || undefined,
-      color: custom?.color || defaultColor || undefined,
-      fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
-      lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
-      fontFamily: custom?.fontFamily || undefined,
-      position: custom?.offsetX || custom?.offsetY ? "relative" : undefined,
-      zIndex: custom?.offsetX || custom?.offsetY ? 2 : undefined,
-      transform: custom?.offsetX || custom?.offsetY ? `translate(${custom.offsetX || 0}px, ${custom.offsetY || 0}px)` : undefined,
-    };
-  };
-
-  const getItemClass = (id: string, baseClass: string = "") => {
-    if (!onSelectElement) return baseClass;
-    const isSelected = selectedElementId === id;
-    return `${baseClass} resume-draggable-text resume-element-id--${id} cursor-pointer transition p-0.5 rounded-xs ${
-      isSelected ? "ring-2 ring-emerald-500 ring-offset-1 bg-emerald-500/10" : "hover:ring-1 hover:ring-emerald-400/50"
-    }`.trim();
-  };
-
-  const handleSelect = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onSelectElement) {
-      onSelectElement(id);
-    }
-  };
-
-  return (
+  return orderTemplateSections(
     <ResumePage
       data={data}
       className="bg-white shadow-xl mx-auto font-sans text-slate-800"
@@ -60,18 +43,27 @@ export default function TemplateTwo({
       }}
     >
       {/* Top Header Banner */}
-      <div className="flex items-center justify-between pb-6 border-b-4" style={{ borderColor: primaryColor }}>
+      <div
+        className="flex items-center justify-between pb-6 border-b-4"
+        style={{ borderColor: primaryColor }}
+      >
         <div className="space-y-1">
           <h1
             onClick={(e) => handleSelect("fullName", e)}
-            className={getItemClass("fullName", "text-3xl font-extrabold tracking-tight")}
+            className={getItemClass(
+              "fullName",
+              "text-3xl font-extrabold tracking-tight",
+            )}
             style={{ color: primaryColor, ...getItemStyle("fullName") }}
           >
             {data.fullName}
           </h1>
           <p
             onClick={(e) => handleSelect("jobTitle", e)}
-            className={getItemClass("jobTitle", "text-sm font-semibold uppercase tracking-widest text-slate-500")}
+            className={getItemClass(
+              "jobTitle",
+              "text-sm font-semibold uppercase tracking-widest text-slate-500",
+            )}
             style={getItemStyle("jobTitle")}
           >
             {data.jobTitle}
@@ -82,7 +74,11 @@ export default function TemplateTwo({
         <div className="relative group flex-shrink-0 cursor-pointer">
           <label className="block w-20 h-20 rounded-full overflow-hidden border-2 border-emerald-500 bg-slate-100 shadow-md cursor-pointer relative group-hover:border-emerald-600 transition">
             {data.avatarUrl ? (
-              <img src={data.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              <img
+                src={data.avatarUrl}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-1 text-center bg-slate-100 hover:bg-slate-200 transition">
                 <UserIcon className="w-6 h-6 text-emerald-600 mb-0.5" />
@@ -102,10 +98,14 @@ export default function TemplateTwo({
                 </div>
                 <input
                   type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    aria-label="Upload profile photo"
-                    className="sr-only"
-                    onChange={(e) => {const file=e.currentTarget.files?.[0];if(file)onPhotoUpload(file);e.currentTarget.value='';}}
+                  accept="image/jpeg,image/png,image/webp"
+                  aria-label="Upload profile photo"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.currentTarget.files?.[0];
+                    if (file) onPhotoUpload(file);
+                    e.currentTarget.value = "";
+                  }}
                 />
               </>
             )}
@@ -115,13 +115,22 @@ export default function TemplateTwo({
 
       {/* Contact Pill Bar */}
       <div className="flex flex-wrap gap-4 py-3 border-b border-slate-100 text-xs text-slate-600 font-medium">
-        <span onClick={(e) => handleSelect("contact-location", e)} className={getItemClass("contact-location")}>
+        <span
+          onClick={(e) => handleSelect("contact-location", e)}
+          className={getItemClass("contact-location")}
+        >
           Location: {data.location}
         </span>
-        <span onClick={(e) => handleSelect("contact-phone", e)} className={getItemClass("contact-phone")}>
+        <span
+          onClick={(e) => handleSelect("contact-phone", e)}
+          className={getItemClass("contact-phone")}
+        >
           Phone: {data.phone}
         </span>
-        <span onClick={(e) => handleSelect("contact-email", e)} className={getItemClass("contact-email")}>
+        <span
+          onClick={(e) => handleSelect("contact-email", e)}
+          className={getItemClass("contact-email")}
+        >
           Email: {data.email}
         </span>
       </div>
@@ -132,13 +141,16 @@ export default function TemplateTwo({
         <div className="col-span-1 space-y-6">
           {/* Summary */}
           {data.summary && (
-            <div>
+            <div data-resume-section="summary">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-2 border-b border-slate-200 pb-1">
                 About Me
               </h3>
               <p
                 onClick={(e) => handleSelect("summary", e)}
-                className={getItemClass("summary", "text-xs text-slate-600 leading-relaxed")}
+                className={getItemClass(
+                  "summary",
+                  "text-xs text-slate-600 leading-relaxed",
+                )}
                 style={getItemStyle("summary")}
               >
                 {data.summary}
@@ -148,7 +160,7 @@ export default function TemplateTwo({
 
           {/* Skills */}
           {data.skills && data.skills.length > 0 && (
-            <div>
+            <div data-resume-section="skills">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-3 border-b border-slate-200 pb-1">
                 Top Skills
               </h3>
@@ -159,7 +171,10 @@ export default function TemplateTwo({
                     <span
                       key={i}
                       onClick={(e) => handleSelect(id, e)}
-                      className={getItemClass(id, "text-[11px] font-semibold px-2.5 py-1 rounded-md text-emerald-800 bg-emerald-50 border border-emerald-200")}
+                      className={getItemClass(
+                        id,
+                        "text-[11px] font-semibold px-2.5 py-1 rounded-md text-emerald-800 bg-emerald-50 border border-emerald-200",
+                      )}
                       style={getItemStyle(id)}
                     >
                       {skill}
@@ -175,7 +190,7 @@ export default function TemplateTwo({
         <div className="col-span-2 space-y-6">
           {/* Experience */}
           {data.experience && data.experience.length > 0 && (
-            <div>
+            <div data-resume-section="experience">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-4 border-b border-slate-200 pb-1">
                 Work Experience
               </h3>
@@ -187,27 +202,42 @@ export default function TemplateTwo({
                   const detailsId = `exp-${itemIndex}-details`;
 
                   return (
-                    <div key={exp.id || itemIndex} className="resume-item relative pl-4 border-l-2" style={{ borderColor: primaryColor }}>
+                    <div
+                      key={exp.id || itemIndex}
+                      className="resume-item relative pl-4 border-l-2"
+                      style={{ borderColor: primaryColor }}
+                    >
                       <div className="flex justify-between items-baseline">
                         <h4
                           onClick={(e) => handleSelect(roleId, e)}
-                          className={getItemClass(roleId, "text-xs font-bold text-slate-900")}
+                          className={getItemClass(
+                            roleId,
+                            "text-xs font-bold text-slate-900",
+                          )}
                           style={getItemStyle(roleId)}
                         >
                           {exp.role}
                         </h4>
-                        <span className="text-[10px] text-slate-400 font-semibold">{exp.period}</span>
+                        <span className="text-[10px] text-slate-400 font-semibold">
+                          {exp.period}
+                        </span>
                       </div>
                       <p
                         onClick={(e) => handleSelect(companyId, e)}
-                        className={getItemClass(companyId, "text-[11px] font-semibold text-emerald-700")}
+                        className={getItemClass(
+                          companyId,
+                          "text-[11px] font-semibold text-emerald-700",
+                        )}
                         style={getItemStyle(companyId)}
                       >
                         {exp.company}
                       </p>
                       <p
                         onClick={(e) => handleSelect(detailsId, e)}
-                        className={getItemClass(detailsId, "text-xs text-slate-600 leading-relaxed mt-1 whitespace-pre-line")}
+                        className={getItemClass(
+                          detailsId,
+                          "text-xs text-slate-600 leading-relaxed mt-1 whitespace-pre-line",
+                        )}
                         style={getItemStyle(detailsId)}
                       >
                         {exp.details}
@@ -221,7 +251,7 @@ export default function TemplateTwo({
 
           {/* Education */}
           {data.education && data.education.length > 0 && (
-            <div>
+            <div data-resume-section="education">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-4 border-b border-slate-200 pb-1">
                 Education
               </h3>
@@ -232,24 +262,35 @@ export default function TemplateTwo({
                   const instId = `edu-${itemIndex}-inst`;
 
                   return (
-                    <div key={edu.id || itemIndex} className="resume-item flex justify-between items-start">
+                    <div
+                      key={edu.id || itemIndex}
+                      className="resume-item flex justify-between items-start"
+                    >
                       <div>
                         <h4
                           onClick={(e) => handleSelect(degreeId, e)}
-                          className={getItemClass(degreeId, "text-xs font-bold text-slate-900")}
+                          className={getItemClass(
+                            degreeId,
+                            "text-xs font-bold text-slate-900",
+                          )}
                           style={getItemStyle(degreeId)}
                         >
                           {edu.degree}
                         </h4>
                         <p
                           onClick={(e) => handleSelect(instId, e)}
-                          className={getItemClass(instId, "text-[11px] text-slate-500")}
+                          className={getItemClass(
+                            instId,
+                            "text-[11px] text-slate-500",
+                          )}
                           style={getItemStyle(instId)}
                         >
                           {edu.institution}
                         </p>
                       </div>
-                      <span className="text-[10px] text-slate-400">{edu.period}</span>
+                      <span className="text-[10px] text-slate-400">
+                        {edu.period}
+                      </span>
                     </div>
                   );
                 })}
@@ -259,8 +300,16 @@ export default function TemplateTwo({
         </div>
       </div>
       <div className="mt-7">
-        <AdditionalSections data={data} accentColor={primaryColor} selectedElementId={selectedElementId} onSelectElement={onSelectElement} elementStyles={elementStyles} indexOffsets={indexOffsets} />
+        <AdditionalSections
+          data={data}
+          accentColor={primaryColor}
+          selectedElementId={selectedElementId}
+          onSelectElement={onSelectElement}
+          elementStyles={elementStyles}
+          indexOffsets={indexOffsets}
+        />
       </div>
-    </ResumePage>
+    </ResumePage>,
+    data.sectionOrder,
   );
 }

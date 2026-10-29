@@ -13,14 +13,12 @@ from app.modules.profile.service import ProfileService
 @dataclass
 class FakeAuthService:
     def get_current_user(self, access_token):
-        is_guest = access_token == "guest-token"
         return UserResponse(
             id="user-123",
-            email=None if is_guest else "john@example.com",
-            name=None if is_guest else "John Doe",
-            number=None if is_guest else "03001234567",
-            email_verified=not is_guest,
-            is_guest=is_guest,
+            email="john@example.com",
+            name="John Doe",
+            number="03001234567",
+            email_verified=True,
         )
 
 
@@ -240,22 +238,6 @@ def test_registered_profile_still_requires_email_and_phone(client):
     assert response.json()["detail"]["code"] == "missing_profile_contacts"
 
 
-def test_saved_guest_profile_allows_missing_email_and_phone(client):
-    payload = personal_payload()
-    payload.pop("email")
-    payload.pop("phone")
-
-    response = client.put(
-        "/api/v1/profile/personal",
-        json=payload,
-        headers=auth_headers("guest-token"),
-    )
-
-    assert response.status_code == 200
-    assert response.json()["email"] is None
-    assert response.json()["phone"] is None
-
-
 def test_personal_update_cannot_replace_storage_managed_avatar(client):
     payload = personal_payload()
     payload["avatar_url"] = "https://storage.example.test/signed-avatar?token=temporary"
@@ -292,7 +274,9 @@ def test_avatar_upload_replaces_database_value_and_deletes_previous_object(
     first_path = first.json()["avatar_url"]
     second_path = second.json()["avatar_url"]
     assert first_path != second_path
-    assert app_overrides.repository.get_personal("user-123")["avatar_url"] == second_path
+    assert (
+        app_overrides.repository.get_personal("user-123")["avatar_url"] == second_path
+    )
     assert app_overrides.storage.deleted_paths == [first_path]
 
 
@@ -330,15 +314,6 @@ def test_avatar_snapshot_rejects_another_users_storage_path(client, app_override
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "invalid_avatar_storage_path"
-
-
-def test_guest_cannot_request_registered_profile_avatar_snapshot(client):
-    response = client.get(
-        "/api/v1/profile/avatar/snapshot",
-        headers=auth_headers("guest-token"),
-    )
-
-    assert response.status_code == 403
 
 
 def test_profile_supports_multiple_optional_sections(client):
@@ -524,7 +499,9 @@ def test_profile_item_mutations_are_scoped_to_authenticated_user(client):
 
     assert updated.status_code == 404
     assert deleted.status_code == 404
-    assert repository.items["profile_skills"]["another-user"][0]["name"] == "Private skill"
+    assert (
+        repository.items["profile_skills"]["another-user"][0]["name"] == "Private skill"
+    )
 
 
 def test_certificate_upload(client):
@@ -544,29 +521,3 @@ def test_certificate_upload(client):
     assert response.status_code == 201
     assert response.json()["file_name"] == "transcript.pdf"
     assert response.json()["category"] == "Education"
-
-
-def test_saved_guest_can_store_profile_json_but_not_upload_files(client):
-    saved = client.put(
-        "/api/v1/profile/personal",
-        json=personal_payload(),
-        headers=auth_headers("guest-token"),
-    )
-
-    avatar = client.post(
-        "/api/v1/profile/avatar",
-        files={"file": ("avatar.png", b"image", "image/png")},
-        headers=auth_headers("guest-token"),
-    )
-    certificate = client.post(
-        "/api/v1/profile/certificates/upload",
-        data={"title": "Transcript"},
-        files={"file": ("transcript.pdf", b"%PDF", "application/pdf")},
-        headers=auth_headers("guest-token"),
-    )
-
-    assert saved.status_code == 200
-    assert avatar.status_code == 403
-    assert avatar.json()["detail"]["code"] == "guest_permission_denied"
-    assert certificate.status_code == 403
-    assert certificate.json()["detail"]["code"] == "guest_permission_denied"

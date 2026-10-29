@@ -35,11 +35,14 @@ export function Dialog({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const focusable = panelRef.current?.querySelector<HTMLElement>("[autofocus]")
-      || panelRef.current?.querySelector<HTMLElement>(
+    const focusable =
+      panelRef.current?.querySelector<HTMLElement>("[autofocus]") ||
+      panelRef.current?.querySelector<HTMLElement>(
         "input:not([disabled]), textarea:not([disabled]), select:not([disabled])",
-      )
-      || panelRef.current?.querySelector<HTMLElement>("button:not([disabled]), a[href]");
+      ) ||
+      panelRef.current?.querySelector<HTMLElement>(
+        "button:not([disabled]), a[href]",
+      );
     focusable?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -77,7 +80,12 @@ export function Dialog({
       className="dialog-backdrop"
       role="presentation"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && closeOnOutside && !preventClose) onClose();
+        if (
+          event.target === event.currentTarget &&
+          closeOnOutside &&
+          !preventClose
+        )
+          onClose();
       }}
     >
       <section
@@ -93,10 +101,19 @@ export function Dialog({
           <header className="dialog-header">
             <div>
               {title && <h2 id={titleId}>{title}</h2>}
-              {description && <p className="dialog-description" id={descriptionId}>{description}</p>}
+              {description && (
+                <p className="dialog-description" id={descriptionId}>
+                  {description}
+                </p>
+              )}
             </div>
             {!preventClose && (
-              <button type="button" className="dialog-close" onClick={onClose} aria-label="Close dialog">
+              <button
+                type="button"
+                className="dialog-close"
+                onClick={onClose}
+                aria-label="Close dialog"
+              >
                 <X size={18} aria-hidden="true" />
               </button>
             )}

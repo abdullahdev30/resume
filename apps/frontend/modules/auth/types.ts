@@ -4,8 +4,14 @@ export interface User {
   email: string | null;
   number?: string | null;
   email_verified?: boolean | null;
-  is_guest?: boolean;
-  guest_expires_at?: string | null;
+}
+
+export interface AccountProfile {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  email_verified: boolean;
 }
 
 export interface LoginPayload {
@@ -19,10 +25,6 @@ export interface RegisterPayload {
   phone: string;
   password: string;
   confirm_password: string;
-}
-
-export interface GuestUpgradeVerifyPayload extends RegisterPayload {
-  otp: string;
 }
 
 export interface VerifyEmailPayload {

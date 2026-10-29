@@ -1,3 +1,4 @@
+/* eslint-disable no-control-regex -- Deliberately reject control characters in user input. */
 "use client";
 
 const PRINT_ROOT_ID = "resume-print-root";
@@ -74,8 +75,14 @@ async function waitForImage(image: HTMLImageElement): Promise<void> {
         image.removeEventListener("load", loaded);
         image.removeEventListener("error", failed);
       };
-      const loaded = () => { cleanup(); resolve(); };
-      const failed = () => { cleanup(); reject(new Error("A resume image could not be loaded for printing.")); };
+      const loaded = () => {
+        cleanup();
+        resolve();
+      };
+      const failed = () => {
+        cleanup();
+        reject(new Error("A resume image could not be loaded for printing."));
+      };
       const timer = window.setTimeout(failed, 8000);
       image.addEventListener("load", loaded, { once: true });
       image.addEventListener("error", failed, { once: true });
@@ -85,11 +92,19 @@ async function waitForImage(image: HTMLImageElement): Promise<void> {
     throw new Error("A resume image could not be loaded for printing.");
   }
   if (typeof image.decode === "function") {
-    await withTimeout(image.decode(), 5000, "A resume image took too long to prepare.");
+    await withTimeout(
+      image.decode(),
+      5000,
+      "A resume image took too long to prepare.",
+    );
   }
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
   let timer = 0;
   try {
     return await Promise.race([

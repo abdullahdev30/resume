@@ -10,7 +10,14 @@ export interface AvatarProps extends React.HTMLAttributes<HTMLSpanElement> {
   size?: number;
 }
 
-export function Avatar({ src, alt, fallback, size = 36, className = "", ...props }: AvatarProps) {
+export function Avatar({
+  src,
+  alt,
+  fallback,
+  size = 36,
+  className = "",
+  ...props
+}: AvatarProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const showImage = Boolean(src && src !== failedSrc);
 
@@ -31,7 +38,9 @@ export function Avatar({ src, alt, fallback, size = 36, className = "", ...props
           onError={() => setFailedSrc(src || null)}
         />
       ) : (
-        <span aria-hidden="true">{fallback || alt.slice(0, 1).toUpperCase()}</span>
+        <span aria-hidden="true">
+          {fallback || alt.slice(0, 1).toUpperCase()}
+        </span>
       )}
       {!showImage && <span className="sr-only">{alt}</span>}
     </span>

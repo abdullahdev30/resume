@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type React from "react";
 import { useState } from "react";
 
@@ -33,16 +34,23 @@ export function ResetPasswordForm() {
   };
 
   return (
-    <AuthLayout title="Set a new password" subtitle="Choose a strong password to finish account recovery.">
+    <AuthLayout
+      title="Set a new password"
+      subtitle="Choose a strong password to finish account recovery."
+    >
       <form className="form-stack" onSubmit={onSubmit}>
-        {(formError || error) && <Alert variant="error">{formError || error}</Alert>}
+        {(formError || error) && (
+          <Alert variant="error">{formError || error}</Alert>
+        )}
         <PasswordField
           label="New password"
           value={form.new_password}
           autoComplete="new-password"
           autoFocus
           required
-          onChange={(event) => setForm({ ...form, new_password: event.target.value })}
+          onChange={(event) =>
+            setForm({ ...form, new_password: event.target.value })
+          }
           placeholder="Create a new password"
           showChecklist
         />
@@ -51,12 +59,25 @@ export function ResetPasswordForm() {
           value={form.confirm_new_password}
           autoComplete="new-password"
           required
-          onChange={(event) => setForm({ ...form, confirm_new_password: event.target.value })}
+          onChange={(event) =>
+            setForm({ ...form, confirm_new_password: event.target.value })
+          }
           placeholder="Repeat your new password"
         />
-        <Button type="submit" loading={loading} loadingLabel="Updating password..." fullWidth>
+        <Button
+          type="submit"
+          loading={loading}
+          loadingLabel="Updating password..."
+          fullWidth
+        >
           Update password
         </Button>
+        <Link href="/auth/forgot-password" className="text-link text-center">
+          Request a new recovery code
+        </Link>
+        <Link href="/auth/login" className="text-link text-center">
+          Back to sign in
+        </Link>
       </form>
     </AuthLayout>
   );

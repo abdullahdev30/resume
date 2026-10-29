@@ -9,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
+  Users,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -22,10 +23,15 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { getQueryClient, apiQueryKey } from "@/lib/query-client";
+import { apiClient } from "@/lib/api-client";
 import { authApi } from "../auth/api";
 import type { User } from "../auth/types";
 import { profileApi } from "../profile/api";
-import { PROFILE_UPDATED_EVENT, type ProfileUpdatedDetail } from "../profile/events";
+import {
+  PROFILE_UPDATED_EVENT,
+  type ProfileUpdatedDetail,
+} from "../profile/events";
 
 interface AppShellProps {
   user: User | null;
@@ -34,18 +40,28 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-const guestNavItems = [
+const publicNavItems = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/resumes", label: "My Resumes", icon: FileText },
   { href: "/templates", label: "Templates", icon: LayoutTemplate },
 ];
 
 const accountNavItems = [
-  ...guestNavItems,
-  { href: "/settings", label: "Profile & Settings", icon: Settings },
+  ...publicNavItems.map((item) =>
+    item.href === "/templates"
+      ? { ...item, href: "/resumes/create/template" }
+      : item,
+  ),
+  { href: "/persona", label: "Persona", icon: Users },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function AppShell({ user, initialAvatarUrl, initialDisplayName, children }: AppShellProps) {
+export function AppShell({
+  user,
+  initialAvatarUrl,
+  initialDisplayName,
+  children,
+}: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -53,8 +69,11 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl || "");
-  const fallbackDisplayName = user?.name || user?.email?.split("@")[0] || "User";
-  const [displayName, setDisplayName] = useState(initialDisplayName || fallbackDisplayName);
+  const fallbackDisplayName =
+    user?.name || user?.email?.split("@")[0] || "User";
+  const [displayName, setDisplayName] = useState(
+    initialDisplayName || fallbackDisplayName,
+  );
 
   useEffect(() => {
     setMobileOpen(false);
@@ -62,7 +81,9 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
 
   useEffect(() => {
     try {
-      setSidebarCollapsed(localStorage.getItem("resume-builder-sidebar-collapsed") === "true");
+      setSidebarCollapsed(
+        localStorage.getItem("resume-builder-sidebar-collapsed") === "true",
+      );
     } catch {
       // The preference is optional when browser storage is unavailable.
     }
@@ -89,7 +110,9 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
         const savedName = [
           profile.personal.first_name || profile.personal.name,
           profile.personal.last_name,
-        ].filter(Boolean).join(" ");
+        ]
+          .filter(Boolean)
+          .join(" ");
         if (savedName) setDisplayName(savedName);
       })
       .catch(() => setAvatarUrl(""));
@@ -102,7 +125,8 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
       if (detail.avatarUrl !== undefined) setAvatarUrl(detail.avatarUrl);
     };
     window.addEventListener(PROFILE_UPDATED_EVENT, updateProfile);
-    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, updateProfile);
+    return () =>
+      window.removeEventListener(PROFILE_UPDATED_EVENT, updateProfile);
   }, []);
 
   useEffect(() => {
@@ -122,7 +146,10 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
       router.push("/auth/login");
       router.refresh();
     } catch {
-      toast.error("We could not sign you out. Please try again.", "Sign out failed");
+      toast.error(
+        "We could not sign you out. Please try again.",
+        "Sign out failed",
+      );
     } finally {
       setLoggingOut(false);
       setLogoutOpen(false);
@@ -141,10 +168,18 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
             aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={mobileOpen}
           >
-            {mobileOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
+            {mobileOpen ? (
+              <X size={20} aria-hidden="true" />
+            ) : (
+              <Menu size={20} aria-hidden="true" />
+            )}
           </Button>
 
-          <Link href="/dashboard" className="app-brand" aria-label="Resume Builder dashboard">
+          <Link
+            href="/dashboard"
+            className="app-brand"
+            aria-label="Resume Builder dashboard"
+          >
             <BrandLogo className="app-brand-logo" priority />
             <span className="app-brand-copy">
               <span className="app-brand-name">Resume Builder</span>
@@ -156,17 +191,38 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
         <div className="app-navbar-actions">
           <ThemeToggle />
           {user ? (
-            <Link href="/settings" className="profile-chip" aria-label="Open profile settings">
-              <Avatar src={avatarUrl} alt={displayName} fallback={displayName.slice(0, 1)} size={34} />
+            <Link
+              href="/settings"
+              className="profile-chip"
+              aria-label="Open profile settings"
+            >
+              <Avatar
+                src={avatarUrl}
+                alt={displayName}
+                fallback={displayName.slice(0, 1)}
+                size={34}
+              />
               <span className="profile-chip-copy">
                 <span className="profile-chip-name">{displayName}</span>
-                <span className="profile-chip-email">{user.email || "Account"}</span>
+                <span className="profile-chip-email">
+                  {user.email || "Account"}
+                </span>
               </span>
             </Link>
           ) : (
             <div className="flex items-center gap-2">
-              <Link href="/auth/login" className="button button-secondary button-sm">Log in</Link>
-              <Link href="/auth/register" className="button button-primary button-sm">Sign up</Link>
+              <Link
+                href="/auth/login"
+                className="button button-secondary button-sm"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/auth/register"
+                className="button button-primary button-sm"
+              >
+                Sign up
+              </Link>
             </div>
           )}
         </div>
@@ -174,17 +230,27 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
 
       <div className="app-workspace">
         {mobileOpen && (
-          <button className="mobile-backdrop md:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />
+          <button
+            className="mobile-backdrop md:hidden"
+            aria-label="Close navigation"
+            onClick={() => setMobileOpen(false)}
+          />
         )}
         <aside
           className={[
             "app-sidebar",
             mobileOpen ? "is-open" : "",
             sidebarCollapsed ? "is-collapsed" : "",
-          ].filter(Boolean).join(" ")}
+          ]
+            .filter(Boolean)
+            .join(" ")}
         >
           <div className="sidebar-toggle-row">
-            <Link href="/dashboard" className="sidebar-brand" aria-label="Resume Builder dashboard">
+            <Link
+              href="/dashboard"
+              className="sidebar-brand"
+              aria-label="Resume Builder dashboard"
+            >
               <BrandLogo className="sidebar-brand-logo" />
               <span>Resume Builder</span>
             </Link>
@@ -193,24 +259,49 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
               iconOnly
               className="sidebar-toggle"
               onClick={toggleSidebar}
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={
+                sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+              }
               aria-expanded={!sidebarCollapsed}
             >
-              {sidebarCollapsed
-                ? <PanelLeftOpen size={19} aria-hidden="true" />
-                : <PanelLeftClose size={19} aria-hidden="true" />}
+              {sidebarCollapsed ? (
+                <PanelLeftOpen size={19} aria-hidden="true" />
+              ) : (
+                <PanelLeftClose size={19} aria-hidden="true" />
+              )}
             </Button>
           </div>
           <nav className="sidebar-nav" aria-label="Main navigation">
             <div className="sidebar-label">Workspace</div>
-            {(user ? accountNavItems : guestNavItems).map((item) => {
+            {(user ? accountNavItems : publicNavItems).map((item) => {
               const Icon = item.icon;
-              const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              const active =
+                pathname === item.href ||
+                (item.href !== "/dashboard" && pathname.startsWith(item.href));
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={["sidebar-link", active ? "is-active" : ""].filter(Boolean).join(" ")}
+                  onMouseEnter={() => {
+                    const endpoint =
+                      item.href === "/persona"
+                        ? "/personas"
+                        : item.href === "/settings"
+                          ? "/auth/profile"
+                          : item.href === "/resumes" ||
+                              item.href === "/dashboard"
+                            ? "/resumes"
+                            : null;
+                    if (endpoint && user)
+                      void getQueryClient().prefetchQuery({
+                        queryKey: apiQueryKey(endpoint),
+                        queryFn: () =>
+                          apiClient(endpoint, { queryCache: false }),
+                      });
+                  }}
+                  className={["sidebar-link", active ? "is-active" : ""]
+                    .filter(Boolean)
+                    .join(" ")}
                   aria-current={active ? "page" : undefined}
                   title={sidebarCollapsed ? item.label : undefined}
                 >
@@ -238,9 +329,7 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
           )}
         </aside>
 
-        <main className="app-main">
-          {children}
-        </main>
+        <main className="app-main">{children}</main>
       </div>
 
       <ConfirmDialog
@@ -251,10 +340,19 @@ export function AppShell({ user, initialAvatarUrl, initialDisplayName, children 
         preventClose={loggingOut}
       >
         <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => setLogoutOpen(false)} disabled={loggingOut}>
+          <Button
+            variant="secondary"
+            onClick={() => setLogoutOpen(false)}
+            disabled={loggingOut}
+          >
             Stay signed in
           </Button>
-          <Button variant="danger" onClick={logout} loading={loggingOut} loadingLabel="Signing out...">
+          <Button
+            variant="danger"
+            onClick={logout}
+            loading={loggingOut}
+            loadingLabel="Signing out..."
+          >
             Sign out
           </Button>
         </div>

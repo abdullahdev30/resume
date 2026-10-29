@@ -17,7 +17,10 @@ export function PasswordField({
   const password = String(value || "");
   const checks = useMemo(
     () => [
-      { label: "8-128 characters", met: password.length >= 8 && password.length <= 128 },
+      {
+        label: "8-128 characters",
+        met: password.length >= 8 && password.length <= 128,
+      },
       { label: "Uppercase letter", met: /[A-Z]/.test(password) },
       { label: "Lowercase letter", met: /[a-z]/.test(password) },
       { label: "Number", met: /\d/.test(password) },

@@ -3,7 +3,7 @@ from typing import Any
 
 from sqlalchemy import Select, select
 from sqlalchemy import update as sql_update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.modules.resume.models import Resume, ResumeStorageCleanup
 
@@ -33,6 +33,9 @@ class ResumeRepository:
         data: dict[str, Any] | None = None,
         resume_type: str = "legacy_pdf",
         is_ai_generated: bool = False,
+        html_content: str | None = None,
+        pdf_source_version: int | None = None,
+        pdf_html: str | None = None,
     ) -> Resume:
         now = datetime.now(timezone.utc)
         resume = Resume(
@@ -48,6 +51,9 @@ class ResumeRepository:
             resume_type=resume_type,
             source_version=1,
             is_ai_generated=is_ai_generated,
+            html_content=html_content,
+            pdf_source_version=pdf_source_version,
+            pdf_html=pdf_html,
             created_at=now,
             updated_at=now,
         )
@@ -70,6 +76,7 @@ class ResumeRepository:
         data: dict[str, Any],
         resume_type: str,
         is_ai_generated: bool,
+        pdf_values: dict[str, Any] | None = None,
     ) -> Resume:
         return self.create(
             resume_id=resume_id,
@@ -79,6 +86,7 @@ class ResumeRepository:
             data=data,
             resume_type=resume_type,
             is_ai_generated=is_ai_generated,
+            **(pdf_values or {}),
         )
 
     def get(self, user_id: str, resume_id: str) -> Resume | None:
@@ -87,9 +95,15 @@ class ResumeRepository:
         )
 
     def list(self, user_id: str) -> list[Resume]:
-        query = self._scoped_query(user_id).order_by(
-            Resume.created_at.desc(),
-            Resume.id.desc(),
+        query = (
+            self._scoped_query(user_id)
+            .options(
+                defer(Resume.html_content), defer(Resume.pdf_html), defer(Resume.data)
+            )
+            .order_by(
+                Resume.created_at.desc(),
+                Resume.id.desc(),
+            )
         )
         return list(self.session.scalars(query))
 
@@ -154,6 +168,35 @@ class ResumeRepository:
             self.session.rollback()
             raise
         return True
+
+    def replace_pdf(
+        self,
+        user_id: str,
+        resume_id: str,
+        source_version: int,
+        previous_path: str | None,
+        values: dict[str, Any],
+    ) -> Resume | None:
+        """Compare both source and derivative, including across server workers."""
+        try:
+            result = self.session.execute(
+                sql_update(Resume)
+                .where(
+                    Resume.id == resume_id,
+                    Resume.user_id == user_id,
+                    Resume.source_version == source_version,
+                    Resume.storage_path == previous_path,
+                )
+                .values(**values)
+            )
+            if result.rowcount != 1:
+                self.session.rollback()
+                return None
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
+        return self.get(user_id, resume_id)
 
     def enqueue_storage_cleanup(
         self,

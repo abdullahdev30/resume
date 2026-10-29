@@ -5,9 +5,9 @@ test("template editor retains inline text, full toolbar, outline and local photo
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/editor/1");
-  const outline = page.locator("#guest-editor-details");
+  const outline = page.locator("#resume-workspace-editor-details");
   await expect(outline).toBeVisible();
-  const toolbar = page.locator(".guest-editor-full-toolbar");
+  const toolbar = page.locator(".resume-workspace-editor-full-toolbar");
   await expect(toolbar).toBeVisible();
   const openWidth = (await toolbar.boundingBox())!.width;
   expect((await outline.boundingBox())!.y).toBeGreaterThanOrEqual(
@@ -16,16 +16,12 @@ test("template editor retains inline text, full toolbar, outline and local photo
       1,
   );
   await expect(outline.getByRole("link")).toHaveCount(0);
+  await outline.getByRole("button", { name: "Your Name", exact: true }).click();
   await page
-    .locator(".guest-preview-canvas .resume-element-id--fullName")
-    .click();
-  const name = page.getByRole("textbox", { name: "Full name", exact: true });
-  await expect(name).toBeVisible();
-  await name.fill("Alex Example");
-  await name.press("Enter");
-  await expect(
-    page.locator(".guest-preview-canvas .resume-element-id--fullName"),
-  ).toHaveText(/Alex Example/i);
+    .getByRole("dialog")
+    .getByLabel("Full name", { exact: true })
+    .fill("Alex Example");
+  await page.getByRole("button", { name: "Close dialog", exact: true }).click();
   await outline
     .getByRole("button", { name: "Alex Example", exact: true })
     .click();
@@ -36,7 +32,9 @@ test("template editor retains inline text, full toolbar, outline and local photo
     .fill("Jordan Example");
   await page.getByRole("button", { name: "Close dialog", exact: true }).click();
   await expect(
-    page.locator(".guest-preview-canvas .resume-element-id--fullName"),
+    page.locator(
+      ".resume-workspace-preview-canvas .resume-element-id--fullName",
+    ),
   ).toHaveText(/Jordan Example/i);
   await page
     .getByRole("button", { name: "Hide resume details", exact: true })
@@ -47,7 +45,9 @@ test("template editor retains inline text, full toolbar, outline and local photo
     .getByRole("button", { name: "Show resume details", exact: true })
     .click();
   await expect(outline).toBeVisible();
-  const input = page.locator(".guest-preview-canvas input[type=file]").first();
+  const input = page
+    .locator(".resume-workspace-preview-canvas input[type=file]")
+    .first();
   const chooserPromise = page.waitForEvent("filechooser");
   await input.locator("..").click();
   const chooser = await chooserPromise;
@@ -73,7 +73,7 @@ test("template editor retains inline text, full toolbar, outline and local photo
   ).toBeEnabled();
   await page.getByRole("button", { name: "Apply image", exact: false }).click();
   await expect(
-    page.locator('.guest-preview-canvas img[alt="Avatar"]'),
-  ).toHaveAttribute("src", /^blob:/);
+    page.locator('.resume-workspace-preview-canvas img[alt="Avatar"]'),
+  ).toHaveAttribute("src", /^data:image/);
   expect(errors).toEqual([]);
 });

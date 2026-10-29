@@ -5,13 +5,22 @@ import { useRef } from "react";
 type OtpInputProps = {
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
   onComplete?: (value: string) => void;
 };
 
-export function OtpInput({ value, onChange, onComplete }: OtpInputProps) {
+export function OtpInput({
+  value,
+  onChange,
+  onComplete,
+  disabled,
+}: OtpInputProps) {
   const inputs = useRef<Array<HTMLInputElement | null>>([]);
   const length = 6;
-  const digits = Array.from({ length }, (_, index) => value[index] || "");
+  const digits = Array.from(
+    { length },
+    (_, index) => value[index]?.trim() || "",
+  );
 
   function update(nextValue: string, index: number) {
     const sanitized = nextValue.replace(/\D/gu, "").slice(0, length);
@@ -23,12 +32,16 @@ export function OtpInput({ value, onChange, onComplete }: OtpInputProps) {
     }
 
     current[index] = sanitized;
-    const joined = current.join("").slice(0, length);
+    const joined = current
+      .map((digit) => digit || " ")
+      .join("")
+      .trimEnd()
+      .slice(0, length);
     onChange(joined);
     if (sanitized && index < length - 1) {
       inputs.current[index + 1]?.focus();
     }
-    if (joined.length === length) {
+    if (/^\d{6}$/.test(joined)) {
       onComplete?.(joined);
     }
   }
@@ -36,16 +49,29 @@ export function OtpInput({ value, onChange, onComplete }: OtpInputProps) {
   function applyDigits(pastedValue: string, startIndex: number) {
     const pastedDigits = pastedValue.replace(/\D/gu, "").slice(0, length);
     if (!pastedDigits) return;
-    const next = startIndex === 0 ? Array<string>(length).fill("") : [...digits];
-    pastedDigits.slice(0, length - startIndex).split("").forEach((digit, offset) => {
-      next[startIndex + offset] = digit;
-    });
-    const joined = next.join("").slice(0, length);
+    const next =
+      startIndex === 0 ? Array<string>(length).fill("") : [...digits];
+    pastedDigits
+      .slice(0, length - startIndex)
+      .split("")
+      .forEach((digit, offset) => {
+        next[startIndex + offset] = digit;
+      });
+    const joined = next
+      .map((digit) => digit || " ")
+      .join("")
+      .trimEnd()
+      .slice(0, length);
     onChange(joined);
-    const nextEmpty = next.findIndex((digit, itemIndex) => itemIndex >= startIndex && !digit);
-    const focusIndex = nextEmpty >= 0 ? nextEmpty : Math.min(startIndex + pastedDigits.length - 1, length - 1);
+    const nextEmpty = next.findIndex(
+      (digit, itemIndex) => itemIndex >= startIndex && !digit,
+    );
+    const focusIndex =
+      nextEmpty >= 0
+        ? nextEmpty
+        : Math.min(startIndex + pastedDigits.length - 1, length - 1);
     inputs.current[focusIndex]?.focus();
-    if (joined.length === length) onComplete?.(joined);
+    if (/^\d{6}$/.test(joined)) onComplete?.(joined);
   }
 
   return (
@@ -57,6 +83,7 @@ export function OtpInput({ value, onChange, onComplete }: OtpInputProps) {
             inputs.current[index] = node;
           }}
           className="field-control otp-input"
+          disabled={disabled}
           value={digit}
           inputMode="numeric"
           pattern="[0-9]*"
@@ -79,7 +106,12 @@ export function OtpInput({ value, onChange, onComplete }: OtpInputProps) {
               event.preventDefault();
               const next = [...digits];
               next[index - 1] = "";
-              onChange(next.join(""));
+              onChange(
+                next
+                  .map((digit) => digit || " ")
+                  .join("")
+                  .trimEnd(),
+              );
               inputs.current[index - 1]?.focus();
             }
           }}

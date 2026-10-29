@@ -44,7 +44,9 @@ def _user_id(current_user: UserResponse) -> str:
 
 
 @router.get("", response_model=ProfileResponse)
-def get_profile(current_user: UserResponse = CURRENT_USER_DEPENDENCY) -> ProfileResponse:
+def get_profile(
+    current_user: UserResponse = CURRENT_USER_DEPENDENCY,
+) -> ProfileResponse:
     try:
         return profile_service.get_profile(_user_id(current_user))
     except ProfileApplicationError as exc:
@@ -70,7 +72,7 @@ def upsert_personal(
         return profile_service.upsert_personal(
             _user_id(current_user),
             payload,
-            allow_missing_contacts=current_user.is_guest,
+            allow_missing_contacts=False,
         )
     except ProfileApplicationError as exc:
         raise_profile_error(exc)
@@ -129,7 +131,9 @@ def update_social_link(
     current_user: UserResponse = CURRENT_USER_DEPENDENCY,
 ) -> SocialLinkResponse:
     try:
-        return profile_service.update_social_link(_user_id(current_user), item_id, payload)
+        return profile_service.update_social_link(
+            _user_id(current_user), item_id, payload
+        )
     except ProfileApplicationError as exc:
         raise_profile_error(exc)
 
@@ -178,7 +182,9 @@ def update_education(
     current_user: UserResponse = CURRENT_USER_DEPENDENCY,
 ) -> EducationResponse:
     try:
-        return profile_service.update_education(_user_id(current_user), item_id, payload)
+        return profile_service.update_education(
+            _user_id(current_user), item_id, payload
+        )
     except ProfileApplicationError as exc:
         raise_profile_error(exc)
 
@@ -227,7 +233,9 @@ def update_experience(
     current_user: UserResponse = CURRENT_USER_DEPENDENCY,
 ) -> ExperienceResponse:
     try:
-        return profile_service.update_experience(_user_id(current_user), item_id, payload)
+        return profile_service.update_experience(
+            _user_id(current_user), item_id, payload
+        )
     except ProfileApplicationError as exc:
         raise_profile_error(exc)
 
@@ -349,7 +357,9 @@ def update_certificate(
     current_user: UserResponse = CURRENT_USER_DEPENDENCY,
 ) -> CertificateResponse:
     try:
-        return profile_service.update_certificate(_user_id(current_user), item_id, payload)
+        return profile_service.update_certificate(
+            _user_id(current_user), item_id, payload
+        )
     except ProfileApplicationError as exc:
         raise_profile_error(exc)
 

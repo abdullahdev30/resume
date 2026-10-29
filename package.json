@@ -3,17 +3,14 @@
   "private": true,
   "scripts": {
     "build": "pnpm --filter frontend build",
-    "build:legacy": "pnpm --filter frontend build",
     "dev": "pnpm --filter frontend dev",
-    "dev:legacy": "concurrently \"pnpm run dev:web\" \"pnpm run dev:backend\"",
-    "build:free": "pnpm --filter frontend build",
-    "test:free": "pnpm --filter frontend test",
     "dev:web": "pnpm --filter frontend dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "dev:backend": "cd apps/backend && venv\\Scripts\\python -m uvicorn main:app --reload --port 8000",
     "check-types": "turbo run check-types",
-    "test": "pnpm --filter frontend test"
+    "test": "pnpm --filter frontend test",
+    "dev:all": "concurrently \"pnpm run dev:web\" \"pnpm run dev:backend\""
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
@@ -22,8 +19,7 @@
     "postcss": "^8.5.28",
     "prettier": "3.9.6",
     "tailwindcss": "^4.3.3",
-    "turbo": "^2.10.13",
-    "typescript": "7.0.2"
+    "turbo": "^2.10.13"
   },
   "packageManager": "pnpm@11.25.0",
   "engines": {

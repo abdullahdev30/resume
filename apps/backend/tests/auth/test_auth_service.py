@@ -65,9 +65,9 @@ def test_register_accepts_wrapped_supabase_signup_response():
     assert auth.request_body == {
         "email": "jane@example.com",
         "password": "StrongPassword123!",
-            "data": {
-                "name": "Jane Doe",
-                "phone_number": "+923001234567",
+        "data": {
+            "name": "Jane Doe",
+            "phone_number": "+923001234567",
         },
         "gotrue_meta_security": {
             "captcha_token": None,
@@ -132,7 +132,7 @@ def test_upstream_auth_error_maps_supabase_duplicate_error():
     assert error.code == "account_already_exists"
 
 
-def test_upstream_auth_error_maps_disabled_anonymous_provider():
+def test_upstream_auth_error_maps_unknown_provider_failure():
     error = upstream_auth_error(
         AuthApiError(
             "Anonymous sign-ins are disabled",
@@ -141,23 +141,5 @@ def test_upstream_auth_error_maps_disabled_anonymous_provider():
         ),
     )
 
-    assert error.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert error.code == "guest_access_unavailable"
-
-
-def test_anonymous_supabase_user_maps_to_saved_guest_without_fake_email():
-    service = AuthService()
-
-    user = service._user_response(
-        {
-            "id": "guest-123",
-            "email": None,
-            "is_anonymous": True,
-            "user_metadata": {},
-        }
-    )
-
-    assert user.id == "guest-123"
-    assert user.email is None
-    assert user.is_guest is True
-    assert user.email_verified is False
+    assert error.status_code == status.HTTP_502_BAD_GATEWAY
+    assert error.code == "auth_provider_error"

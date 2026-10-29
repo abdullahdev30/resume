@@ -1,7 +1,6 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
-import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 
@@ -14,6 +13,11 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { ApiClientError } from "@/lib/api-client";
 import { resumeApi } from "../api";
+import { EditorDocument } from "./AccountResumeEditor";
+import type { ResumeRecord } from "../types";
+import Link from "next/link";
+import { useApiQuery } from "@/lib/use-api-query";
+import type { Persona } from "@/modules/persona/types";
 import type { AIResumePayload } from "../types";
 
 type ProfileSection = NonNullable<AIResumePayload["selected_sections"]>[number];
@@ -38,8 +42,11 @@ const progressMessages = [
 ];
 
 export function CreateAIResumeClient() {
-  const router = useRouter();
+  const [draft, setDraft] = useState<ResumeRecord | null>(null);
   const [title, setTitle] = useState("AI Generated Resume");
+  const personas = useApiQuery<Persona[]>("/personas");
+  const [personaId, setPersonaId] = useState("");
+  const selectedPersona = personaId || personas.data?.[0]?.id || "";
   const [prompt, setPrompt] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [referenceLinks, setReferenceLinks] = useState<string[]>([""]);
@@ -56,7 +63,9 @@ export function CreateAIResumeClient() {
       return;
     }
     const timer = window.setInterval(() => {
-      setProgressIndex((current) => Math.min(current + 1, progressMessages.length - 1));
+      setProgressIndex((current) =>
+        Math.min(current + 1, progressMessages.length - 1),
+      );
     }, 2500);
     return () => window.clearInterval(timer);
   }, [saving]);
@@ -69,17 +78,31 @@ export function CreateAIResumeClient() {
     try {
       const resume = await resumeApi.createAI({
         title: title.trim(),
+        persona_id: selectedPersona,
         prompt: prompt.trim(),
         job_description: jobDescription.trim() || undefined,
-        reference_links: referenceLinks.map((link) => link.trim()).filter(Boolean),
+        reference_links: referenceLinks
+          .map((link) => link.trim())
+          .filter(Boolean),
         selected_sections: selectedSections,
       });
-      toast.success("Your AI draft is ready to review.", "Resume created");
-      router.push(`/resumes/${resume.id}/edit`);
+      setDraft({
+        id: "",
+        title: title.trim(),
+        resume_type: "ai",
+        editable: true,
+        template_id: resume.template_id,
+        resume_data: resume.resume_data,
+        source_version: 1,
+        created_at: "",
+        updated_at: "",
+      });
+      toast.success("Review your AI draft, then save it to your account.");
     } catch (caught) {
-      const message = caught instanceof ApiClientError
-        ? `${formatAiErrorCode(caught.code)}${caught.message}`
-        : "We could not generate your resume. Your instructions are still here—please try again.";
+      const message =
+        caught instanceof ApiClientError
+          ? `${formatAiErrorCode(caught.code)}${caught.message}`
+          : "We could not generate your resume. Your instructions are still here—please try again.";
       setError(message);
       toast.error(message, "Generation failed");
     } finally {
@@ -87,18 +110,50 @@ export function CreateAIResumeClient() {
     }
   };
 
+  if (draft) return <EditorDocument record={draft} />;
   return (
     <form onSubmit={submit} className="page-stack max-w-3xl">
       <PageHeader
         eyebrow="AI-assisted draft"
         icon={<Sparkles size={15} aria-hidden="true" />}
         title="Create a focused first draft"
-        description="The server combines your saved profile with your instructions, validates the result, and saves it as a normal editable resume."
+        description="The server combines your saved profile with your instructions, validates the result, and opens an editable draft. Save it when you are ready."
       />
 
       {error && <Alert variant="error">{error}</Alert>}
 
       <Card padding="lg" className="form-stack">
+        <label className="form-stack text-sm font-semibold">
+          Persona
+          <select
+            aria-label="Persona"
+            className="field-control"
+            value={selectedPersona}
+            onChange={(event) => setPersonaId(event.target.value)}
+            required
+            disabled={personas.isPending}
+          >
+            <option value="">Choose a persona</option>
+            {personas.data?.map((persona) => (
+              <option key={persona.id} value={persona.id}>
+                {persona.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {personas.error && (
+          <Alert variant="error">
+            {personas.error.message}
+            <Button variant="secondary" onClick={() => void personas.refetch()}>
+              Retry
+            </Button>
+          </Alert>
+        )}
+        {!personas.isPending && !personas.data?.length && (
+          <Link href="/persona" className="text-link">
+            Create a persona before generating your resume.
+          </Link>
+        )}
         <Input
           label="Resume title"
           value={title}
@@ -128,21 +183,29 @@ export function CreateAIResumeClient() {
         />
 
         <fieldset className="form-stack rounded-2xl border border-[var(--border)] p-4">
-          <legend className="px-1 text-sm font-bold text-[var(--text)]">Profile sections to use</legend>
+          <legend className="px-1 text-sm font-bold text-[var(--text)]">
+            Profile sections to use
+          </legend>
           <p className="text-xs text-[var(--text-muted)]">
-            Your profile is read securely by the server. Unselected sections are not sent to the AI provider.
+            Your profile is read securely by the server. Unselected sections are
+            not sent to the AI provider.
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {profileSections.map((section) => (
-              <label key={section.id} className="flex cursor-pointer items-center gap-2 rounded-xl border border-[var(--border)] p-3 text-sm">
+              <label
+                key={section.id}
+                className="flex cursor-pointer items-center gap-2 rounded-xl border border-[var(--border)] p-3 text-sm"
+              >
                 <input
                   type="checkbox"
                   checked={selectedSections.includes(section.id)}
-                  onChange={(event) => setSelectedSections((current) =>
-                    event.target.checked
-                      ? [...current, section.id]
-                      : current.filter((id) => id !== section.id)
-                  )}
+                  onChange={(event) =>
+                    setSelectedSections((current) =>
+                      event.target.checked
+                        ? [...current, section.id]
+                        : current.filter((id) => id !== section.id),
+                    )
+                  }
                 />
                 {section.label}
               </label>
@@ -152,10 +215,14 @@ export function CreateAIResumeClient() {
 
         <fieldset className="form-stack rounded-2xl border border-[var(--border)] p-4">
           <legend className="px-1 text-sm font-bold text-[var(--text)]">
-            Reference links <span className="font-normal text-[var(--text-muted)]">(optional)</span>
+            Reference links{" "}
+            <span className="font-normal text-[var(--text-muted)]">
+              (optional)
+            </span>
           </legend>
           <p className="text-xs text-[var(--text-muted)]">
-            Add public portfolio, job, or project URLs for the server to read safely. Only public HTTP and HTTPS pages are accepted.
+            Add public portfolio, job, or project URLs for the server to read
+            safely. Only public HTTP and HTTPS pages are accepted.
           </p>
           {referenceLinks.map((link, index) => (
             <div key={index} className="flex items-end gap-2">
@@ -163,16 +230,24 @@ export function CreateAIResumeClient() {
                 label={`Reference ${index + 1}`}
                 type="url"
                 value={link}
-                onChange={(event) => setReferenceLinks((current) =>
-                  current.map((value, itemIndex) => itemIndex === index ? event.target.value : value)
-                )}
+                onChange={(event) =>
+                  setReferenceLinks((current) =>
+                    current.map((value, itemIndex) =>
+                      itemIndex === index ? event.target.value : value,
+                    ),
+                  )
+                }
                 placeholder="https://example.com/portfolio"
               />
               {referenceLinks.length > 1 && (
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setReferenceLinks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                  onClick={() =>
+                    setReferenceLinks((current) =>
+                      current.filter((_, itemIndex) => itemIndex !== index),
+                    )
+                  }
                 >
                   Remove
                 </Button>
@@ -180,7 +255,11 @@ export function CreateAIResumeClient() {
             </div>
           ))}
           {referenceLinks.length < 5 && (
-            <Button type="button" variant="secondary" onClick={() => setReferenceLinks((current) => [...current, ""])}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setReferenceLinks((current) => [...current, ""])}
+            >
               Add reference
             </Button>
           )}
@@ -199,7 +278,12 @@ export function CreateAIResumeClient() {
           size="lg"
           loading={saving}
           loadingLabel="Generating..."
-          disabled={!title.trim() || !prompt.trim() || selectedSections.length === 0}
+          disabled={
+            !selectedPersona ||
+            !title.trim() ||
+            !prompt.trim() ||
+            selectedSections.length === 0
+          }
         >
           <Sparkles size={17} aria-hidden="true" />
           Generate resume

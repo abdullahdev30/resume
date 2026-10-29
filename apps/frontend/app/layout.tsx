@@ -1,18 +1,15 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Figtree } from "next/font/google";
 import { ToastProvider } from "@/components/feedback/Toast";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 import "./globals.css";
-const figtree=Figtree({subsets:['latin'],weight:['400','500','600'],variable:'--font-figtree'});
-const bricolage=Bricolage_Grotesque({subsets:['latin'],weight:['600','700'],variable:'--font-bricolage'});
-
-
 export const metadata: Metadata = {
   applicationName: "Resume Builder",
   title: {
     default: "Resume Builder",
     template: "%s | Resume Builder",
   },
-  description: "Build a professional resume for free in your browser and save it as a PDF. No sign-up required.",
+  description:
+    "Build a professional resume for free in your browser and save it as a PDF. No sign-up required.",
   icons: {
     icon: "/favicon.ico",
     apple: "/resume_logo.png",
@@ -27,12 +24,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="light" suppressHydrationWarning className={`${figtree.variable} ${bricolage.variable}`}>
+    <html lang="en" data-theme="light" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <ToastProvider>{children}</ToastProvider>
+        <QueryProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </QueryProvider>
       </body>
     </html>
   );

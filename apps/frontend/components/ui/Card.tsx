@@ -18,7 +18,9 @@ export function Card({
         padding !== "none" ? `card-padding-${padding}` : "",
         interactive ? "card-interactive" : "",
         className,
-      ].filter(Boolean).join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
       {...props}
     />
   );

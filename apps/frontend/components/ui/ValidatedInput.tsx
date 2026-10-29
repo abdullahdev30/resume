@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 
 import { Input, type InputProps } from "./Input";
 
-type ValidatedInputProps = Omit<InputProps, "value" | "onChange" | "onBlur" | "onInvalid" | "error" | "inputRef"> & {
+type ValidatedInputProps = Omit<
+  InputProps,
+  "value" | "onChange" | "onBlur" | "onInvalid" | "error" | "inputRef"
+> & {
   value: string;
   onValueChange: (value: string) => void;
   validate: (value: string) => string | null;
@@ -36,7 +39,15 @@ export function ValidatedInput({
       inputRef={inputRef}
       value={value}
       error={visibleError}
-      trailing={valid ? <span className="field-valid" aria-label={successMessage || "Valid"}>✓</span> : props.trailing}
+      trailing={
+        valid ? (
+          <span className="field-valid" aria-label={successMessage || "Valid"}>
+            ✓
+          </span>
+        ) : (
+          props.trailing
+        )
+      }
       onChange={(event) => onValueChange(event.target.value)}
       onBlur={() => {
         const normalized = normalize(value);

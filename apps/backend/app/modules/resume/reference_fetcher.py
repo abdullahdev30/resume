@@ -56,7 +56,9 @@ async def _fetch_one(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
                 body.extend(chunk)
                 if len(body) > MAX_REFERENCE_BYTES:
                     raise ValueError("Reference exceeds the 200 KB limit.")
-            return _plain_text(bytes(body).decode(response.encoding or "utf-8", errors="replace")), current
+            return _plain_text(
+                bytes(body).decode(response.encoding or "utf-8", errors="replace")
+            ), current
     raise ValueError("Reference redirected too many times.")
 
 
@@ -79,11 +81,18 @@ async def _validate_public_url(url: str) -> None:
     for address in addresses:
         ip = ipaddress.ip_address(address[4][0])
         if not ip.is_global:
-            raise UnsafeReferenceURL("Private, loopback, link-local, and reserved addresses are blocked.")
+            raise UnsafeReferenceURL(
+                "Private, loopback, link-local, and reserved addresses are blocked."
+            )
 
 
 def _plain_text(value: str) -> str:
-    value = re.sub(r"<(script|style|noscript)\b[^>]*>.*?</\1>", " ", value, flags=re.IGNORECASE | re.DOTALL)
+    value = re.sub(
+        r"<(script|style|noscript)\b[^>]*>.*?</\1>",
+        " ",
+        value,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     value = re.sub(r"<[^>]+>", " ", value)
     value = html.unescape(value)
     return re.sub(r"\s+", " ", value).strip()[:50_000]

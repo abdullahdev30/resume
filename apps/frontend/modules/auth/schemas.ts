@@ -2,7 +2,10 @@ export function isNonEmpty(value: string): boolean {
   return value.trim().length > 0;
 }
 
-export function passwordsMatch(password: string, confirmation: string): boolean {
+export function passwordsMatch(
+  password: string,
+  confirmation: string,
+): boolean {
   return password === confirmation;
 }
 

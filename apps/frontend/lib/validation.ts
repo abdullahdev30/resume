@@ -1,7 +1,9 @@
-export type ValidationResult = { valid: true; value: string } | { valid: false; error: string };
+/* eslint-disable no-control-regex -- Deliberately reject control characters in user input. */
+export type ValidationResult =
+  { valid: true; value: string } | { valid: false; error: string };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/u;
-const NAME_PATTERN = /^[\p{L}\p{M}]+(?:[\p{L}\p{M}\s'’\-]*[\p{L}\p{M}])?$/u;
+const NAME_PATTERN = /^[\p{L}\p{M}]+(?:[\p{L}\p{M}\s'’-]*[\p{L}\p{M}])?$/u;
 const UNSAFE_MARKUP_PATTERN = /<\/?[a-z][^>]*>|(?:javascript|data):/iu;
 
 export function normalizeEmail(value: string): string {
@@ -26,11 +28,16 @@ export function normalizePlainText(value: string, maxLength?: number): string {
   return maxLength ? normalized.slice(0, maxLength) : normalized;
 }
 
-export function validateName(value: string, label = "Name", required = true): string | null {
+export function validateName(
+  value: string,
+  label = "Name",
+  required = true,
+): string | null {
   const normalized = value.trim().replace(/\s+/gu, " ");
   if (!normalized) return required ? `${label} is required.` : null;
   if (normalized.length < 2) return `${label} must be at least 2 characters.`;
-  if (normalized.length > 100) return `${label} must be 100 characters or fewer.`;
+  if (normalized.length > 100)
+    return `${label} must be 100 characters or fewer.`;
   if (!NAME_PATTERN.test(normalized)) {
     return `${label} may contain letters, spaces, hyphens, and apostrophes.`;
   }
@@ -39,11 +46,18 @@ export function validateName(value: string, label = "Name", required = true): st
 
 export function validateText(
   value: string,
-  options: { label: string; required?: boolean; minLength?: number; maxLength: number },
+  options: {
+    label: string;
+    required?: boolean;
+    minLength?: number;
+    maxLength: number;
+  },
 ): string | null {
   const normalized = value.trim();
-  if (!normalized) return options.required ? `${options.label} is required.` : null;
-  if (UNSAFE_MARKUP_PATTERN.test(value)) return `${options.label} must not contain HTML or script content.`;
+  if (!normalized)
+    return options.required ? `${options.label} is required.` : null;
+  if (UNSAFE_MARKUP_PATTERN.test(value))
+    return `${options.label} must not contain HTML or script content.`;
   if (options.minLength && normalized.length < options.minLength) {
     return `${options.label} must be at least ${options.minLength} characters.`;
   }
@@ -62,7 +76,10 @@ export function normalizeHttpUrl(value: string): ValidationResult {
   if (!trimmed) return { valid: false, error: "Enter a URL." };
 
   if (/^(?:javascript|data|vbscript|file):/iu.test(trimmed)) {
-    return { valid: false, error: "Only public HTTP or HTTPS links are allowed." };
+    return {
+      valid: false,
+      error: "Only public HTTP or HTTPS links are allowed.",
+    };
   }
 
   const candidate = /^[a-z][a-z\d+.-]*:\/\//iu.test(trimmed)
@@ -75,11 +92,17 @@ export function normalizeHttpUrl(value: string): ValidationResult {
       return { valid: false, error: "Only HTTP or HTTPS links are allowed." };
     }
     if (!parsed.hostname || parsed.username || parsed.password) {
-      return { valid: false, error: "Enter a valid public URL without embedded credentials." };
+      return {
+        valid: false,
+        error: "Enter a valid public URL without embedded credentials.",
+      };
     }
     return { valid: true, value: parsed.toString() };
   } catch {
-    return { valid: false, error: "Enter a valid URL, for example https://example.com." };
+    return {
+      valid: false,
+      error: "Enter a valid URL, for example https://example.com.",
+    };
   }
 }
 
@@ -94,7 +117,10 @@ export function validateUrl(
   const parsed = new URL(normalized.value);
   const platform = options.platform?.trim().toLocaleLowerCase() || "";
   if (platform.includes("linkedin")) {
-    if (!isDomain(parsed.hostname, "linkedin.com") || !/^\/in\/[^/]+/iu.test(parsed.pathname)) {
+    if (
+      !isDomain(parsed.hostname, "linkedin.com") ||
+      !/^\/in\/[^/]+/iu.test(parsed.pathname)
+    ) {
       return "Enter a LinkedIn profile URL on linkedin.com/in/.";
     }
   }
@@ -116,9 +142,15 @@ function localToday(): string {
   return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 }
 
-export function validateDate(value: string, options: { label: string; required?: boolean; allowFuture?: boolean }): string | null {
+export function validateDate(
+  value: string,
+  options: { label: string; required?: boolean; allowFuture?: boolean },
+): string | null {
   if (!value) return options.required ? `${options.label} is required.` : null;
-  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00`))) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/u.test(value) ||
+    Number.isNaN(Date.parse(`${value}T00:00:00`))
+  ) {
     return `Enter a valid ${options.label.toLocaleLowerCase()}.`;
   }
   if (!options.allowFuture && value > localToday()) {
@@ -138,16 +170,24 @@ export function validateEndDate(
     allowFuture: options.allowFuture,
   });
   if (dateError) return dateError;
-  if (startDate && endDate < startDate) return "End date must be on or after the start date.";
+  if (startDate && endDate < startDate)
+    return "End date must be on or after the start date.";
   return null;
 }
 
-export function validateDatePeriod(value: string, required = false): string | null {
+export function validateDatePeriod(
+  value: string,
+  required = false,
+): string | null {
   const normalized = value.trim();
   if (!normalized) return required ? "Enter a date range." : null;
   const [startDate = "", endValue = ""] = normalized.split(/\s+-\s+/u, 2);
-  const startError = validateDate(startDate, { label: "Start date", required: true });
-  if (startError) return "Use YYYY-MM-DD - YYYY-MM-DD, or YYYY-MM-DD - Present.";
+  const startError = validateDate(startDate, {
+    label: "Start date",
+    required: true,
+  });
+  if (startError)
+    return "Use YYYY-MM-DD - YYYY-MM-DD, or YYYY-MM-DD - Present.";
   const current = endValue.toLocaleLowerCase() === "present";
   if (!current && !endValue) return "Add an end date or use Present.";
   return validateEndDate(current ? "" : endValue, startDate, { current });
@@ -155,13 +195,20 @@ export function validateDatePeriod(value: string, required = false): string | nu
 
 export function validateFile(
   file: File,
-  options: { allowedTypes: readonly string[]; maxBytes: number; label?: string },
+  options: {
+    allowedTypes: readonly string[];
+    maxBytes: number;
+    label?: string;
+  },
 ): string | null {
   const label = options.label || "File";
-  if (!options.allowedTypes.includes(file.type)) return `${label} type is not supported.`;
+  if (!options.allowedTypes.includes(file.type))
+    return `${label} type is not supported.`;
   if (file.size > options.maxBytes) {
     const sizeInMb = options.maxBytes / (1024 * 1024);
-    const formattedSize = Number.isInteger(sizeInMb) ? String(sizeInMb) : sizeInMb.toFixed(1);
+    const formattedSize = Number.isInteger(sizeInMb)
+      ? String(sizeInMb)
+      : sizeInMb.toFixed(1);
     return `${label} must be ${formattedSize} MB or smaller.`;
   }
   return null;

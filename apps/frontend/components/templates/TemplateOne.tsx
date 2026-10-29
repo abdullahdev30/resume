@@ -1,3 +1,7 @@
+import {
+  orderTemplateSections,
+  createTemplateTools,
+} from "./templatePrimitives";
 import React from "react";
 import { Camera, User as UserIcon } from "lucide-react";
 import { AdditionalSections } from "./AdditionalSections";
@@ -17,7 +21,16 @@ export interface ElementStyle {
   offsetY?: number;
 }
 
-export type ResumePageSize = "A4" | "Letter" | "Legal" | "A5" | "B5" | "Tabloid";
+export type ResumePageSize =
+  | "A4"
+  | "A3"
+  | "Executive"
+  | "Custom"
+  | "Letter"
+  | "Legal"
+  | "A5"
+  | "B5"
+  | "Tabloid";
 
 export interface ResumeSocialLink {
   id?: string;
@@ -65,12 +78,23 @@ export interface ResumeData {
   pageSize?: ResumePageSize;
   pageOrientation?: "portrait" | "landscape";
   pageMargin?: number;
+  pageWidth?: number;
+  pageHeight?: number;
+  pageMargins?: { top: number; bottom: number; left: number; right: number };
   lineSpacing?: number;
   secondaryColor?: string;
   fontScale?: number;
   sectionOrder?: Array<
-    "summary" | "experience" | "skills" | "education" | "projects" | "certificates" | "languages" | "social_links"
+    | "summary"
+    | "experience"
+    | "skills"
+    | "education"
+    | "projects"
+    | "certificates"
+    | "languages"
+    | "social_links"
   >;
+  hiddenSections?: NonNullable<ResumeData["sectionOrder"]>;
   experience: {
     id?: string;
     role: string;
@@ -116,40 +140,19 @@ export default function TemplateOne({
   indexOffsets = {},
 }: TemplateProps) {
   const accentColor = data.primaryColor || "#0E7C7B";
+  const {
+    itemStyle: getItemStyle,
+    itemClass: getItemClass,
+    select: handleSelect,
+  } = createTemplateTools({
+    data,
+    elementStyles,
+    selectedElementId,
+    onSelectElement,
+    selectionColor: accentColor,
+  });
 
-  const getItemStyle = (id: string, defaultColor?: string): React.CSSProperties => {
-    const custom = elementStyles[id];
-    return {
-      fontWeight: custom?.isBold !== undefined ? (custom.isBold ? "bold" : "normal") : undefined,
-      fontStyle: custom?.isItalic !== undefined ? (custom.isItalic ? "italic" : "normal") : undefined,
-      textDecoration: custom?.isUnderline !== undefined ? (custom.isUnderline ? "underline" : "none") : undefined,
-      textAlign: custom?.align || undefined,
-      color: custom?.color || defaultColor || undefined,
-      fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
-      lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
-      fontFamily: custom?.fontFamily || undefined,
-      position: custom?.offsetX || custom?.offsetY ? "relative" : undefined,
-      zIndex: custom?.offsetX || custom?.offsetY ? 2 : undefined,
-      transform: custom?.offsetX || custom?.offsetY ? `translate(${custom.offsetX || 0}px, ${custom.offsetY || 0}px)` : undefined,
-    };
-  };
-
-  const getItemClass = (id: string, baseClass: string = "") => {
-    if (!onSelectElement) return baseClass;
-    const isSelected = selectedElementId === id;
-    return `${baseClass} resume-draggable-text resume-element-id--${id} cursor-pointer transition p-0.5 rounded-xs ${
-      isSelected ? "ring-2 ring-teal-500 ring-offset-1 bg-teal-500/10" : "hover:ring-1 hover:ring-teal-400/50"
-    }`.trim();
-  };
-
-  const handleSelect = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onSelectElement) {
-      onSelectElement(id);
-    }
-  };
-
-  return (
+  return orderTemplateSections(
     <ResumePage
       data={data}
       className="bg-white shadow-xl mx-auto flex flex-row font-sans text-slate-800"
@@ -169,7 +172,11 @@ export default function TemplateOne({
           <div className="relative group mx-auto mb-5 w-24 h-24 flex justify-center cursor-pointer">
             <label className="block w-24 h-24 rounded-full overflow-hidden border-2 border-slate-700 bg-slate-800 shadow-lg cursor-pointer relative group-hover:border-teal-400 transition">
               {data.avatarUrl ? (
-                <img src={data.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                <img
+                  src={data.avatarUrl}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-2 text-center bg-slate-800 hover:bg-slate-700 transition">
                   <UserIcon className="w-8 h-8 text-teal-300 mb-0.5" />
@@ -192,7 +199,11 @@ export default function TemplateOne({
                     accept="image/jpeg,image/png,image/webp"
                     aria-label="Upload profile photo"
                     className="sr-only"
-                    onChange={(e) => {const file=e.currentTarget.files?.[0];if(file)onPhotoUpload(file);e.currentTarget.value='';}}
+                    onChange={(e) => {
+                      const file = e.currentTarget.files?.[0];
+                      if (file) onPhotoUpload(file);
+                      e.currentTarget.value = "";
+                    }}
                   />
                 </>
               )}
@@ -201,7 +212,10 @@ export default function TemplateOne({
 
           <h1
             onClick={(e) => handleSelect("fullName", e)}
-            className={getItemClass("fullName", "text-xl font-bold uppercase tracking-wider text-white mb-1")}
+            className={getItemClass(
+              "fullName",
+              "text-xl font-bold uppercase tracking-wider text-white mb-1",
+            )}
             style={getItemStyle("fullName", "#ffffff")}
           >
             {data.fullName}
@@ -209,7 +223,10 @@ export default function TemplateOne({
 
           <p
             onClick={(e) => handleSelect("jobTitle", e)}
-            className={getItemClass("jobTitle", "text-xs font-semibold text-teal-400 uppercase tracking-widest mb-6")}
+            className={getItemClass(
+              "jobTitle",
+              "text-xs font-semibold text-teal-400 uppercase tracking-widest mb-6",
+            )}
             style={getItemStyle("jobTitle", "#2dd4bf")}
           >
             {data.jobTitle}
@@ -217,7 +234,9 @@ export default function TemplateOne({
 
           {/* Contact */}
           <div className="mb-6 space-y-1.5 text-xs text-slate-300 border-t border-slate-800 pt-4">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Contact</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+              Contact
+            </h3>
             <p
               onClick={(e) => handleSelect("contact-phone", e)}
               className={getItemClass("contact-phone", "truncate")}
@@ -243,8 +262,13 @@ export default function TemplateOne({
 
           {/* Skills */}
           {data.skills && data.skills.length > 0 && (
-            <div className="mb-6 border-t border-slate-800 pt-4">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Core Skills</h3>
+            <div
+              data-resume-section="skills"
+              className="mb-6 border-t border-slate-800 pt-4"
+            >
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+                Core Skills
+              </h3>
               <div className="flex flex-wrap gap-1.5">
                 {data.skills.map((skill, index) => {
                   const id = `skill-${(indexOffsets.skills || 0) + index}`;
@@ -252,7 +276,10 @@ export default function TemplateOne({
                     <span
                       key={index}
                       onClick={(e) => handleSelect(id, e)}
-                      className={getItemClass(id, "text-[11px] bg-slate-800 text-teal-300 border border-slate-700/60 px-2.5 py-1 rounded-md")}
+                      className={getItemClass(
+                        id,
+                        "text-[11px] bg-slate-800 text-teal-300 border border-slate-700/60 px-2.5 py-1 rounded-md",
+                      )}
                       style={getItemStyle(id, "#5eead4")}
                     >
                       {skill}
@@ -265,8 +292,13 @@ export default function TemplateOne({
 
           {/* Languages */}
           {data.languages && data.languages.length > 0 && (
-            <div className="mb-6 border-t border-slate-800 pt-4">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Languages</h3>
+            <div
+              data-resume-section="languages"
+              className="mb-6 border-t border-slate-800 pt-4"
+            >
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+                Languages
+              </h3>
               <ul className="text-xs text-slate-300 space-y-1">
                 {data.languages.map((lang, index) => (
                   <li key={index} className="flex items-center space-x-2">
@@ -278,27 +310,33 @@ export default function TemplateOne({
             </div>
           )}
         </div>
-
-        <div className="text-[10px] text-slate-500 pt-4 border-t border-slate-800 text-center">
-          Generated via Resume Builder
-        </div>
       </div>
 
       {/* Right Content Area */}
       <div className="w-[66%] p-8 space-y-6">
         {/* Summary */}
         {data.summary && (
-          <div>
+          <div data-resume-section="summary">
             <h3
               onClick={(e) => handleSelect("section-summary", e)}
-              className={getItemClass("section-summary", "text-xs font-bold uppercase tracking-widest pb-1 mb-3 border-b-2")}
-              style={{ color: accentColor, borderColor: accentColor, ...getItemStyle("section-summary") }}
+              className={getItemClass(
+                "section-summary",
+                "text-xs font-bold uppercase tracking-widest pb-1 mb-3 border-b-2",
+              )}
+              style={{
+                color: accentColor,
+                borderColor: accentColor,
+                ...getItemStyle("section-summary"),
+              }}
             >
               Professional Profile
             </h3>
             <p
               onClick={(e) => handleSelect("summary", e)}
-              className={getItemClass("summary", "text-xs text-slate-600 leading-relaxed")}
+              className={getItemClass(
+                "summary",
+                "text-xs text-slate-600 leading-relaxed",
+              )}
               style={getItemStyle("summary")}
             >
               {data.summary}
@@ -308,11 +346,18 @@ export default function TemplateOne({
 
         {/* Work Experience */}
         {data.experience && data.experience.length > 0 && (
-          <div>
+          <div data-resume-section="experience">
             <h3
               onClick={(e) => handleSelect("section-experience", e)}
-              className={getItemClass("section-experience", "text-xs font-bold uppercase tracking-widest pb-1 mb-4 border-b-2")}
-              style={{ color: accentColor, borderColor: accentColor, ...getItemStyle("section-experience") }}
+              className={getItemClass(
+                "section-experience",
+                "text-xs font-bold uppercase tracking-widest pb-1 mb-4 border-b-2",
+              )}
+              style={{
+                color: accentColor,
+                borderColor: accentColor,
+                ...getItemStyle("section-experience"),
+              }}
             >
               Work Experience
             </h3>
@@ -324,27 +369,41 @@ export default function TemplateOne({
                 const detailsId = `exp-${itemIndex}-details`;
 
                 return (
-                  <div key={exp.id || itemIndex} className="resume-item space-y-1">
+                  <div
+                    key={exp.id || itemIndex}
+                    className="resume-item space-y-1"
+                  >
                     <div className="flex justify-between items-baseline">
                       <h4
                         onClick={(e) => handleSelect(roleId, e)}
-                        className={getItemClass(roleId, "text-xs font-bold text-slate-900")}
+                        className={getItemClass(
+                          roleId,
+                          "text-xs font-bold text-slate-900",
+                        )}
                         style={getItemStyle(roleId)}
                       >
                         {exp.role}
                       </h4>
-                      <span className="text-[10px] font-semibold text-slate-400">{exp.period}</span>
+                      <span className="text-[10px] font-semibold text-slate-400">
+                        {exp.period}
+                      </span>
                     </div>
                     <p
                       onClick={(e) => handleSelect(companyId, e)}
-                      className={getItemClass(companyId, "text-[11px] font-medium text-slate-500")}
+                      className={getItemClass(
+                        companyId,
+                        "text-[11px] font-medium text-slate-500",
+                      )}
                       style={getItemStyle(companyId)}
                     >
                       {exp.company}
                     </p>
                     <p
                       onClick={(e) => handleSelect(detailsId, e)}
-                      className={getItemClass(detailsId, "text-xs text-slate-600 leading-relaxed whitespace-pre-line")}
+                      className={getItemClass(
+                        detailsId,
+                        "text-xs text-slate-600 leading-relaxed whitespace-pre-line",
+                      )}
                       style={getItemStyle(detailsId)}
                     >
                       {exp.details}
@@ -358,11 +417,18 @@ export default function TemplateOne({
 
         {/* Education */}
         {data.education && data.education.length > 0 && (
-          <div>
+          <div data-resume-section="education">
             <h3
               onClick={(e) => handleSelect("section-education", e)}
-              className={getItemClass("section-education", "text-xs font-bold uppercase tracking-widest pb-1 mb-4 border-b-2")}
-              style={{ color: accentColor, borderColor: accentColor, ...getItemStyle("section-education") }}
+              className={getItemClass(
+                "section-education",
+                "text-xs font-bold uppercase tracking-widest pb-1 mb-4 border-b-2",
+              )}
+              style={{
+                color: accentColor,
+                borderColor: accentColor,
+                ...getItemStyle("section-education"),
+              }}
             >
               Education & Qualifications
             </h3>
@@ -373,32 +439,52 @@ export default function TemplateOne({
                 const instId = `edu-${itemIndex}-inst`;
 
                 return (
-                  <div key={edu.id || itemIndex} className="resume-item flex justify-between items-start">
+                  <div
+                    key={edu.id || itemIndex}
+                    className="resume-item flex justify-between items-start"
+                  >
                     <div>
                       <h4
                         onClick={(e) => handleSelect(degreeId, e)}
-                        className={getItemClass(degreeId, "text-xs font-bold text-slate-900")}
+                        className={getItemClass(
+                          degreeId,
+                          "text-xs font-bold text-slate-900",
+                        )}
                         style={getItemStyle(degreeId)}
                       >
                         {edu.degree}
                       </h4>
                       <p
                         onClick={(e) => handleSelect(instId, e)}
-                        className={getItemClass(instId, "text-[11px] text-slate-500")}
+                        className={getItemClass(
+                          instId,
+                          "text-[11px] text-slate-500",
+                        )}
                         style={getItemStyle(instId)}
                       >
                         {edu.institution}
                       </p>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-semibold">{edu.period}</span>
+                    <span className="text-[10px] text-slate-400 font-semibold">
+                      {edu.period}
+                    </span>
                   </div>
                 );
               })}
             </div>
           </div>
         )}
-        <AdditionalSections data={data} accentColor={accentColor} includeLanguages={false} selectedElementId={selectedElementId} onSelectElement={onSelectElement} elementStyles={elementStyles} indexOffsets={indexOffsets} />
+        <AdditionalSections
+          data={data}
+          accentColor={accentColor}
+          includeLanguages={false}
+          selectedElementId={selectedElementId}
+          onSelectElement={onSelectElement}
+          elementStyles={elementStyles}
+          indexOffsets={indexOffsets}
+        />
       </div>
-    </ResumePage>
+    </ResumePage>,
+    data.sectionOrder,
   );
 }

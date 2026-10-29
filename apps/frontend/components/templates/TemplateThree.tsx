@@ -1,5 +1,9 @@
+import {
+  orderTemplateSections,
+  createTemplateTools,
+} from "./templatePrimitives";
 import React from "react";
-import { getResumePageStyle, type ResumeData, type TemplateProps } from "./TemplateOne";
+import { getResumePageStyle, type TemplateProps } from "./TemplateOne";
 import { AdditionalSections } from "./AdditionalSections";
 import { ResumePage } from "./ResumePage";
 
@@ -11,40 +15,19 @@ export default function TemplateThree({
   indexOffsets = {},
 }: TemplateProps) {
   const accentColor = data.primaryColor || "#334155";
+  const {
+    itemStyle: getItemStyle,
+    itemClass: getItemClass,
+    select: handleSelect,
+  } = createTemplateTools({
+    data,
+    elementStyles,
+    selectedElementId,
+    onSelectElement,
+    selectionColor: accentColor,
+  });
 
-  const getItemStyle = (id: string, defaultColor?: string): React.CSSProperties => {
-    const custom = elementStyles[id];
-    return {
-      fontWeight: custom?.isBold !== undefined ? (custom.isBold ? "bold" : "normal") : undefined,
-      fontStyle: custom?.isItalic !== undefined ? (custom.isItalic ? "italic" : "normal") : undefined,
-      textDecoration: custom?.isUnderline !== undefined ? (custom.isUnderline ? "underline" : "none") : undefined,
-      textAlign: custom?.align || undefined,
-      color: custom?.color || defaultColor || undefined,
-      fontSize: custom?.fontSize ? `${custom.fontSize}pt` : undefined,
-      lineHeight: custom?.lineHeight || data.lineSpacing || undefined,
-      fontFamily: custom?.fontFamily || undefined,
-      position: custom?.offsetX || custom?.offsetY ? "relative" : undefined,
-      zIndex: custom?.offsetX || custom?.offsetY ? 2 : undefined,
-      transform: custom?.offsetX || custom?.offsetY ? `translate(${custom.offsetX || 0}px, ${custom.offsetY || 0}px)` : undefined,
-    };
-  };
-
-  const getItemClass = (id: string, baseClass: string = "") => {
-    if (!onSelectElement) return baseClass;
-    const isSelected = selectedElementId === id;
-    return `${baseClass} resume-draggable-text resume-element-id--${id} cursor-pointer transition p-0.5 rounded-xs ${
-      isSelected ? "ring-2 ring-slate-700 ring-offset-1 bg-slate-500/10" : "hover:ring-1 hover:ring-slate-400/50"
-    }`.trim();
-  };
-
-  const handleSelect = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onSelectElement) {
-      onSelectElement(id);
-    }
-  };
-
-  return (
+  return orderTemplateSections(
     <ResumePage
       data={data}
       className="bg-white shadow-xl mx-auto font-serif text-slate-800"
@@ -61,28 +44,43 @@ export default function TemplateThree({
       <div className="text-center border-b-2 border-slate-300 pb-6 mb-6">
         <h1
           onClick={(e) => handleSelect("fullName", e)}
-          className={getItemClass("fullName", "text-3xl font-bold uppercase tracking-widest text-slate-900 mb-1")}
+          className={getItemClass(
+            "fullName",
+            "text-3xl font-bold uppercase tracking-widest text-slate-900 mb-1",
+          )}
           style={getItemStyle("fullName")}
         >
           {data.fullName}
         </h1>
         <p
           onClick={(e) => handleSelect("jobTitle", e)}
-          className={getItemClass("jobTitle", "text-xs uppercase font-sans font-semibold tracking-widest text-slate-500 mb-3")}
+          className={getItemClass(
+            "jobTitle",
+            "text-xs uppercase font-sans font-semibold tracking-widest text-slate-500 mb-3",
+          )}
           style={getItemStyle("jobTitle")}
         >
           {data.jobTitle}
         </p>
         <p className="text-xs font-sans text-slate-600 space-x-2">
-          <span onClick={(e) => handleSelect("contact-email", e)} className={getItemClass("contact-email")}>
+          <span
+            onClick={(e) => handleSelect("contact-email", e)}
+            className={getItemClass("contact-email")}
+          >
             {data.email}
           </span>
           <span>•</span>
-          <span onClick={(e) => handleSelect("contact-phone", e)} className={getItemClass("contact-phone")}>
+          <span
+            onClick={(e) => handleSelect("contact-phone", e)}
+            className={getItemClass("contact-phone")}
+          >
             {data.phone}
           </span>
           <span>•</span>
-          <span onClick={(e) => handleSelect("contact-location", e)} className={getItemClass("contact-location")}>
+          <span
+            onClick={(e) => handleSelect("contact-location", e)}
+            className={getItemClass("contact-location")}
+          >
             {data.location}
           </span>
         </p>
@@ -90,7 +88,7 @@ export default function TemplateThree({
 
       {/* Summary */}
       {data.summary && (
-        <div className="mb-6">
+        <div data-resume-section="summary" className="mb-6">
           <h2
             className="text-xs font-sans font-bold uppercase tracking-widest border-b pb-1 mb-2 text-center"
             style={{ borderColor: accentColor, color: accentColor }}
@@ -99,7 +97,10 @@ export default function TemplateThree({
           </h2>
           <p
             onClick={(e) => handleSelect("summary", e)}
-            className={getItemClass("summary", "text-xs text-slate-700 leading-relaxed text-center italic max-w-2xl mx-auto")}
+            className={getItemClass(
+              "summary",
+              "text-xs text-slate-700 leading-relaxed text-center italic max-w-2xl mx-auto",
+            )}
             style={getItemStyle("summary")}
           >
             {data.summary}
@@ -109,7 +110,7 @@ export default function TemplateThree({
 
       {/* Skills */}
       {data.skills && data.skills.length > 0 && (
-        <div className="mb-6">
+        <div data-resume-section="skills" className="mb-6">
           <h2
             className="text-xs font-sans font-bold uppercase tracking-widest border-b pb-1 mb-3 text-center"
             style={{ borderColor: accentColor, color: accentColor }}
@@ -123,7 +124,10 @@ export default function TemplateThree({
                 <span
                   key={index}
                   onClick={(e) => handleSelect(id, e)}
-                  className={getItemClass(id, "bg-slate-100 text-slate-700 px-3 py-1 rounded border border-slate-200")}
+                  className={getItemClass(
+                    id,
+                    "bg-slate-100 text-slate-700 px-3 py-1 rounded border border-slate-200",
+                  )}
                   style={getItemStyle(id)}
                 >
                   {skill}
@@ -136,7 +140,7 @@ export default function TemplateThree({
 
       {/* Experience */}
       {data.experience && data.experience.length > 0 && (
-        <div className="mb-6">
+        <div data-resume-section="experience" className="mb-6">
           <h2
             className="text-xs font-sans font-bold uppercase tracking-widest border-b pb-1 mb-4 text-center"
             style={{ borderColor: accentColor, color: accentColor }}
@@ -150,20 +154,31 @@ export default function TemplateThree({
               const detailsId = `exp-${itemIndex}-details`;
 
               return (
-                <div key={exp.id || itemIndex} className="resume-item space-y-1">
+                <div
+                  key={exp.id || itemIndex}
+                  className="resume-item space-y-1"
+                >
                   <div className="flex justify-between items-baseline font-sans">
                     <span
                       onClick={(e) => handleSelect(roleId, e)}
-                      className={getItemClass(roleId, "font-bold text-xs text-slate-900")}
+                      className={getItemClass(
+                        roleId,
+                        "font-bold text-xs text-slate-900",
+                      )}
                       style={getItemStyle(roleId)}
                     >
                       {exp.role} — {exp.company}
                     </span>
-                    <span className="text-[10px] text-slate-500 italic">{exp.period}</span>
+                    <span className="text-[10px] text-slate-500 italic">
+                      {exp.period}
+                    </span>
                   </div>
                   <p
                     onClick={(e) => handleSelect(detailsId, e)}
-                    className={getItemClass(detailsId, "text-xs text-slate-700 leading-relaxed whitespace-pre-line")}
+                    className={getItemClass(
+                      detailsId,
+                      "text-xs text-slate-700 leading-relaxed whitespace-pre-line",
+                    )}
                     style={getItemStyle(detailsId)}
                   >
                     {exp.details}
@@ -177,7 +192,7 @@ export default function TemplateThree({
 
       {/* Education */}
       {data.education && data.education.length > 0 && (
-        <div>
+        <div data-resume-section="education">
           <h2
             className="text-xs font-sans font-bold uppercase tracking-widest border-b pb-1 mb-4 text-center"
             style={{ borderColor: accentColor, color: accentColor }}
@@ -190,25 +205,43 @@ export default function TemplateThree({
               const degreeId = `edu-${itemIndex}-degree`;
 
               return (
-                <div key={edu.id || itemIndex} className="resume-item flex justify-between items-start font-sans text-xs">
+                <div
+                  key={edu.id || itemIndex}
+                  className="resume-item flex justify-between items-start font-sans text-xs"
+                >
                   <div>
                     <span
                       onClick={(e) => handleSelect(degreeId, e)}
-                      className={getItemClass(degreeId, "font-bold text-slate-900")}
+                      className={getItemClass(
+                        degreeId,
+                        "font-bold text-slate-900",
+                      )}
                       style={getItemStyle(degreeId)}
                     >
                       {edu.degree}
                     </span>
-                    <span className="text-slate-500 ml-2">({edu.institution})</span>
+                    <span className="text-slate-500 ml-2">
+                      ({edu.institution})
+                    </span>
                   </div>
-                  <span className="text-[10px] text-slate-400">{edu.period}</span>
+                  <span className="text-[10px] text-slate-400">
+                    {edu.period}
+                  </span>
                 </div>
               );
             })}
           </div>
         </div>
       )}
-      <AdditionalSections data={data} accentColor={accentColor} selectedElementId={selectedElementId} onSelectElement={onSelectElement} elementStyles={elementStyles} indexOffsets={indexOffsets} />
-    </ResumePage>
+      <AdditionalSections
+        data={data}
+        accentColor={accentColor}
+        selectedElementId={selectedElementId}
+        onSelectElement={onSelectElement}
+        elementStyles={elementStyles}
+        indexOffsets={indexOffsets}
+      />
+    </ResumePage>,
+    data.sectionOrder,
   );
 }

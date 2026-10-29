@@ -195,7 +195,9 @@ class ProfileService:
         record = self.repository.upsert_personal(user_id, data)
         return self._personal_response(user_id, record)
 
-    async def upload_avatar(self, user_id: str, file: UploadFile) -> PersonalInfoResponse:
+    async def upload_avatar(
+        self, user_id: str, file: UploadFile
+    ) -> PersonalInfoResponse:
         existing = self.repository.get_personal(user_id)
         if existing is None:
             raise profile_not_found_error()
@@ -434,7 +436,9 @@ class ProfileService:
             "file_url": storage_path,
             "file_name": Path(file.filename or storage_path).name,
         }
-        return self._certificate_response(self.repository.add_certificate(user_id, data))
+        return self._certificate_response(
+            self.repository.add_certificate(user_id, data)
+        )
 
     def update_certificate(
         self,
@@ -587,7 +591,10 @@ class ProfileService:
         original_name = Path(file.filename or section).name
         extension = Path(original_name).suffix.lower()
         content_type = file.content_type or "application/octet-stream"
-        if extension not in allowed_extensions or content_type not in allowed_mime_types:
+        if (
+            extension not in allowed_extensions
+            or content_type not in allowed_mime_types
+        ):
             raise ProfileApplicationError(
                 status_code=422,
                 code="invalid_upload_file",

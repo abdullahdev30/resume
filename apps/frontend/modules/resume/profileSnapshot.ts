@@ -5,7 +5,11 @@ import type { ProfileResponse } from "@/modules/profile/types";
 export async function withProfileAvatarSnapshot(
   profile: ProfileResponse,
 ): Promise<ProfileResponse> {
-  if (!profile.personal.avatar_url) return profile;
+  if (
+    !profile.personal.avatar_url ||
+    profile.personal.avatar_url.startsWith("data:image/")
+  )
+    return profile;
   const { data_url: dataUrl } = await profileApi.getAvatarSnapshot();
   return {
     ...profile,
@@ -16,7 +20,9 @@ export async function withProfileAvatarSnapshot(
   };
 }
 
-export function withoutProfileAvatar(profile: ProfileResponse): ProfileResponse {
+export function withoutProfileAvatar(
+  profile: ProfileResponse,
+): ProfileResponse {
   return {
     ...profile,
     personal: {
@@ -34,7 +40,8 @@ export function profileToResumeData(profile: ProfileResponse): ResumeData {
 
   return {
     fullName,
-    jobTitle: personal.professional_title || profile.experience[0]?.job_title || "",
+    jobTitle:
+      personal.professional_title || profile.experience[0]?.job_title || "",
     email: personal.email || "",
     phone: personal.phone || "",
     location: [personal.city, personal.address].filter(Boolean).join(", "),

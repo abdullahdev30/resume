@@ -2,7 +2,16 @@ import type { ResumeData } from "./TemplateOne";
 import { getResumePageDimensions } from "./ResumePage";
 
 export type ResumeItemOffsets = Partial<
-  Record<"skills" | "languages" | "experience" | "education" | "projects" | "certificates" | "socialLinks", number>
+  Record<
+    | "skills"
+    | "languages"
+    | "experience"
+    | "education"
+    | "projects"
+    | "certificates"
+    | "socialLinks",
+    number
+  >
 >;
 
 export interface ResumePageSlice {
@@ -10,11 +19,16 @@ export interface ResumePageSlice {
   offsets: ResumeItemOffsets;
 }
 
-type ArraySectionKey = keyof ResumeItemOffsets;
-
 type SectionKey = keyof Pick<
   ResumeData,
-  "summary" | "experience" | "skills" | "education" | "projects" | "certificates" | "languages" | "socialLinks"
+  | "summary"
+  | "experience"
+  | "skills"
+  | "education"
+  | "projects"
+  | "certificates"
+  | "languages"
+  | "socialLinks"
 >;
 
 const DEFAULT_SECTION_ORDER: SectionKey[] = [
@@ -77,100 +91,25 @@ function getPageCapacity(data: ResumeData): number {
   return Math.max(14, Math.round(PAGE_CAPACITY * density));
 }
 
-/**
- * Removes the source items rendered on one generated page. Personal/contact
- * details are intentionally retained because templates repeat that header on
- * every page; deleting a page should not delete the owner's identity.
- */
-export function removeResumePage(source: ResumeData, page: ResumePageSlice): ResumeData {
-  const removed: Record<ArraySectionKey, Set<number>> = {
-    skills: removedIndexes(page.offsets.skills, page.data.skills.length),
-    languages: removedIndexes(page.offsets.languages, page.data.languages.length),
-    experience: removedIndexes(page.offsets.experience, page.data.experience.length),
-    education: removedIndexes(page.offsets.education, page.data.education?.length || 0),
-    projects: removedIndexes(page.offsets.projects, page.data.projects?.length || 0),
-    certificates: removedIndexes(page.offsets.certificates, page.data.certificates?.length || 0),
-    socialLinks: removedIndexes(page.offsets.socialLinks, page.data.socialLinks?.length || 0),
-  };
-
-  const removesSummary = Boolean(page.data.summary);
-  return {
-    ...source,
-    summary: removesSummary ? "" : source.summary,
-    skills: withoutIndexes(source.skills, removed.skills),
-    languages: withoutIndexes(source.languages, removed.languages),
-    experience: withoutIndexes(source.experience, removed.experience),
-    education: withoutIndexes(source.education || [], removed.education),
-    projects: withoutIndexes(source.projects || [], removed.projects),
-    certificates: withoutIndexes(source.certificates || [], removed.certificates),
-    socialLinks: withoutIndexes(source.socialLinks || [], removed.socialLinks),
-    elementStyles: remapElementStyles(source.elementStyles, removed, removesSummary),
-  };
-}
-
-function removedIndexes(offset: number | undefined, count: number): Set<number> {
-  if (offset === undefined || count === 0) return new Set<number>();
-  return new Set(Array.from({ length: count }, (_, index) => offset + index));
-}
-
-function withoutIndexes<T>(values: T[], removed: Set<number>): T[] {
-  if (removed.size === 0) return [...values];
-  return values.filter((_, index) => !removed.has(index));
-}
-
-function remapElementStyles(
-  styles: ResumeData["elementStyles"],
-  removed: Record<ArraySectionKey, Set<number>>,
-  removesSummary: boolean,
-): ResumeData["elementStyles"] {
-  if (!styles) return undefined;
-
-  const prefixes: Array<{ prefix: string; section: ArraySectionKey }> = [
-    { prefix: "skill", section: "skills" },
-    { prefix: "language", section: "languages" },
-    { prefix: "exp", section: "experience" },
-    { prefix: "edu", section: "education" },
-    { prefix: "project", section: "projects" },
-    { prefix: "certificate", section: "certificates" },
-    { prefix: "social", section: "socialLinks" },
-  ];
-  const next: NonNullable<ResumeData["elementStyles"]> = {};
-
-  for (const [id, style] of Object.entries(styles)) {
-    if (removesSummary && (id === "summary" || id === "section-summary")) continue;
-
-    const indexed = prefixes.find(({ prefix }) => id.startsWith(`${prefix}-`));
-    if (!indexed) {
-      next[id] = style;
-      continue;
-    }
-
-    const match = id.match(new RegExp(`^${indexed.prefix}-(\\d+)(.*)$`));
-    if (!match) {
-      next[id] = style;
-      continue;
-    }
-
-    const oldIndex = Number(match[1]);
-    const removedIndexesForSection = removed[indexed.section];
-    if (removedIndexesForSection.has(oldIndex)) continue;
-    const shift = [...removedIndexesForSection].filter((removedIndex) => removedIndex < oldIndex).length;
-    next[`${indexed.prefix}-${oldIndex - shift}${match[2]}`] = style;
-  }
-
-  return next;
-}
-
 function contentItems(data: ResumeData): ContentItem[] {
   const requestedOrder = (data.sectionOrder || [])
-    .map((key) => key === "social_links" ? "socialLinks" : key)
+    .map((key) => (key === "social_links" ? "socialLinks" : key))
     .filter(isSectionKey);
-  const order = [...requestedOrder, ...DEFAULT_SECTION_ORDER.filter((key) => !requestedOrder.includes(key))];
+  const order = [
+    ...requestedOrder,
+    ...DEFAULT_SECTION_ORDER.filter((key) => !requestedOrder.includes(key)),
+  ];
   const items: ContentItem[] = [];
 
-  for (const section of order) {
+  for (const section of order.filter(
+    (key) =>
+      !data.hiddenSections?.includes(
+        key === "socialLinks" ? "social_links" : key,
+      ),
+  )) {
     if (section === "summary") {
-      if (data.summary) items.push({ section, index: 0, weight: textWeight(data.summary, 6) });
+      if (data.summary)
+        items.push({ section, index: 0, weight: textWeight(data.summary, 6) });
       continue;
     }
 
@@ -217,12 +156,16 @@ function emptyPage(source: ResumeData): ResumeData {
   };
 }
 
-function itemWeight(section: Exclude<SectionKey, "summary">, value: unknown): number {
-  if (typeof value === "string") return textWeight(value, section === "skills" ? 1 : 2);
+function itemWeight(
+  section: Exclude<SectionKey, "summary">,
+  value: unknown,
+): number {
+  if (typeof value === "string")
+    return textWeight(value, section === "skills" ? 1 : 2);
   if (!value || typeof value !== "object") return 2;
   const record = value as Record<string, unknown>;
   const text = Object.values(record)
-    .flatMap((entry) => Array.isArray(entry) ? entry : [entry])
+    .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
     .filter((entry): entry is string => typeof entry === "string")
     .join(" ");
   const base = section === "experience" ? 5 : section === "projects" ? 4 : 3;

@@ -21,7 +21,10 @@ export function ForgotPasswordForm() {
   };
 
   return (
-    <AuthLayout title="Recover your account" subtitle="Enter your email and we will send recovery instructions.">
+    <AuthLayout
+      title="Recover your account"
+      subtitle="Enter your email and we will send recovery instructions."
+    >
       <form className="form-stack" onSubmit={submit}>
         {error && <Alert variant="error">{error}</Alert>}
         <ValidatedInput
@@ -37,10 +40,18 @@ export function ForgotPasswordForm() {
           placeholder="user@example.com"
           maxLength={254}
         />
-        <Button type="submit" loading={loading} loadingLabel="Sending..." disabled={!email} fullWidth>
+        <Button
+          type="submit"
+          loading={loading}
+          loadingLabel="Sending..."
+          disabled={!email}
+          fullWidth
+        >
           Send recovery code
         </Button>
-        <Link href="/auth/login" className="text-link text-center">Back to sign in</Link>
+        <Link href="/auth/login" className="text-link text-center">
+          Back to sign in
+        </Link>
       </form>
     </AuthLayout>
   );

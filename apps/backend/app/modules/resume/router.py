@@ -2,7 +2,17 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,6 +29,7 @@ from app.modules.resume.schemas import (
     AIResumeRequest,
     ResumeAIEditProposal,
     ResumeAIEditRequest,
+    ResumeHTMLResponse,
     ResumeListResponse,
     ResumeMessageResponse,
     ResumePDFResponse,
@@ -83,7 +94,7 @@ async def create_template_resume(
 
 @router.post(
     "/ai",
-    response_model=ResumeResponse,
+    response_model=ResumeAIEditProposal,
     status_code=status.HTTP_201_CREATED,
     summary="Create an AI generated editable resume",
 )
@@ -93,7 +104,7 @@ async def create_ai_resume(
     payload: AIResumeRequest,
     current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
     resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
-) -> ResumeResponse:
+) -> ResumeAIEditProposal:
     try:
         return await resume_service.create_ai_resume(current_user.id, payload)
     except ResumeApplicationError as exc:
@@ -111,7 +122,9 @@ def list_resumes(
     resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
 ) -> ResumeListResponse:
     try:
-        return ResumeListResponse(resumes=resume_service.list_resumes(current_user.id))
+        return ResumeListResponse(
+            resumes=resume_service.list_resumes(current_user.id, include_source=False)
+        )
     except ResumeApplicationError as exc:
         raise_resume_error(exc)
         raise RuntimeError("unreachable")
@@ -164,6 +177,11 @@ async def update_resume(
             resume_id=str(resume_id),
             request=ResumeUpdateRequest.model_validate(payload),
         )
+    except ValidationError as exc:
+        raise HTTPException(
+            422,
+            detail={"code": "invalid_resume", "message": str(exc.errors()[0]["msg"])},
+        ) from exc
     except ResumeApplicationError as exc:
         raise_resume_error(exc)
         raise RuntimeError("unreachable")
@@ -196,18 +214,47 @@ async def create_ai_edit_proposal(
 @router.get(
     "/{resume_id}/pdf",
     response_model=ResumePDFResponse,
-    summary="Get a signed download URL for a legacy uploaded PDF",
+    summary="Get the current PDF from private storage; render older documents once if needed",
 )
-def get_resume_pdf(
+async def get_resume_pdf(
     resume_id: UUID,
     current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
     resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
 ) -> ResumePDFResponse:
     try:
-        return resume_service.get_pdf(current_user.id, str(resume_id))
+        return await resume_service.ensure_pdf(current_user.id, str(resume_id))
     except ResumeApplicationError as exc:
         raise_resume_error(exc)
         raise RuntimeError("unreachable")
+
+
+@router.get("/{resume_id}/html", response_model=ResumeHTMLResponse)
+async def get_resume_html(
+    resume_id: UUID,
+    extracted: bool = False,
+    current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
+    resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
+):
+    try:
+        return await resume_service.get_html(current_user.id, str(resume_id), extracted)
+    except ResumeApplicationError as exc:
+        raise_resume_error(exc)
+
+
+@router.post(
+    "/{resume_id}/editable", response_model=ResumeAIEditProposal, status_code=201
+)
+@limiter.limit("5/hour")
+async def create_editable_pdf_copy(
+    request: Request,
+    resume_id: UUID,
+    current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
+    resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
+):
+    try:
+        return await resume_service.editable_copy(current_user.id, str(resume_id))
+    except ResumeApplicationError as exc:
+        raise_resume_error(exc)
 
 
 @router.delete(

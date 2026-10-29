@@ -14,6 +14,8 @@ node_modules
 
 # Testing
 coverage
+test-results*/
+playwright-report/
 
 # Turbo
 .turbo
@@ -50,4 +52,5 @@ __pycache__/
 apps/backend/.env*
 apps/backend/profile.sqlite3
 apps/backend/uploads/
-apps/backend/.env.example
+apps/backend/.runtime/
+!apps/backend/.env.example

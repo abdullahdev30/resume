@@ -31,14 +31,21 @@ export function Input({
   const errorId = error ? `${inputId}-error` : undefined;
 
   const valueLength = typeof props.value === "string" ? props.value.length : 0;
-  const countHint = showCount && props.maxLength
-    ? `${valueLength}/${props.maxLength}${hint ? ` - ${hint}` : ""}`
-    : hint;
+  const countHint =
+    showCount && props.maxLength
+      ? `${valueLength}/${props.maxLength}${hint ? ` - ${hint}` : ""}`
+      : hint;
   const countHintId = countHint ? `${inputId}-hint` : undefined;
   const describedBy = error ? errorId : countHintId;
 
   return (
-    <FormField id={inputId} label={label} hint={countHint} error={error} optional={optional}>
+    <FormField
+      id={inputId}
+      label={label}
+      hint={countHint}
+      error={error}
+      optional={optional}
+    >
       <div className="field-control-wrap">
         {leading && <div className="field-leading">{leading}</div>}
         <input
@@ -49,7 +56,9 @@ export function Input({
             leading ? "has-leading" : "",
             trailing ? "has-trailing" : "",
             className,
-          ].filter(Boolean).join(" ")}
+          ]
+            .filter(Boolean)
+            .join(" ")}
           aria-invalid={Boolean(error)}
           aria-describedby={describedBy}
           {...props}

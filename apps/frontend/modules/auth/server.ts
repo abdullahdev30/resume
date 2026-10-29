@@ -24,7 +24,7 @@ export async function getSessionUser(): Promise<User | null> {
       return null;
     }
 
-    return await response.json() as User;
+    return (await response.json()) as User;
   } catch {
     return null;
   }
@@ -32,7 +32,7 @@ export async function getSessionUser(): Promise<User | null> {
 
 export async function getCurrentUser(): Promise<User | null> {
   const user = await getSessionUser();
-  return user?.is_guest ? null : user;
+  return user;
 }
 
 export async function requireCurrentUser(): Promise<User> {

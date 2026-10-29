@@ -13,7 +13,9 @@ export function ErrorState({
   return (
     <section className="state-panel" role="alert">
       <div className="state-panel-inner">
-        <div className="state-icon"><CircleAlert size={22} aria-hidden="true" /></div>
+        <div className="state-icon">
+          <CircleAlert size={22} aria-hidden="true" />
+        </div>
         <h2>{title}</h2>
         <p>{message}</p>
         {onRetry && (
