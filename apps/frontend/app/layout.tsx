@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ToastProvider } from "@/components/feedback/Toast";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { LanguageProvider } from "@/components/providers/LanguageProvider";
 import "./globals.css";
 export const metadata: Metadata = {
   applicationName: "Resume Builder",
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
     template: "%s | Resume Builder",
   },
   description:
-    "Build a professional resume for free in your browser and save it as a PDF. No sign-up required.",
+    "Build professional resumes with reusable personas. Register and choose a monthly package; no payment is collected yet.",
   icons: {
     icon: "/favicon.ico",
     apple: "/resume_logo.png",
@@ -30,7 +31,7 @@ export default function RootLayout({
       </head>
       <body>
         <QueryProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <LanguageProvider><ToastProvider>{children}</ToastProvider></LanguageProvider>
         </QueryProvider>
       </body>
     </html>

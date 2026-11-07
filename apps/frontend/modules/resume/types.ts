@@ -1,4 +1,5 @@
 import type { ResumeData } from "@/components/templates/TemplateOne";
+import type { LanguageCode } from "@/lib/languages";
 
 // Same wire schema as ResumeData; the editor fills optional collections/defaults.
 export type EditorResumeData = ResumeData &
@@ -65,6 +66,7 @@ export interface AIResumePayload {
   title: string;
   persona_id: string;
   prompt: string;
+  language?: LanguageCode;
   job_description?: string;
   reference_links?: string[];
   selected_sections?: Array<
@@ -90,6 +92,7 @@ export interface ResumeUpdatePayload {
 
 export interface AIEditPayload {
   instruction: string;
+  language?: LanguageCode;
   job_description?: string;
   reference_links?: string[];
 }

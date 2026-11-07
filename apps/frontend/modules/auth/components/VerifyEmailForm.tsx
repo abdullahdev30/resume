@@ -10,8 +10,7 @@ import { OtpInput } from "./OtpInput";
 import { useAuth } from "../hooks";
 import { readAuthState } from "../session";
 import { AUTH_EMAIL_STORAGE_KEY } from "../constants";
-import { ValidatedInput } from "@/components/ui/ValidatedInput";
-import { normalizeEmail, validateEmail } from "@/lib/validation";
+import { validateEmail } from "@/lib/validation";
 
 export function VerifyEmailForm() {
   const [otp, setOtp] = useState("");
@@ -22,8 +21,8 @@ export function VerifyEmailForm() {
   const { handleVerifyEmail, handleResendOtp, loading, error } = useAuth();
 
   const submit = (code = otp) => {
-    if (/^\d{6}$/.test(code) && !loading && !validateEmail(email)) {
-      void handleVerifyEmail(code, normalizeEmail(email));
+    if (/^\d{6}$/.test(code) && !loading && email && !validateEmail(email)) {
+      void handleVerifyEmail(code, email);
     }
   };
 
@@ -40,35 +39,28 @@ export function VerifyEmailForm() {
         }}
       >
         {error && <Alert variant="error">{error}</Alert>}
-        <ValidatedInput
-          label="Email"
-          type="email"
-          autoComplete="email"
-          required
-          value={email}
-          onValueChange={(value) => {
-            setEmail(value);
-            setOtp("");
-          }}
-          validate={validateEmail}
-          normalize={normalizeEmail}
-          maxLength={254}
-        />
+        <div className="field" aria-live="polite">
+          <span className="field-label">Email</span>
+          <p className="field-control" aria-label="Registration email">
+            {email || "Email unavailable"}
+          </p>
+        </div>
+        {!email && <Link href="/auth/register" className="text-link text-center">Return to sign up</Link>}
         <OtpInput value={otp} onChange={setOtp} disabled={loading} />
         <Button
           type="submit"
           loading={loading}
           loadingLabel="Verifying..."
-          disabled={!/^\d{6}$/.test(otp) || Boolean(validateEmail(email))}
+          disabled={!/^\d{6}$/.test(otp) || !email || Boolean(validateEmail(email))}
           fullWidth
         >
           Verify code
         </Button>
         <Button
           type="button"
-          onClick={() => void handleResendOtp(normalizeEmail(email))}
+          onClick={() => void handleResendOtp(email)}
           variant="ghost"
-          disabled={loading || Boolean(validateEmail(email))}
+          disabled={loading || !email || Boolean(validateEmail(email))}
         >
           Resend code
         </Button>

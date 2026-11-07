@@ -73,16 +73,6 @@ export function LoginForm() {
         >
           Log in
         </Button>
-        <div
-          className="flex items-center gap-3 text-xs text-[var(--text-muted)]"
-          aria-hidden="true"
-        >
-          <span className="h-px flex-1 bg-[var(--border)]" /> or{" "}
-          <span className="h-px flex-1 bg-[var(--border)]" />
-        </div>
-        <Link href="/builder" className="button button-secondary w-full">
-          Continue free without an account
-        </Link>
         <p>
           No account?{" "}
           <Link href="/auth/register" className="text-link">

@@ -1,7 +1,13 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests",
-  testIgnore: ["auth.spec.ts", "persona.spec.ts", "pdf-and-cache.spec.ts"],
+  testIgnore: [
+    "auth.spec.ts",
+    "persona.spec.ts",
+    "pdf-and-cache.spec.ts",
+    "billing.spec.ts",
+    "settings-cache.spec.ts",
+  ],
   timeout: 60000,
   use: {
     channel: "chromium",

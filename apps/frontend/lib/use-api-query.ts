@@ -1,7 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "./api-client";
-import { apiQueryKey } from "./query-client";
+import { apiQueryKey, apiStaleTime } from "./query-client";
 
 export function useApiQuery<T>(
   endpoint: string,
@@ -9,6 +9,7 @@ export function useApiQuery<T>(
 ) {
   return useQuery<T>({
     queryKey: apiQueryKey(endpoint),
+    staleTime: apiStaleTime(endpoint),
     queryFn: ({ signal }) =>
       apiClient<T>(endpoint, {
         signal,

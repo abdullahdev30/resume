@@ -15,6 +15,8 @@ def connection():
     try:
         with get_connection() as conn:
             yield conn
+    except psycopg.errors.RaiseException as exc:
+        raise HTTPException(403, str(exc).splitlines()[0]) from exc
     except (psycopg.Error, RuntimeError) as exc:
         raise HTTPException(
             503,

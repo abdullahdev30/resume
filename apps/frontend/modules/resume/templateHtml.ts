@@ -24,6 +24,14 @@ export async function templateHtml(
       root.render(createElement(ResumeDocument, { data, templateId })),
     );
     await document.fonts.ready;
+    await Promise.all(
+      Array.from(host.querySelectorAll("img")).map((image) =>
+        image.decode().catch(() => undefined),
+      ),
+    );
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
     const source =
       host.querySelector<HTMLElement>("[data-resume-document]") || undefined;
     let html: string | undefined;

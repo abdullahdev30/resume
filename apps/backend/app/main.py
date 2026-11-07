@@ -10,6 +10,8 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
 from app.database.migration_runner import run_migrations
+from app.modules.billing.router import router as billing_router
+from app.modules.billing.checkout import router as checkout_router
 from app.modules.auth.router import limiter
 from app.modules.auth.router import router as auth_router
 from app.modules.persona.router import router as persona_router
@@ -63,6 +65,8 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(billing_router, prefix="/api/v1")
+app.include_router(checkout_router, prefix="/api/v1")
 # Retained for saved-resume compatibility. Account identity is /auth/profile;
 # persona details have their own documented Persona API.
 app.include_router(profile_router, prefix="/api/v1", include_in_schema=False)

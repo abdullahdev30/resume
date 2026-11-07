@@ -1,4 +1,4 @@
-import { FreeResumeEditor } from "@/modules/resume/components/FreeResumeEditor";
+import { redirect } from "next/navigation";
 export default function BuilderEditorPage() {
-  return <FreeResumeEditor />;
+  redirect("/templates");
 }

@@ -106,6 +106,7 @@ CSS_PROPERTIES = frozenset(
         "clear",
         "object-fit",
         "transform",
+        "transform-origin",
         "z-index",
     ]
 )
@@ -232,7 +233,7 @@ def document_html(fragment: str, data: dict, title: str) -> str:
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>{escape(title)}</title>
 <style>{"".join(css).replace("</", "< /")} @page {{ size: {width}mm {height}mm; margin: 0; }}
 html,body {{ margin:0; padding:0; }} * {{ box-sizing:border-box; }}
-.resume-page {{ break-after:page; height:auto !important; min-height:{height}mm; max-height:none !important; overflow:visible !important; }}
+.resume-page {{ break-after:page; height:{height}mm !important; min-height:{height}mm; max-height:{height}mm !important; overflow:hidden !important; }}
 .resume-page:last-child {{ break-after:auto; }} h1,h2,h3 {{ break-after:avoid; }} p,li {{ orphans:2; widows:2; }}
 img {{ max-width:100%; }} a {{ color:inherit; }} </style></head><body>{sanitize_fragment(fragment)}</body></html>"""
 

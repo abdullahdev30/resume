@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Alert } from "@/components/feedback/Alert";
 import type { Metadata } from "../types";
+import { SpeechInputButton } from "@/lib/SpeechInputButton";
+import { personaApi } from "../api";
 
 export function MetadataDialog({
   initial,
@@ -15,13 +17,14 @@ export function MetadataDialog({
 }: {
   initial?: Metadata;
   onClose: () => void;
-  onSave: (value: Metadata) => Promise<void>;
+  onSave: (value: Metadata & { extracted?: Record<string, unknown> }) => Promise<void>;
 }) {
   const [name, setName] = useState(initial?.name || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [useAccountProfile, setUseAccountProfile] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [details, setDetails] = useState("");
   return (
     <Dialog
       open
@@ -34,13 +37,24 @@ export function MetadataDialog({
         className="form-stack"
         onSubmit={async (event) => {
           event.preventDefault();
-          if (busy || !name.trim()) return;
+          if (busy || (!name.trim() && !details.trim())) return;
           setBusy(true);
           setError("");
           try {
+            const extracted = details.trim()
+              ? await personaApi.parseDetails(details.trim())
+              : undefined;
+            const personal = extracted?.personal as Record<string, unknown> | undefined;
+            const detectedName = [personal?.first_name, personal?.last_name]
+              .filter((part): part is string => typeof part === "string")
+              .join(" ");
+            const detectedTitle = typeof personal?.professional_title === "string"
+              ? personal.professional_title
+              : "";
             await onSave({
-              name: name.trim(),
-              description: description.trim(),
+              name: name.trim() || detectedName || detectedTitle || "New persona",
+              description: description.trim() || detectedTitle || "",
+              ...(extracted ? { extracted } : {}),
               ...(!initial ? { use_account_profile: useAccountProfile } : {}),
             });
           } catch (caught) {
@@ -55,11 +69,18 @@ export function MetadataDialog({
         }}
       >
         {error && <Alert variant="error">{error}</Alert>}
+        {!initial && <div className="form-stack rounded-lg border border-[var(--border)] p-4">
+          <label className="text-sm font-bold" htmlFor="persona-details">Describe this persona in one paragraph</label>
+          <textarea id="persona-details" className="field-control min-h-24" value={details} onChange={(event) => setDetails(event.target.value)} maxLength={10000} placeholder="For example: I am Maya, a product designer with six years at Acme..." />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <SpeechInputButton disabled={busy} onTranscript={(text) => setDetails((current) => current ? `${current.trim()} ${text}` : text)} />
+          </div>
+        </div>}
         <Input
           label="Persona name"
           value={name}
           onChange={(event) => setName(event.target.value)}
-          required
+          required={!details.trim()}
           autoFocus
           maxLength={100}
           placeholder="For example, Software engineer"
@@ -118,8 +139,8 @@ export function MetadataDialog({
           <Button
             type="submit"
             loading={busy}
-            loadingLabel="Saving..."
-            disabled={!name.trim()}
+            loadingLabel="Creating persona..."
+            disabled={!name.trim() && !details.trim()}
           >
             {initial ? "Save changes" : "Create persona"}
           </Button>

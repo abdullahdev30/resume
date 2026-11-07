@@ -13,7 +13,7 @@ export async function serializeResumeHtml(
   if (!document) return undefined;
   const clone = document.cloneNode(true) as HTMLElement;
   const properties =
-    "color background-color font-family font-size font-weight font-style text-decoration text-align text-transform letter-spacing line-height white-space overflow overflow-wrap word-break display width max-width min-width height min-height max-height margin-top margin-bottom margin-left margin-right padding-top padding-bottom padding-left padding-right border-top border-bottom border-left border-right border-radius box-sizing list-style-type flex-direction flex-wrap flex-grow flex-shrink flex-basis align-items justify-content gap grid-template-columns grid-column grid-row vertical-align position top left right bottom transform object-fit".split(
+    "color background-color font-family font-size font-weight font-style text-decoration text-align text-transform letter-spacing line-height white-space overflow overflow-wrap word-break display width max-width min-width height min-height max-height margin-top margin-bottom margin-left margin-right padding-top padding-bottom padding-left padding-right border-top border-bottom border-left border-right border-radius box-sizing list-style-type flex-direction flex-wrap flex-grow flex-shrink flex-basis align-items justify-content gap grid-template-columns grid-column grid-row vertical-align position top left right bottom transform transform-origin object-fit".split(
       " ",
     );
   const originals = [document, ...document.querySelectorAll<HTMLElement>("*")];
@@ -48,10 +48,10 @@ export async function serializeResumeHtml(
     target.removeAttribute("contenteditable");
     target.removeAttribute("tabindex");
     if (source.matches("[data-resume-page]")) {
-      target.style.height = "auto";
-      target.style.maxHeight = "none";
-      target.style.overflow = "visible";
-      target.style.breakAfter = "page";
+      target.style.height = style.height;
+      target.style.maxHeight = style.height;
+      target.style.overflow = "hidden";
+      target.style.breakAfter = "auto";
     }
     if (source.matches("h1,h2,h3,h4") && source.textContent?.trim()) {
       const range = window.document.createRange();

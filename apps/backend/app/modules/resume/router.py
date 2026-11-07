@@ -39,7 +39,11 @@ from app.modules.resume.schemas import (
 )
 from app.modules.resume.service import ResumeService
 
-router = APIRouter(prefix="/resumes", tags=["Resumes"])
+from app.modules.billing.dependencies import require_subscription
+
+router = APIRouter(
+    dependencies=[Depends(require_subscription)], prefix="/resumes", tags=["Resumes"]
+)
 
 
 def get_resume_service(

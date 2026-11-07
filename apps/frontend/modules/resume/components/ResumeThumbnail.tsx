@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import type { ResumeData } from "@/components/templates/TemplateOne";
 import { ResumeTemplateRenderer } from "@/components/templates/ResumeTemplateRenderer";
 import { getResumePageDimensions } from "@/components/templates/ResumePage";
-import { paginateResumeData } from "@/components/templates/pagination";
 import styles from "./ResumeGallery.module.css";
 
 export function ResumeThumbnail({
@@ -24,7 +23,6 @@ export function ResumeThumbnail({
     return () => observer.disconnect();
   }, []);
   const dimensions = getResumePageDimensions(data);
-  const firstPage = paginateResumeData(data)[0]!;
   return (
     <div
       ref={host}
@@ -40,7 +38,7 @@ export function ResumeThumbnail({
           transform: `scale(${width / ((dimensions.width * 96) / 25.4)})`,
         }}
       >
-        <ResumeTemplateRenderer templateId={templateId} data={firstPage.data} />
+        <ResumeTemplateRenderer templateId={templateId} data={data} />
       </div>
     </div>
   );

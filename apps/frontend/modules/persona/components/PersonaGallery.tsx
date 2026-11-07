@@ -8,7 +8,7 @@ import { Alert } from "@/components/feedback/Alert";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { LoadingState } from "@/components/common/LoadingState";
-import { personaApi } from "../api";
+import { createPersonaWithDetails } from "../api";
 import type { Persona } from "../types";
 import { useApiQuery } from "@/lib/use-api-query";
 import { MetadataDialog } from "./MetadataDialog";
@@ -141,7 +141,7 @@ export function PersonaGallery() {
         <MetadataDialog
           onClose={() => setCreating(false)}
           onSave={async (value) => {
-            const persona = await personaApi.create(value);
+            const persona = await createPersonaWithDetails(value);
             router.push(`/persona/${persona.id}`);
           }}
         />

@@ -1,5 +1,6 @@
 import { orderTemplateSections } from "./templatePrimitives";
 import { AdditionalSections } from "./AdditionalSections";
+import { ResumePhoto } from "./templatePrimitives";
 import { ResumePage } from "./ResumePage";
 import { createTemplateTools } from "./templatePrimitives";
 import { getResumePageStyle, type TemplateProps } from "./TemplateOne";
@@ -9,6 +10,7 @@ export default function TemplateSeven({
   selectedElementId,
   onSelectElement,
   elementStyles = {},
+  onPhotoUpload,
   indexOffsets = {},
 }: TemplateProps) {
   const accent = data.primaryColor || "#0b2742";
@@ -32,6 +34,16 @@ export default function TemplateSeven({
       }}
     >
       <header className="mb-7">
+        {data.avatarUrl && (
+          <div className="mb-4 flex justify-center">
+            <ResumePhoto
+              data={data}
+              onPhotoUpload={onPhotoUpload}
+              className="w-20 h-20 rounded-full overflow-hidden"
+              imageClassName="w-full h-full object-cover"
+            />
+          </div>
+        )}
         <h1
           onClick={(event) => tools.select("fullName", event)}
           className={tools.itemClass(

@@ -1,10 +1,11 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { BACKEND_API_BASE } from "../../lib/backend-api-url";
 import { isSuccessfulHttpStatus } from "../../lib/http-status";
 import type { User } from "./types";
 
-export async function getSessionUser(): Promise<User | null> {
+export const getSessionUser = cache(async (): Promise<User | null> => {
   const cookieStore = await cookies();
   const cookieHeader = cookieStore.toString();
 
@@ -28,7 +29,7 @@ export async function getSessionUser(): Promise<User | null> {
   } catch {
     return null;
   }
-}
+});
 
 export async function getCurrentUser(): Promise<User | null> {
   const user = await getSessionUser();

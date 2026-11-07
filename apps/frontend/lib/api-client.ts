@@ -1,5 +1,5 @@
 import { isSuccessfulHttpStatus } from "./http-status";
-import { apiQueryKey, getQueryClient } from "./query-client";
+import { apiQueryKey, apiStaleTime, getQueryClient } from "./query-client";
 
 // Browser requests stay on the Next.js origin. The Route Handler forwards
 // them to the backend and converts backend session cookies to host-only
@@ -49,7 +49,7 @@ export function apiClient<T = unknown>(
     return client.fetchQuery({
       queryKey: apiQueryKey(endpoint),
       queryFn: () => executeApiRequest<T>(endpoint, requestOptions),
-      staleTime: endpoint.endsWith("/pdf") ? 30_000 : 120_000,
+      staleTime: apiStaleTime(endpoint),
     });
   }
   return executeApiRequest<T>(endpoint, requestOptions).then((data) => {
@@ -68,6 +68,16 @@ export function apiClient<T = unknown>(
           query.queryKey[0] === "api" &&
           String(query.queryKey[1]).startsWith(resource),
       });
+      if (resource === "/personas" || endpoint.startsWith("/admin/users"))
+        void client.invalidateQueries({
+          queryKey: apiQueryKey("/billing/me"),
+          exact: true,
+        });
+      if (endpoint.startsWith("/admin/packages"))
+        void client.invalidateQueries({
+          queryKey: apiQueryKey("/public/packages"),
+          exact: true,
+        });
       if (
         data &&
         typeof data === "object" &&

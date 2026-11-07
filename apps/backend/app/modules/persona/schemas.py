@@ -20,6 +20,10 @@ class PersonaCreate(PersonaMetadata):
     use_account_profile: bool = False
 
 
+class PersonaDetailsPrompt(BaseModel):
+    paragraph: str = Field(min_length=10, max_length=10000)
+
+
 class PersonaPersonal(PersonalInfoUpsert):
     country: str | None = Field(default=None, max_length=100)
     region: str | None = Field(default=None, max_length=100)

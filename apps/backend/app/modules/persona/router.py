@@ -2,6 +2,10 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, File, Form, UploadFile
+from fastapi import HTTPException
+import httpx
+import json
+from app.core.config import settings
 
 from app.modules.auth.dependencies import CURRENT_REGISTERED_USER_DEPENDENCY
 from app.modules.auth.schemas import UserResponse
@@ -11,10 +15,15 @@ from app.modules.persona.schemas import (
     PersonaMetadata,
     PersonaPersonal,
     PersonaResponse,
+    PersonaDetailsPrompt,
 )
 from app.modules.persona.service import PersonaService
 
-router = APIRouter(prefix="/personas", tags=["Persona"])
+from app.modules.billing.dependencies import require_subscription
+
+router = APIRouter(
+    dependencies=[Depends(require_subscription)], prefix="/personas", tags=["Persona"]
+)
 
 
 def get_persona_service():
@@ -23,6 +32,34 @@ def get_persona_service():
 
 SERVICE = Depends(get_persona_service)
 USER = CURRENT_REGISTERED_USER_DEPENDENCY
+
+
+@router.post("/parse-details")
+async def parse_persona_details(payload: PersonaDetailsPrompt, user: UserResponse = USER):
+    del user
+    if not settings.gemini_api_key:
+        raise HTTPException(status_code=503, detail="Persona AI is not configured. Set GEMINI_API_KEY on the server.")
+    prompt = ("Extract only facts explicitly stated in this paragraph into JSON with keys "
+              "personal (first_name,last_name,email,phone,professional_title,city,country,summary), "
+              "experience (array of job_title,company_name,location,start_date,end_date,description), "
+              "education (array of institute_name,degree,field_of_study,start_date,end_date,description), "
+              "skills (array of name,category,level), projects (array of name,description,link), "
+              "certificates (array of title,category,issue_date), and description. "
+              "Use empty strings or arrays for missing information. Do not invent facts. Paragraph:\n" + payload.paragraph)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent"
+    try:
+        async with httpx.AsyncClient(timeout=settings.ai_timeout_seconds) as client:
+            response = await client.post(url, params={"key": settings.gemini_api_key}, json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"responseMimeType": "application/json"},
+            })
+            response.raise_for_status()
+            text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            result = json.loads(text)
+            if not isinstance(result, dict): raise ValueError("Expected JSON object")
+            return result
+    except (httpx.HTTPError, KeyError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=502, detail="Gemini could not extract persona details. Please try again.") from exc
 
 
 @router.get("", response_model=list[PersonaResponse])

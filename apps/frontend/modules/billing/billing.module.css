@@ -1,0 +1,130 @@
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  color: var(--text-primary, var(--text));
+}
+.page h1 {
+  font-size: 28px;
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+.page h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 24px 0 12px;
+}
+.page p {
+  margin: 8px 0 16px;
+}
+.notice,
+.card,
+.form {
+  background: var(--bg-surface, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 20px;
+}
+.notice {
+  margin: 20px 0;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.card h2 {
+  margin-top: 0;
+}
+.price {
+  font-size: 24px;
+  font-weight: 600;
+}
+.page button,
+.page a.action {
+  display: inline-block;
+  border: 1px solid var(--border-strong);
+  padding: 8px 12px;
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  margin: 4px 6px 4px 0;
+  text-decoration: none;
+}
+.page button.primary {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+.page button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.page button:focus-visible,
+.page input:focus-visible,
+.page textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.error {
+  border: 1px solid var(--danger);
+  background: var(--status-error-bg);
+  color: var(--status-error-text);
+  padding: 12px;
+  margin: 16px 0;
+}
+.success {
+  color: var(--status-success-text);
+  padding: 12px;
+  border: 1px solid var(--success);
+  margin: 16px 0;
+}
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+.form input,
+.form textarea {
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 8px;
+  background: var(--surface);
+  color: var(--text);
+  width: 100%;
+}
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  margin: 20px 0;
+}
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+.tableWrap th,
+.tableWrap td {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  min-width: 120px;
+}
+.tableWrap th {
+  background: var(--surface-subtle);
+  color: var(--text);
+}
+.muted {
+  color: var(--text-muted);
+  font-size: 13px;
+}

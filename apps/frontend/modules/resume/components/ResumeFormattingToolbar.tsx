@@ -490,7 +490,7 @@ function PageOptionsDropdown({
           </select>
         </label>
         {appearance.pageSize === "Custom" && (
-          <div className="flex gap-2">
+          <div className="resume-workspace-custom-size">
             <label>
               Width (mm)
               <input
@@ -535,52 +535,6 @@ function PageOptionsDropdown({
             <option value="landscape">Landscape</option>
           </select>
         </label>
-        <label>
-          <span>Margins</span>
-          <select
-            aria-label="Page margins"
-            value={appearance.pageMargin}
-            onChange={(event) =>
-              onChange({
-                pageMargin: Number(event.target.value),
-                pageMargins: undefined,
-              })
-            }
-          >
-            {[5, 8, 10, 12, 15, 18, 20, 25, 30, 35, 40].map((margin) => (
-              <option key={margin} value={margin}>
-                {margin} mm
-              </option>
-            ))}
-          </select>
-        </label>
-        <fieldset>
-          <legend>Individual margins (mm)</legend>
-          {(["top", "bottom", "left", "right"] as const).map((side) => (
-            <label key={side}>
-              {side}
-              <input
-                aria-label={`${side} margin`}
-                type="number"
-                min="0"
-                max="100"
-                value={appearance.pageMargins?.[side] ?? appearance.pageMargin}
-                onChange={(event) =>
-                  onChange({
-                    pageMargins: {
-                      top: appearance.pageMargin,
-                      bottom: appearance.pageMargin,
-                      left: appearance.pageMargin,
-                      right: appearance.pageMargin,
-                      ...appearance.pageMargins,
-                      [side]: Number(event.target.value),
-                    },
-                  })
-                }
-              />
-            </label>
-          ))}
-        </fieldset>
         <div className="resume-workspace-page-color-field">
           <span>Page color</span>
           <div className="resume-workspace-page-color-swatches">

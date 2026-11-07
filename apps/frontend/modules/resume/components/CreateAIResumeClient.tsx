@@ -19,6 +19,10 @@ import Link from "next/link";
 import { useApiQuery } from "@/lib/use-api-query";
 import type { Persona } from "@/modules/persona/types";
 import type { AIResumePayload } from "../types";
+import { SpeechInputButton } from "@/lib/SpeechInputButton";
+import { LanguageSelect } from "@/components/ui/LanguageSelect";
+import type { LanguageCode } from "@/lib/languages";
+import { getResumeLanguagePreference, setResumeLanguagePreference } from "@/lib/resume-language-preference";
 
 type ProfileSection = NonNullable<AIResumePayload["selected_sections"]>[number];
 
@@ -48,6 +52,7 @@ export function CreateAIResumeClient() {
   const [personaId, setPersonaId] = useState("");
   const selectedPersona = personaId || personas.data?.[0]?.id || "";
   const [prompt, setPrompt] = useState("");
+  const [resumeLanguage, setResumeLanguage] = useState<LanguageCode>("en");
   const [jobDescription, setJobDescription] = useState("");
   const [referenceLinks, setReferenceLinks] = useState<string[]>([""]);
   const [selectedSections, setSelectedSections] = useState<ProfileSection[]>(
@@ -56,6 +61,10 @@ export function CreateAIResumeClient() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [progressIndex, setProgressIndex] = useState(0);
+
+  useEffect(() => {
+    setResumeLanguage(getResumeLanguagePreference());
+  }, []);
 
   useEffect(() => {
     if (!saving) {
@@ -80,6 +89,7 @@ export function CreateAIResumeClient() {
         title: title.trim(),
         persona_id: selectedPersona,
         prompt: prompt.trim(),
+        language: resumeLanguage,
         job_description: jobDescription.trim() || undefined,
         reference_links: referenceLinks
           .map((link) => link.trim())
@@ -163,6 +173,8 @@ export function CreateAIResumeClient() {
           maxLength={120}
           hint="Use a title that will be easy to find in your library."
         />
+        <LanguageSelect id="ai-resume-language" value={resumeLanguage} onChange={(value) => { setResumeLanguage(value); setResumeLanguagePreference(value); }} label="Resume language" />
+        <div className="flex justify-end"><SpeechInputButton onTranscript={(text) => setPrompt((current) => current ? `${current.trim()} ${text}` : text)} /></div>
         <Textarea
           label="What should this resume emphasize?"
           value={prompt}

@@ -29,6 +29,8 @@ import type { AIEditProposal, ResumeRecord } from "../types";
 import { AIPromptBar } from "./AIPromptBar";
 import { markResumeOpened } from "../recentResumes";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { LANGUAGES, type LanguageCode } from "@/lib/languages";
+import { getResumeLanguagePreference, setResumeLanguagePreference } from "@/lib/resume-language-preference";
 
 export function AccountResumeEditor({ resumeId }: { resumeId?: string }) {
   const queryParams = useSearchParams();
@@ -62,7 +64,7 @@ export function EditorDocument({ record }: { record: ResumeRecord }) {
   useEffect(() => {
     if (record.id) markResumeOpened(record.id);
   }, [record.id]);
-  const templateId = record.template_id || "1";
+  const [templateId, setTemplateId] = useState(record.template_id || "1");
   const template = (templateCatalog.find((item) => item.id === templateId) ||
     templateCatalog[0])!;
   const [zoom, setZoom] = useState(100);
@@ -81,6 +83,8 @@ export function EditorDocument({ record }: { record: ResumeRecord }) {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [instruction, setInstruction] = useState("");
+  const [resumeLanguage, setResumeLanguage] = useState<LanguageCode>("en");
+  useEffect(() => setResumeLanguage(getResumeLanguagePreference()), []);
   const [jobDescription, setJobDescription] = useState("");
   const [references, setReferences] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
@@ -204,8 +208,11 @@ export function EditorDocument({ record }: { record: ResumeRecord }) {
       setDownloading(false);
     }
   };
-  const requestProposal = async () => {
-    if (aiBusy || !instruction.trim()) return;
+  const requestProposal = async (
+    requestedInstruction = instruction.trim(),
+    requestedLanguage = resumeLanguage,
+  ) => {
+    if (aiBusy || !requestedInstruction) return;
     setAiBusy(true);
     setAiError("");
     try {
@@ -217,7 +224,8 @@ export function EditorDocument({ record }: { record: ResumeRecord }) {
         );
       const requestedRevision = latestRevision.current;
       const result = await resumeApi.aiEdit(savedId.current, {
-        instruction: instruction.trim(),
+        instruction: requestedInstruction,
+        language: requestedLanguage,
         job_description: jobDescription.trim() || undefined,
         reference_links: references
           .split(/\r?\n/)
@@ -254,6 +262,18 @@ export function EditorDocument({ record }: { record: ResumeRecord }) {
     <>
       <ResumeEditor
         template={template}
+        resumeLanguage={resumeLanguage}
+        onResumeLanguageChange={(value) => {
+          setResumeLanguage(value);
+          setResumeLanguagePreference(value);
+          if (value !== resumeLanguage) {
+            const languageName = LANGUAGES.find((item) => item.code === value)?.name || "the selected language";
+            void requestProposal(
+              `Translate all user-facing text in this resume into ${languageName}. Preserve all factual details, names, numbers, dates, email addresses, URLs, and meaning. Do not add or remove facts. Return the complete translated resume.`,
+              value,
+            );
+          }
+        }}
         resume={document}
         onChange={updateDocument}
         title={title}
@@ -269,20 +289,21 @@ export function EditorDocument({ record }: { record: ResumeRecord }) {
           )
         }
         authenticated
+        onTemplateChange={(nextTemplate) => {
+          setTemplateId(nextTemplate.id);
+          change();
+        }}
         zoom={zoom}
         onZoomChange={setZoom}
         headerActions={
           <>
-            <details>
-              <summary>File</summary>
-              <Button
-                variant="ghost"
-                disabled={!savedId.current || saving || downloading}
-                onClick={() => setConfirmDelete(true)}
-              >
-                Delete resume
-              </Button>
-            </details>
+            <Button
+              variant="ghost"
+              disabled={!savedId.current || saving || downloading}
+              onClick={() => setConfirmDelete(true)}
+            >
+              Delete resume
+            </Button>
             <span role="status" className="text-xs text-[var(--text-muted)]">
               {saving
                 ? "Saving…"
@@ -320,6 +341,7 @@ export function EditorDocument({ record }: { record: ResumeRecord }) {
               disabled={false}
               error={aiError}
               proposalReady={Boolean(proposal)}
+              language={resumeLanguage}
             />
             {error && (
               <div className="px-4 pb-2">
@@ -379,7 +401,7 @@ export function EditorDocument({ record }: { record: ResumeRecord }) {
         <div className="space-y-4">
           <p className="text-sm text-[var(--text-muted)]">
             Give an instruction, review the proposal, then apply the changes you
-            want.
+            want. The resume language setting applies to AI generated and edited content.
           </p>
           {aiError && <Alert variant="error">{aiError}</Alert>}
           <label className="form-stack">

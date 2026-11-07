@@ -45,6 +45,7 @@ export function ResumeForm({
   onChange,
   photoSupported,
   onChoosePhoto,
+  onAdjustPhoto,
   photoError,
   activeSection = null,
 }: {
@@ -52,6 +53,7 @@ export function ResumeForm({
   onChange: (resume: EditorResumeData) => void;
   photoSupported: boolean;
   onChoosePhoto: (file: File) => void;
+  onAdjustPhoto: () => void;
   photoError: string;
   activeSection?: string | null;
 }) {
@@ -102,6 +104,11 @@ export function ResumeForm({
                     event.currentTarget.value = "";
                   }}
                 />
+                {resume.avatarUrl && (
+                  <Button size="sm" variant="secondary" onClick={onAdjustPhoto}>
+                    Adjust photo
+                  </Button>
+                )}
                 {resume.avatarUrl && (
                   <Button
                     size="sm"

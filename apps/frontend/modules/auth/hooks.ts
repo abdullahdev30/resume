@@ -76,7 +76,11 @@ export function useAuth() {
       toast.success(registration.message);
       router.replace("/auth/verify-email");
     } catch (err) {
-      const message =
+      const message = err instanceof ApiClientError && err.status === 502
+        ? err.code === "backend_unavailable"
+          ? "The registration API could not be reached. Check BACKEND_API_URL and make sure the backend is running."
+          : "The authentication provider could not complete registration. Check that email sign-ups and verification email delivery are enabled in Supabase Auth."
+        :
         err instanceof Error ? err.message : "Registration failed.";
       setError(message);
       toast.error(message, "Unable to create account");
@@ -98,7 +102,7 @@ export function useAuth() {
       await authApi.verifyEmail({ email, otp });
       toast.success("Email verified successfully.");
       removeAuthState(AUTH_EMAIL_STORAGE_KEY);
-      router.replace("/settings");
+      router.replace("/packages");
       router.refresh();
     } catch (err) {
       const message =

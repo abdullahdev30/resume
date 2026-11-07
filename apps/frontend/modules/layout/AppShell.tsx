@@ -2,6 +2,7 @@
 
 import {
   FileText,
+  ArrowUpRight,
   Home,
   LayoutTemplate,
   LogOut,
@@ -9,6 +10,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
+  Shield,
   Users,
   X,
 } from "lucide-react";
@@ -22,8 +24,12 @@ import { toast } from "@/components/feedback/Toast";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { getQueryClient, apiQueryKey } from "@/lib/query-client";
+import { useApiQuery } from "@/lib/use-api-query";
+import type { Membership } from "@/modules/billing/types";
+import type { Package } from "@/modules/billing/types";
 import { apiClient } from "@/lib/api-client";
 import { authApi } from "../auth/api";
 import type { User } from "../auth/types";
@@ -47,12 +53,12 @@ const publicNavItems = [
 ];
 
 const accountNavItems = [
+  { href: "/persona", label: "Persona", icon: Users },
   ...publicNavItems.map((item) =>
     item.href === "/templates"
       ? { ...item, href: "/resumes/create/template" }
       : item,
   ),
-  { href: "/persona", label: "Persona", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -62,6 +68,20 @@ export function AppShell({
   initialDisplayName,
   children,
 }: AppShellProps) {
+  const membership = useApiQuery<Membership>("/billing/me", {
+    enabled: Boolean(user),
+  });
+  const packages = useApiQuery<Package[]>("/billing/packages", {
+    enabled: Boolean(user),
+  });
+  const accountRole = membership.data?.role || "user";
+  const maximumPackage = packages.data?.reduce<Package | undefined>(
+    (highest, item) => !highest || Number(item.monthly_price) > Number(highest.monthly_price) || (Number(item.monthly_price) === Number(highest.monthly_price) && item.persona_limit > highest.persona_limit) ? item : highest,
+    undefined,
+  );
+  const currentPackage = membership.data?.subscription;
+  const canUpgrade = accountRole === "user" && (!currentPackage || currentPackage.package_id !== maximumPackage?.id);
+  const { t } = useLanguage();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -138,6 +158,21 @@ export function AppShell({
     return () => document.removeEventListener("keydown", handleKey);
   }, [mobileOpen]);
 
+  useEffect(() => {
+    const account = membership.data;
+    if (!user || !account) return;
+    const expired =
+      account.subscription &&
+      new Date(account.subscription.expires_at).getTime() <= Date.now();
+    if (
+      account.role === "user" &&
+      (account.status !== "active" || expired) &&
+      !pathname.startsWith("/packages") &&
+      !pathname.startsWith("/settings")
+    )
+      router.replace("/packages");
+  }, [membership.data, pathname, router, user]);
+
   const logout = async () => {
     setLoggingOut(true);
     try {
@@ -165,7 +200,7 @@ export function AppShell({
             iconOnly
             className="md:hidden"
             onClick={() => setMobileOpen((current) => !current)}
-            aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+            aria-label={t(mobileOpen ? "Close navigation" : "Open navigation")}
             aria-expanded={mobileOpen}
           >
             {mobileOpen ? (
@@ -178,12 +213,12 @@ export function AppShell({
           <Link
             href="/dashboard"
             className="app-brand"
-            aria-label="Resume Builder dashboard"
+            aria-label={`${t("Resume Builder")} dashboard`}
           >
             <BrandLogo className="app-brand-logo" priority />
             <span className="app-brand-copy">
-              <span className="app-brand-name">Resume Builder</span>
-              <span className="app-brand-meta">Your career workspace</span>
+              <span className="app-brand-name">{t("Resume Builder")}</span>
+              <span className="app-brand-meta">{t("Your career workspace")}</span>
             </span>
           </Link>
         </div>
@@ -273,7 +308,15 @@ export function AppShell({
           </div>
           <nav className="sidebar-nav" aria-label="Main navigation">
             <div className="sidebar-label">Workspace</div>
-            {(user ? accountNavItems : publicNavItems).map((item) => {
+            {(user
+              ? [
+                  ...accountNavItems,
+                  ...(accountRole !== "user"
+                    ? [{ href: "/admin", label: "Admin panel", icon: Shield }]
+                    : []),
+                ]
+              : publicNavItems
+            ).map((item) => {
               const Icon = item.icon;
               const active =
                 pathname === item.href ||
@@ -306,7 +349,7 @@ export function AppShell({
                   title={sidebarCollapsed ? item.label : undefined}
                 >
                   <Icon size={18} aria-hidden="true" />
-                  <span>{item.label}</span>
+              <span>{t(item.label)}</span>
                 </Link>
               );
             })}
@@ -314,6 +357,12 @@ export function AppShell({
 
           {user && (
             <div className="sidebar-footer">
+              {accountRole === "user" && <div className="mb-3 rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
+                <span className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Current package</span>
+                <span className="mt-1 block truncate font-semibold">{currentPackage?.package_name || "No active package"}</span>
+                {currentPackage && <span className="mt-1 block text-xs text-[var(--text-muted)]">{membership.data?.persona_count} / {currentPackage.persona_limit} personas</span>}
+                {canUpgrade && <Link href="/packages" className="mt-2 inline-flex items-center gap-1 font-semibold text-[var(--primary)]">{currentPackage ? "Upgrade package" : "Choose a package"}<ArrowUpRight size={14} aria-hidden="true" /></Link>}
+              </div>}
               <Tooltip label="Log out">
                 <button
                   type="button"

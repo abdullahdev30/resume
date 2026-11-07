@@ -5,6 +5,7 @@ import {
 import React from "react";
 import { getResumePageStyle, type TemplateProps } from "./TemplateOne";
 import { AdditionalSections } from "./AdditionalSections";
+import { ResumePhoto } from "./templatePrimitives";
 import { ResumePage } from "./ResumePage";
 
 export default function TemplateThree({
@@ -12,6 +13,7 @@ export default function TemplateThree({
   selectedElementId,
   onSelectElement,
   elementStyles = {},
+  onPhotoUpload,
   indexOffsets = {},
 }: TemplateProps) {
   const accentColor = data.primaryColor || "#334155";
@@ -42,6 +44,16 @@ export default function TemplateThree({
     >
       {/* Centered Header */}
       <div className="text-center border-b-2 border-slate-300 pb-6 mb-6">
+        {data.avatarUrl && (
+          <div className="mb-4 flex justify-center">
+            <ResumePhoto
+              data={data}
+              onPhotoUpload={onPhotoUpload}
+              className="w-20 h-20 rounded-full overflow-hidden"
+              imageClassName="w-full h-full object-cover"
+            />
+          </div>
+        )}
         <h1
           onClick={(e) => handleSelect("fullName", e)}
           className={getItemClass(

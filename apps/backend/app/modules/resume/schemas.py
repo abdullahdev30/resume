@@ -165,7 +165,7 @@ class ResumeData(ResumeSchema):
     page_orientation: Literal["portrait", "landscape"] = Field(
         default="portrait", alias="pageOrientation"
     )
-    page_margin: float = Field(default=10, alias="pageMargin", ge=5, le=40)
+    page_margin: float = Field(default=3, alias="pageMargin", ge=3, le=40)
     page_width: float | None = Field(default=None, alias="pageWidth", ge=50, le=1200)
     page_height: float | None = Field(default=None, alias="pageHeight", ge=50, le=1200)
     page_margins: ResumeMargins | None = Field(default=None, alias="pageMargins")
@@ -228,6 +228,7 @@ class AIResumeRequest(ResumeSchema):
     reference_links: list[str] = Field(default_factory=list, max_length=20)
     selected_sections: list[ResumeSection] | None = None
     persona_id: UUID
+    language: Literal["en", "ar", "ur", "de", "es", "it", "zh"] = "en"
 
     @field_validator("reference_links")
     @classmethod
@@ -251,7 +252,7 @@ class AIResumeDesign(ResumeSchema):
     font_family: ResumeFontFamily = Field(alias="fontFamily")
     font_scale: float = Field(alias="fontScale", ge=0.85, le=1.15)
     line_spacing: float = Field(alias="lineSpacing", ge=1.0, le=2.0)
-    page_margin: float = Field(alias="pageMargin", ge=10, le=30)
+    page_margin: float = Field(alias="pageMargin", ge=3, le=30)
     section_order: list[ResumeDesignSection] = Field(
         alias="sectionOrder", min_length=1, max_length=8
     )
@@ -312,6 +313,7 @@ class ResumeAIEditRequest(ResumeSchema):
     instruction: str = Field(min_length=1, max_length=10_000)
     job_description: str | None = Field(default=None, max_length=20_000)
     reference_links: list[str] = Field(default_factory=list, max_length=20)
+    language: Literal["en", "ar", "ur", "de", "es", "it", "zh"] = "en"
 
     @field_validator("reference_links")
     @classmethod

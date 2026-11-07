@@ -14,8 +14,15 @@ import TemplateTen from "./TemplateTen";
 
 export function ResumeTemplateRenderer({
   templateId,
-  ...props
+  data,
+  ...rest
 }: TemplateProps & { templateId: string }) {
+  const visibleData = { ...data };
+  for (const section of data.hiddenSections || []) {
+    const key = section === "social_links" ? "socialLinks" : section;
+    Object.assign(visibleData, { [key]: key === "summary" ? "" : [] });
+  }
+  const props = { ...rest, data: visibleData };
   switch (templateId) {
     case "2":
       return <TemplateTwo {...props} />;

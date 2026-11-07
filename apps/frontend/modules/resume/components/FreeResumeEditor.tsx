@@ -8,12 +8,16 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { useFreeResume } from "../store";
 import { downloadResumePdf } from "../downloadResumePdf";
 import { ResumeEditor } from "./ResumeEditor";
+import { getResumeLanguagePreference, setResumeLanguagePreference } from "@/lib/resume-language-preference";
+import type { LanguageCode } from "@/lib/languages";
 
 export function FreeResumeEditor({ templateId }: { templateId?: string }) {
   const state = useFreeResume();
   const [printing, setPrinting] = useState(false);
   const [error, setError] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
+  const [resumeLanguage, setResumeLanguage] = useState<LanguageCode>("en");
+  useEffect(() => setResumeLanguage(getResumeLanguagePreference()), []);
   useEffect(() => {
     void useFreeResume.persist.rehydrate();
   }, []);
@@ -46,6 +50,11 @@ export function FreeResumeEditor({ templateId }: { templateId?: string }) {
     <>
       <ResumeEditor
         template={template}
+        resumeLanguage={resumeLanguage}
+        onResumeLanguageChange={(value) => {
+          setResumeLanguage(value);
+          setResumeLanguagePreference(value);
+        }}
         resume={state.data}
         onChange={(next) =>
           state.update({
@@ -57,16 +66,14 @@ export function FreeResumeEditor({ templateId }: { templateId?: string }) {
         }
         title={state.title}
         onTitleChange={(title) => state.update({ title })}
+        onTemplateChange={(nextTemplate) => state.update({ templateId: nextTemplate.id })}
         zoom={state.zoom}
         onZoomChange={(zoom) => state.update({ zoom })}
         headerActions={
           <>
-            <details>
-              <summary>File</summary>
-              <Button variant="ghost" onClick={() => setConfirmClear(true)}>
-                Clear data
-              </Button>
-            </details>
+            <Button variant="ghost" onClick={() => setConfirmClear(true)}>
+              Clear data
+            </Button>
             <Button
               onClick={() => void print()}
               loading={printing}
@@ -77,23 +84,19 @@ export function FreeResumeEditor({ templateId }: { templateId?: string }) {
           </>
         }
         assistant={
-          <div className="p-3 text-xs text-[var(--text-muted)]">
-            <p>
-              Your data is kept only for this browser tab and is deleted when
-              you close the tab. Download your resume to keep it.
-            </p>
-            <p>
-              Choose Save as PDF in the print dialog. Enable background graphics
-              and disable browser headers and footers.
-            </p>
-            {state.warning && <Alert variant="warning">{state.warning}</Alert>}
-            {error && (
-              <Alert variant="error">
-                {error}
-                <Button onClick={() => void print()}>Retry</Button>
-              </Alert>
-            )}
-          </div>
+          state.warning || error ? (
+            <div className="p-3 text-xs text-[var(--text-muted)]">
+              {state.warning && (
+                <Alert variant="warning">{state.warning}</Alert>
+              )}
+              {error && (
+                <Alert variant="error">
+                  {error}
+                  <Button onClick={() => void print()}>Retry</Button>
+                </Alert>
+              )}
+            </div>
+          ) : undefined
         }
       />
       <ConfirmDialog

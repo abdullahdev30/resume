@@ -1,0 +1,61 @@
+.layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+.tabs {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+.tabs button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 15px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.tabs button:hover {
+  background: var(--surface-subtle);
+}
+.tabs button[aria-selected="true"] {
+  background: var(--primary-tint);
+  color: var(--primary-hover);
+  border-color: color-mix(in srgb, var(--primary) 15%, var(--border));
+}
+.tabs button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.panel {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.panel[hidden] {
+  display: none;
+}
+@media (max-width: 700px) {
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .tabs button {
+    flex: 1;
+    justify-content: center;
+    padding: 11px 12px;
+  }
+}

@@ -2,6 +2,8 @@
 
 import { ArrowUp, LoaderCircle } from "lucide-react";
 import styles from "./AIPromptBar.module.css";
+import { SpeechInputButton } from "@/lib/SpeechInputButton";
+import type { LanguageCode } from "@/lib/languages";
 
 export function AIPromptBar({
   instruction,
@@ -12,6 +14,7 @@ export function AIPromptBar({
   disabled,
   error,
   proposalReady,
+  language,
 }: {
   instruction: string;
   onChange: (value: string) => void;
@@ -21,6 +24,7 @@ export function AIPromptBar({
   disabled: boolean;
   error: string;
   proposalReady: boolean;
+  language: LanguageCode;
 }) {
   const canSend = !disabled && !busy && Boolean(instruction.trim());
   return (
@@ -54,6 +58,11 @@ export function AIPromptBar({
               if (canSend) onSubmit();
             }
           }}
+        />
+        <SpeechInputButton
+          disabled={busy || disabled}
+          language={language}
+          onTranscript={(text) => onChange(instruction ? `${instruction.trim()} ${text}` : text)}
         />
         <button
           type="submit"

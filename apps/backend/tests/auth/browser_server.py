@@ -23,6 +23,20 @@ from tests.auth.test_auth import FakeAuthService, auth_result
 from tests.persona.test_persona import MemoryPersonaRepository, MemoryStorage
 from tests.resume.test_resume import FakeResumeRepository, FakeStorage
 
+# Isolated browser fixtures have no PostgreSQL connection. Real production
+# account/expiry checks remain in billing dependencies and are tested separately.
+from app.modules.billing import service as billing_service
+from app.modules.billing import dependencies as billing_dependencies
+from app.modules.billing.router import router as billing_router
+from app.modules.billing import router as billing_routes
+
+billing_service.access_for = lambda _: {'role': 'user', 'active': True}
+billing_dependencies.access_for = billing_service.access_for
+billing_service.subscription_for = lambda _: {'status': 'active', 'subscription': None, 'persona_count': 0}
+billing_dependencies.subscription_for = billing_service.subscription_for
+billing_routes.access_for = billing_service.access_for
+billing_routes.subscription_for = billing_service.subscription_for
+
 
 class BrowserAuthService(FakeAuthService):
     recovery_used = False
@@ -78,6 +92,7 @@ service = BrowserAuthService()
 app.dependency_overrides[get_auth_service] = lambda: service
 limiter.enabled = False
 app.include_router(router, prefix="/api/v1")
+app.include_router(billing_router, prefix="/api/v1")
 
 
 class BrowserStorage(MemoryStorage):

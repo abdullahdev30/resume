@@ -13,6 +13,8 @@ TRUSTED_FRONTEND_ORIGINS = (
 class Settings(BaseSettings):
     app_name: str = "Company API"
     app_env: str = "development"
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
 
     frontend_url: str = "http://localhost:3000"
     backend_url: str = "http://localhost:8000"
@@ -57,6 +59,8 @@ class Settings(BaseSettings):
     ai_base_url: str = "https://api.openai.com/v1"
     ai_timeout_seconds: float = 90.0
     ai_rate_limit_per_hour: int = 5
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.5-flash"
 
     @property
     def allowed_cors_origins(self) -> list[str]:

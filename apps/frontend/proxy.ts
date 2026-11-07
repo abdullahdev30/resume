@@ -8,6 +8,8 @@ export function proxy(request: NextRequest) {
 
   const isProtectedAppRoute =
     pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/packages") ||
     pathname.startsWith("/settings") ||
     pathname.startsWith("/persona") ||
     pathname.startsWith("/resumes");
@@ -39,6 +41,8 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/admin/:path*",
+    "/packages/:path*",
     "/dashboard/:path*",
     "/settings/:path*",
     "/persona/:path*",

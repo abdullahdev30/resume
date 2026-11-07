@@ -6,7 +6,7 @@ export function getQueryClient(): QueryClient {
   return (browserClient ??= new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 2 * 60_000,
+        staleTime: 5 * 60_000,
         gcTime: 30 * 60_000,
         retry: 1,
         refetchOnWindowFocus: false,
@@ -15,3 +15,6 @@ export function getQueryClient(): QueryClient {
   }));
 }
 export const apiQueryKey = (endpoint: string) => ["api", endpoint] as const;
+
+export const apiStaleTime = (endpoint: string) =>
+  endpoint === "/billing/me" || endpoint.endsWith("/pdf") ? 30_000 : 5 * 60_000;

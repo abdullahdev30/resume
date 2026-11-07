@@ -89,7 +89,7 @@ export function profileToResumeData(profile: ProfileResponse): ResumeData {
       url: item.file_url || undefined,
     })),
     pageSize: "A4",
-    pageMargin: 10,
+    pageMargin: 3,
     lineSpacing: 1.15,
     elementStyles: {
       fullName: { isBold: true, fontSize: 24 },

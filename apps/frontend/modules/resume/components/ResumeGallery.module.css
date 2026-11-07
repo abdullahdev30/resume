@@ -3,20 +3,11 @@
   gap: 24px;
   color: var(--text);
 }
-.header,
 .sectionHeading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-}
-.header h1 {
-  font-size: var(--type-page-title);
-  margin: 0 0 6px;
-}
-.header p {
-  color: var(--text-muted);
-  font-size: var(--type-body);
 }
 .sectionHeading {
   margin-bottom: 20px;
@@ -145,7 +136,6 @@
   .twoRows > :nth-child(n + 5) {
     display: none;
   }
-  .header,
   .sectionHeading {
     align-items: flex-start;
     flex-wrap: wrap;

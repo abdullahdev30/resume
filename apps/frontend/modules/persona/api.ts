@@ -3,6 +3,7 @@ import type { Category, Metadata, Persona, Value } from "./types";
 
 const path = (id: string) => `/personas/${encodeURIComponent(id)}`;
 export const personaApi = {
+  parseDetails: (paragraph: string) => apiClient<Record<string, unknown>>("/personas/parse-details", { method: "POST", body: { paragraph }, queryCache: false }),
   list: (signal?: AbortSignal) => apiClient<Persona[]>("/personas", { signal }),
   get: (id: string, signal?: AbortSignal) =>
     apiClient<Persona>(path(id), { signal }),
@@ -53,3 +54,53 @@ export const personaApi = {
     return apiClientUpload<Persona>(`${path(id)}/certificates/upload`, body);
   },
 };
+
+export async function createPersonaWithDetails(
+  value: Metadata & { extracted?: Record<string, unknown> },
+): Promise<Persona> {
+  const { extracted, ...metadata } = value;
+  let persona = await personaApi.create(metadata);
+  if (!extracted) return persona;
+  const personal = extracted.personal as Record<string, unknown> | undefined;
+  if (personal) {
+    persona = await personaApi.personal(
+      persona.id,
+      Object.fromEntries(
+        Object.entries(personal).filter(
+          ([, item]) => typeof item === "string" && item.trim(),
+        ),
+      ) as Record<string, Value>,
+    );
+  }
+  for (const category of [
+    "experience",
+    "education",
+    "skills",
+    "projects",
+    "certificates",
+  ] as const satisfies readonly Category[]) {
+    const entries = extracted[category];
+    if (Array.isArray(entries)) {
+      for (const entry of entries) {
+        if (entry && typeof entry === "object") {
+          const fields = entry as Record<string, unknown>;
+          const required: Record<typeof category, string[]> = {
+            experience: ["job_title", "company_name", "start_date"],
+            education: ["institute_name", "start_date"],
+            skills: ["name"],
+            projects: ["name"],
+            certificates: ["title"],
+          };
+          if (required[category].some((key) => typeof fields[key] !== "string" || !String(fields[key]).trim())) continue;
+          if (["experience", "education"].includes(category) && !/^\d{4}-\d{2}-\d{2}$/.test(String(fields.start_date))) continue;
+          persona = await personaApi.saveEntry(
+            persona.id,
+            category,
+            fields as Record<string, Value>,
+          );
+        }
+      }
+    }
+  }
+  return persona;
+}

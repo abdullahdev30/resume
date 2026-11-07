@@ -1,3 +1,6 @@
+"use client";
+
+import { useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import type { ResumeData, ResumePageSize } from "./TemplateOne";
@@ -53,36 +56,108 @@ export function ResumePage({
   style?: CSSProperties;
 }) {
   const dimensions = getResumePageDimensions(data);
-  const pageStyle = {
-    width: `${dimensions.width}mm`,
-    minWidth: `${dimensions.width}mm`,
-    maxWidth: `${dimensions.width}mm`,
-    height: "auto",
-    minHeight: `${dimensions.height}mm`,
-    maxHeight: "none",
-    boxSizing: "border-box",
-    overflow: "visible",
-    lineHeight: data.lineSpacing ?? 1.15,
-    padding: `${data.pageMargin ?? 10}mm`,
-    ...(data.pageMargins
-      ? {
-          padding: `${data.pageMargins.top}mm ${data.pageMargins.right}mm ${data.pageMargins.bottom}mm ${data.pageMargins.left}mm`,
-        }
-      : {}),
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState({ scale: 1, left: 0 });
+  // A fixed physical sheet with out-of-flow content cannot create a phantom
+  // second page. Scale the complete layout uniformly, preserving every entry.
+  useLayoutEffect(() => {
+    const sheet = sheetRef.current;
+    const content = contentRef.current;
+    if (!sheet || !content) return;
+    const measure = () => {
+      const availableHeight = Math.max(1, sheet.clientHeight - (6 * 96) / 25.4);
+      const availableWidth = Math.max(1, sheet.clientWidth - (6 * 96) / 25.4);
+      const naturalHeight = Math.max(
+        content.scrollHeight,
+        content.offsetHeight,
+        1,
+      );
+      const scale = Math.min(1, availableHeight / naturalHeight);
+      const left = Math.max(
+        0,
+        (availableWidth - content.offsetWidth * scale) / 2,
+      );
+      setFit((current) =>
+        Math.abs(current.scale - scale) < 0.0001 &&
+        Math.abs(current.left - left) < 0.1
+          ? current
+          : { scale, left },
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(sheet);
+    observer.observe(content);
+    content.addEventListener("load", measure, true);
+    void document.fonts.ready.then(measure);
+    return () => {
+      observer.disconnect();
+      content.removeEventListener("load", measure, true);
+    };
+  }, [children, dimensions.width, dimensions.height]);
+  const fitStyle: CSSProperties = {
+    position: "absolute",
+    top: "3mm",
+    left: `calc(3mm + ${fit.left}px)`,
+    width: `${Math.max(1, dimensions.width - 6)}mm`,
+    transform: `scale(${fit.scale})`,
+    transformOrigin: "top left",
+  };
+  const contentStyle: CSSProperties = {
     ...style,
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "none",
+    minHeight: `${Math.max(1, dimensions.height - 6)}mm`,
+    height: "auto",
+    padding: 0,
+    margin: 0,
+    boxSizing: "border-box",
+    lineHeight: data.lineSpacing ?? 1.15,
     backgroundColor: data.pageColor || style?.backgroundColor,
-    page: printPageName(data),
-  } as CSSProperties & { page: string };
-
+  };
   return (
     <div
-      className={`resume-page ${className}`.trim()}
+      ref={sheetRef}
+      className="resume-page"
       data-resume-page="true"
+      data-fit-scale={fit.scale}
       data-page-size={data.pageSize || "A4"}
       data-page-orientation={data.pageOrientation || "portrait"}
-      style={pageStyle}
+      style={
+        {
+          width: `${dimensions.width}mm`,
+          minWidth: `${dimensions.width}mm`,
+          maxWidth: `${dimensions.width}mm`,
+          height: `${dimensions.height}mm`,
+          minHeight: `${dimensions.height}mm`,
+          maxHeight: `${dimensions.height}mm`,
+          position: "relative",
+          boxSizing: "border-box",
+          overflow: "hidden",
+          backgroundColor: data.pageColor || style?.backgroundColor || "#fff",
+          page: printPageName(data),
+        } as CSSProperties
+      }
     >
-      {children}
+      <div className="resume-page-fit" style={fitStyle}>
+        <div
+          style={{
+            display: "inline-block",
+            width: "100%",
+            verticalAlign: "top",
+          }}
+        >
+          <div
+            ref={contentRef}
+            className={`resume-page-content ${className}`}
+            style={contentStyle}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

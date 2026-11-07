@@ -145,6 +145,7 @@ class ResumeService:
             job_description=request.job_description,
             profile_context=profile_context,
             reference_links=request.reference_links,
+            language=request.language,
         )
         return proposal
 
@@ -252,6 +253,7 @@ class ResumeService:
             profile_context=profile_context,
             reference_links=request.reference_links,
             existing_data=resume.data or {},
+            language=request.language,
         )
 
     def get_pdf(self, user_id: str, resume_id: str) -> ResumePDFResponse:
@@ -571,11 +573,12 @@ class ResumeService:
         profile_context: dict[str, Any],
         reference_links: list[str],
         existing_data: dict[str, Any] | None = None,
+        language: str = "en",
     ) -> ResumeAIEditProposal:
         self._ensure_ai_configured()
         try:
             document = await self._generate_with_ai_provider(
-                prompt=prompt,
+                prompt=f"Write all resume prose and section labels in {dict(en='English', ar='Arabic', ur='Urdu', de='German', es='Spanish', it='Italian', zh='Simplified Chinese').get(language, 'English')}. Preserve names, email addresses, URLs, and dates as supplied. Do not translate factual names.\n\nUser request: {prompt}",
                 job_description=job_description,
                 profile_context=profile_context,
                 reference_links=reference_links,

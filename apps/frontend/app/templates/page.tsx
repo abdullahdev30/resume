@@ -8,7 +8,7 @@ export default function TemplatesPage() {
         <TemplatesClient />
       </main>
       <footer className="public-footer">
-        Your data stays in your browser tab and is never uploaded.
+        Choose a template, customize your resume, and download it as a PDF.
       </footer>
     </div>
   );

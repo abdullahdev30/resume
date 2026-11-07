@@ -24,6 +24,7 @@ import {
   type SetStateAction,
 } from "react";
 import type { EditorResumeData } from "@/modules/resume/types";
+import type { LanguageCode } from "@/lib/languages";
 
 import { BrandLogo } from "@/components/common/BrandLogo";
 import { AvatarCropDialog } from "@/components/profile/AvatarCropDialog";
@@ -31,6 +32,8 @@ import { ResumeDocument } from "@/components/templates/ResumeDocument";
 import { ResumePreview } from "@/components/templates/ResumePreview";
 import { ResumePrintRoot } from "@/components/templates/ResumePrintRoot";
 import type { TemplateItem } from "@/components/templates/catalog";
+import { Button } from "@/components/ui/Button";
+import { LanguageSelect } from "@/components/ui/LanguageSelect";
 import { Dialog } from "@/components/ui/Dialog";
 import { validateFile } from "@/lib/validation";
 import {
@@ -44,6 +47,7 @@ import { ResumeFormattingToolbar } from "./ResumeFormattingToolbar";
 import { InlineResumeInput } from "./InlineResumeInput";
 import { getEditableResumeText } from "@/components/templates/editableResumeText";
 import { editResumeText } from "@/modules/resume/editorDocument";
+import TemplatesClient from "@/app/templates/TemplatesClient";
 
 const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
@@ -79,6 +83,9 @@ export interface ResumeEditorProps {
   zoom: number;
   onZoomChange: (zoom: number) => void;
   onNavigate?: () => boolean;
+  onTemplateChange?: (template: TemplateItem) => void;
+  resumeLanguage: LanguageCode;
+  onResumeLanguageChange: (language: LanguageCode) => void;
 }
 
 export function ResumeEditor({
@@ -93,6 +100,9 @@ export function ResumeEditor({
   zoom,
   onZoomChange: setZoom,
   onNavigate,
+  onTemplateChange,
+  resumeLanguage,
+  onResumeLanguageChange,
 }: ResumeEditorProps) {
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const closeSection = useCallback(() => setEditingSection(null), []);
@@ -107,6 +117,7 @@ export function ResumeEditor({
     social_links: "Links",
   };
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState("");
   const [selectedElementId, setSelectedElementId] = useState<string | null>(
@@ -146,9 +157,33 @@ export function ResumeEditor({
       return;
     }
     setPhotoError("");
+    setEditingSection(null);
     setCropFile(file);
   };
 
+  const adjustPhoto = async () => {
+    if (!resume.avatarUrl) return;
+    try {
+      const encoded = /^data:(image\/[a-z+.-]+);base64,(.+)$/s.exec(
+        resume.avatarUrl,
+      );
+      if (encoded) {
+        const bytes = Uint8Array.from(atob(encoded[2]!), (character) =>
+          character.charCodeAt(0),
+        );
+        choosePhoto(new File([bytes], "resume-photo", { type: encoded[1]! }));
+        return;
+      }
+      const response = await fetch(resume.avatarUrl);
+      if (!response.ok) throw new Error("Photo unavailable");
+      const blob = await response.blob();
+      choosePhoto(new File([blob], "resume-photo", { type: blob.type }));
+    } catch {
+      setPhotoError(
+        "The photo could not be opened. Upload it again to adjust it.",
+      );
+    }
+  };
   const applyPhoto = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -288,6 +323,14 @@ export function ResumeEditor({
           />
         </div>
         <div className="resume-workspace-editor-header-actions">
+          <LanguageSelect id="editor-resume-language" value={resumeLanguage} onChange={onResumeLanguageChange} label="Resume language" />
+          {onTemplateChange && <Button variant="secondary" onClick={() => setTemplatePickerOpen(true)}>Change template</Button>}
+          <Button
+            variant="ghost"
+            onClick={() => setEditingSection("Personal information")}
+          >
+            Photo
+          </Button>
           {headerActions}
         </div>
       </header>
@@ -517,10 +560,23 @@ export function ResumeEditor({
           onChange={updateResume}
           photoSupported={photoSupported}
           onChoosePhoto={choosePhoto}
+          onAdjustPhoto={() => void adjustPhoto()}
           photoError={photoError}
         />
       </Dialog>
       <ResumePrintRoot data={templateData} templateId={template.id} />
+      <Dialog
+        open={templatePickerOpen}
+        title="Change resume template"
+        description="Choose a new design. Your resume details will stay in place."
+        onClose={() => setTemplatePickerOpen(false)}
+        className="max-w-6xl"
+      >
+        <TemplatesClient onSelect={(nextTemplate) => {
+          onTemplateChange?.(nextTemplate);
+          setTemplatePickerOpen(false);
+        }} />
+      </Dialog>
       <AvatarCropDialog
         file={cropFile}
         shape={profilePhotoShape(template.id)}

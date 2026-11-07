@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/modules/auth/server";
+import { requireSubscribedUser } from "@/modules/billing/server";
 import { AppShellServer } from "@/modules/layout/AppShellServer";
 import { AccountTemplatePicker } from "@/modules/resume/components/AccountTemplatePicker";
 
@@ -8,8 +7,7 @@ export default async function CreateTemplateResumePage({
 }: {
   searchParams: Promise<{ personaId?: string; templateId?: string }>;
 }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/templates");
+  const user = await requireSubscribedUser();
   const { personaId, templateId } = await searchParams;
   return (
     <AppShellServer user={user}>

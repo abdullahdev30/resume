@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { PageHeader } from "@/components/common/PageHeader";
 import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { useApiQuery } from "@/lib/use-api-query";
@@ -89,19 +90,20 @@ export function ResumeListClient({
   const shown = dashboard ? recent : resumes;
   return (
     <div className={styles.workspace}>
-      <header className={styles.header}>
-        <div>
-          <h1>{dashboard ? "Home" : "My Resumes"}</h1>
-          <p>
-            {dashboard
-              ? "Choose a design or pick up where you left off."
-              : "Select a resume to continue editing."}
-          </p>
-        </div>
-        <Link className="button button-primary" href="/resumes/create">
-          New resume
-        </Link>
-      </header>
+      <PageHeader
+        eyebrow={dashboard ? "Your workspace" : "Your documents"}
+        title={dashboard ? "Home" : "My Resumes"}
+        description={
+          dashboard
+            ? "Choose a design or pick up where you left off."
+            : "Select a resume to continue editing."
+        }
+        actions={
+          <Link className="button button-primary" href="/resumes/create">
+            New resume
+          </Link>
+        }
+      />
       {dashboard && (
         <section
           className={styles.templates}

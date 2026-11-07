@@ -98,8 +98,8 @@
   --font-heading: Georgia, "Times New Roman", serif;
   /* Shared interface typography, matching the free template gallery. */
   --type-body: 1rem;
-  --type-page-title: 1rem;
-  --type-section-title: 1.05rem;
+  --type-page-title: 2rem;
+  --type-section-title: 1.25rem;
   --type-caption: 0.82rem;
   --type-small: 0.75rem;
   --type-document-title: 1.5rem;

@@ -1,4 +1,4 @@
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import settings
@@ -50,11 +50,21 @@ REFRESH_TOKEN_DEPENDENCY = Depends(get_refresh_token)
 
 
 def get_current_user(
+    request: Request,
     access_token: str = ACCESS_TOKEN_DEPENDENCY,
     auth_service: AuthService = AUTH_SERVICE_DEPENDENCY,
 ) -> UserResponse:
     try:
-        return auth_service.get_current_user(access_token)
+        user = auth_service.get_current_user(access_token)
+        from app.modules.billing.service import access_for
+
+        access = access_for(user.id)
+        request.state.account_access = access
+        if not access["active"]:
+            raise HTTPException(
+                403, "Your account is deactivated. Contact an administrator."
+            )
+        return user
     except AuthApplicationError as exc:
         raise_http_error(exc)
         raise RuntimeError("unreachable")

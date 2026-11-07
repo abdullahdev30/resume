@@ -45,13 +45,14 @@ export function normalizeResume(data: ResumeData): EditorResumeData {
         : data.fontFamily,
     pageSize: data.pageSize || "A4",
     pageOrientation: data.pageOrientation || "portrait",
-    pageMargin: data.pageMargin ?? 10,
+    pageMargin: 3,
+    pageMargins: undefined,
     lineSpacing: data.lineSpacing ?? 1.15,
   };
 }
 
 export const supportsProfilePhoto = (id: string) =>
-  ["1", "2", "4", "5", "6"].includes(id);
+  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"].includes(id);
 export const profilePhotoShape = (id: string): "square" | "circle" =>
   ["4", "5"].includes(id) ? "square" : "circle";
 
