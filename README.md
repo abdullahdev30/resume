@@ -40,7 +40,7 @@ Set frontend server-only `BACKEND_API_URL=http://localhost:8000/api/v1`. Backend
 
 WeasyPrint needs native Pango libraries. The backend Dockerfile installs the Linux runtime. For local Windows development run `venv/Scripts/python scripts/install_pdf_runtime.py` from `apps/backend`; the worker discovers that local runtime. Backend startup runs ordered SQL migrations; review them and back up the database before deploying.
 
-Supabase signup and recovery email templates must include `{{ .Token }}` for the six-digit OTP screens. Allow the frontend redirect URLs. Use `COOKIE_SECURE=true` for production HTTPS; local HTTP uses false, SameSite=lax and no cookie domain. Recovery challenges currently live in one backend process for ten minutes.
+Supabase signup and recovery email templates must include `{{ .Token }}` for the six-digit OTP screens. Configure a working custom SMTP provider in Supabase Auth before accepting registrations: Supabase's default SMTP service is restricted to project team addresses and has a low sending limit. Allow the frontend redirect URLs. Use `COOKIE_SECURE=true` for production HTTPS; local HTTP uses false, SameSite=lax and no cookie domain. Recovery challenges currently live in one backend process for ten minutes.
 
 ## Architecture
 

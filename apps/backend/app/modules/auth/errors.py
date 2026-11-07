@@ -73,6 +73,20 @@ def upstream_auth_error(
 ) -> AuthApplicationError:
     code = _error_code(exc)
     upstream_status = _error_status(exc)
+    upstream_message = str(exc).casefold()
+
+    if "error sending confirmation email" in upstream_message:
+        logger.warning("Supabase Auth could not deliver the signup confirmation email")
+        return AuthApplicationError(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="confirmation_email_delivery_failed",
+            message=(
+                "Supabase could not send the verification email. Its default "
+                "SMTP service only sends to project team addresses. Configure "
+                "a working custom SMTP provider in Supabase Auth settings, "
+                "then retry registration."
+            ),
+        )
 
     if code in RATE_LIMIT_CODES or upstream_status == status.HTTP_429_TOO_MANY_REQUESTS:
         return AuthApplicationError(
