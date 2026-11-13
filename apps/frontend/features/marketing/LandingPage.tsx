@@ -40,15 +40,15 @@ const faqs = [
   ],
   [
     "Do I need to pay to subscribe right now?",
-    "No. Packages display a monthly price, but payment collection is not enabled yet. You can select an available package and activate it immediately without entering payment details.",
+    "Free packages do not require payment. Paid packages can be purchased monthly or yearly through Safepay, and access begins after payment is verified.",
   ],
   [
     "How long does a package last?",
-    "A package lasts one calendar month. It does not renew automatically. After it expires, select a package again to continue creating and editing in your account.",
+    "Packages last for the billing period shown on the package: one month or one year. They do not renew automatically. Renew after your package expires to continue creating and editing in your account.",
   ],
   [
     "Can I change my package?",
-    "Yes. Choose another available package from your account. A switch starts a new one-month term. You must remove extra personas before switching to a package with a lower limit than your current persona count.",
+    "Yes. Choose another available package from your account. A new monthly or yearly term starts after payment is verified. You must remove extra personas before switching to a package with a lower limit than your current persona count.",
   ],
   [
     "Where is my information stored?",
@@ -140,8 +140,7 @@ export default function HomePage() {
             </header>
             <LandingPricing />
             <p className={styles.pricingNote}>
-              Package prices are set by the administrator. Payment collection is
-              not enabled yet; subscriptions activate without a charge.
+              Package prices and AI resume allowances are set by the administrator. Paid packages are activated after secure Safepay payment verification.
             </p>
           </div>
         </section>

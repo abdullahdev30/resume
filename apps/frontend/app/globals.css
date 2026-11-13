@@ -1493,48 +1493,6 @@ select.field-control {
   gap: var(--space-2);
 }
 
-.profile-chip {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  padding: 0.3rem 0.6rem 0.3rem 0.35rem;
-  background: var(--surface-subtle);
-  color: var(--text);
-  text-decoration: none;
-}
-
-.profile-chip:hover {
-  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
-  background: var(--primary-tint);
-}
-
-.profile-chip-copy {
-  display: grid;
-  min-width: 0;
-  line-height: 1.15;
-}
-
-.profile-chip-name {
-  max-width: 11rem;
-  overflow: hidden;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-chip-email {
-  max-width: 11rem;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.65rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .app-workspace {
   min-height: 0;
   flex: 1;
@@ -1649,6 +1607,54 @@ select.field-control {
   width: 100%;
 }
 
+.sidebar-account {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.sidebar-account:hover {
+  border-color: var(--border);
+  background: var(--surface-subtle);
+}
+
+.sidebar-account-avatar {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text);
+}
+
+.sidebar-account-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+  line-height: 1.2;
+}
+
+.sidebar-account-name,
+.sidebar-account-package {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-account-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.sidebar-account-package {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: capitalize;
+}
+
 .sidebar-logout {
   width: 100%;
   min-height: 43px;
@@ -1682,6 +1688,7 @@ select.field-control {
   .app-sidebar.is-collapsed .sidebar-label,
   .app-sidebar.is-collapsed .sidebar-brand span,
   .app-sidebar.is-collapsed .sidebar-link span,
+  .app-sidebar.is-collapsed .sidebar-account-copy,
   .app-sidebar.is-collapsed .sidebar-logout span {
     width: 0;
     overflow: hidden;
@@ -1696,6 +1703,11 @@ select.field-control {
   .app-sidebar.is-collapsed .sidebar-logout {
     justify-content: center;
     gap: 0;
+    padding-inline: 0;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-account {
+    justify-content: center;
     padding-inline: 0;
   }
 
@@ -1969,10 +1981,6 @@ select.field-control {
 
   .app-sidebar.is-open {
     transform: translateX(0);
-  }
-
-  .profile-chip-copy {
-    display: none;
   }
 
   .app-brand-meta {

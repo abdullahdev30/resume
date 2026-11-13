@@ -71,10 +71,10 @@ def initialize_payment(payload: CheckoutRequest, user=ACCOUNT):
         amount = int(Decimal(price) * 100)
         cursor.execute(
             """INSERT INTO payment_orders
-            (id,user_id,package_id,package_name,persona_limit,plan_price,billing_interval,amount_total,currency,provider,status,idempotency_key)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'safepay','pending',%s)""",
+            (id,user_id,package_id,package_name,persona_limit,ai_resume_limit,plan_price,billing_interval,amount_total,currency,provider,status,idempotency_key)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'safepay','pending',%s)""",
             (order_id, user.id, package["id"], package["name"], package["persona_limit"],
-             price, payload.billing_interval, amount, package["currency"].lower(), payload.idempotency_key),
+             package["ai_resume_limit"], price, payload.billing_interval, amount, package["currency"].lower(), payload.idempotency_key),
         )
     return {
         "order_id": str(order_id), "amount": amount,

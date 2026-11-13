@@ -11,8 +11,9 @@ const emptyForm = {
   name: "",
   description: "",
   persona_limit: 1,
+  ai_resume_limit: 3,
   monthly_price: "0.00",
-  yearly_price: "",
+  yearly_discount_percent: "0",
   currency: "USD",
 };
 
@@ -117,6 +118,7 @@ export function AdminClient() {
                     <th scope="col">User</th>
                     <th scope="col">Role / status</th>
                     <th scope="col">Personas</th>
+                    <th scope="col">AI resumes created</th>
                     <th scope="col">Package / expiration</th>
                     <th scope="col">Actions</th>
                   </tr>
@@ -141,6 +143,7 @@ export function AdminClient() {
                             ))
                           : "No personas"}
                       </td>
+                      <td>{user.ai_resume_count}</td>
                       <td>
                         {user.package_name || "No package"}
                         <br />
@@ -228,7 +231,7 @@ export function AdminClient() {
                         ? `/admin/packages/${editing}`
                         : "/admin/packages",
                       editing ? "PUT" : "POST",
-                      { ...form, yearly_price: form.yearly_price === "" ? null : Number(form.yearly_price) },
+                      { ...form, monthly_price: Number(form.monthly_price), yearly_discount_percent: Number(form.yearly_discount_percent) },
                     );
                   }}
                 >
@@ -271,6 +274,19 @@ export function AdminClient() {
                     />
                   </label>
                   <label>
+                    AI resume creations per billing period
+                    <input
+                      required
+                      type="number"
+                      min={0}
+                      max={10000}
+                      step={1}
+                      value={form.ai_resume_limit}
+                      onChange={(e) => setForm({ ...form, ai_resume_limit: Number(e.target.value) })}
+                    />
+                    <span className={styles.muted}>Editing saved resumes remains unlimited.</span>
+                  </label>
+                  <label>
                     Monthly price
                     <input
                       required
@@ -285,14 +301,15 @@ export function AdminClient() {
                     />
                   </label>
                   <label>
-                    Yearly price (optional)
+                    Yearly discount (%)
                     <input
+                      required
                       type="number"
                       min={0}
-                      max={9999999999.99}
-                      step="0.01"
-                      value={form.yearly_price}
-                      onChange={(e) => setForm({ ...form, yearly_price: e.target.value })}
+                      max={100}
+                      step="0.5"
+                      value={form.yearly_discount_percent}
+                      onChange={(e) => setForm({ ...form, yearly_discount_percent: e.target.value })}
                     />
                   </label>
                   <label>
@@ -339,7 +356,7 @@ export function AdminClient() {
                       <p>{plan.description}</p>
                       <p>
                         {plan.currency} {plan.monthly_price} / month ·{" "}
-                        {plan.persona_limit} personas
+                        {plan.persona_limit} personas · {plan.ai_resume_limit} AI resumes · {Number(plan.yearly_discount_percent || 0)}% yearly discount
                       </p>
                       <button
                         disabled={busy}
@@ -349,8 +366,9 @@ export function AdminClient() {
                             name: plan.name,
                             description: plan.description,
                             persona_limit: plan.persona_limit,
+                            ai_resume_limit: plan.ai_resume_limit,
                             monthly_price: String(plan.monthly_price),
-                            yearly_price: plan.yearly_price == null ? "" : String(plan.yearly_price),
+                            yearly_discount_percent: String(plan.yearly_discount_percent ?? 0),
                             currency: plan.currency,
                           });
                         }}

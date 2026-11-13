@@ -11,12 +11,14 @@ export function LandingPricing() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError("");
     apiClient<Package[]>("/public/packages", {
       queryCache: false,
+      retry: false,
       signal: controller.signal,
     })
       .then(setPackages)
@@ -31,8 +33,19 @@ export function LandingPricing() {
       });
     return () => controller.abort();
   }, [attempt]);
+  const hasYearlyPackages = packages.some(
+    (plan) => Number(plan.monthly_price) > 0 && Number(plan.yearly_price) > 0,
+  );
+
   return (
-    <div className={styles.pricingGrid}>
+    <>
+      {hasYearlyPackages && !loading && !error && (
+        <div className={styles.landingBillingControls} role="group" aria-label="Billing interval">
+          <button type="button" aria-pressed={billingInterval === "monthly"} className={billingInterval === "monthly" ? styles.billingIntervalActive : ""} onClick={() => setBillingInterval("monthly")}>Monthly</button>
+          <button type="button" aria-pressed={billingInterval === "yearly"} className={billingInterval === "yearly" ? styles.billingIntervalActive : ""} onClick={() => setBillingInterval("yearly")}>Yearly</button>
+        </div>
+      )}
+      <div className={styles.pricingGrid}>
       <article className={styles.plan}>
         <span className={styles.planLabel}>A place to begin</span>
         <h3>Free editor</h3>
@@ -108,29 +121,61 @@ export function LandingPricing() {
               {new Intl.NumberFormat(undefined, {
                 style: "currency",
                 currency: plan.currency,
-              }).format(Number(plan.monthly_price))}
-              <small> / month</small>
+              }).format(displayPrice(plan, billingInterval))}
+              <small> / {billingInterval === "yearly" ? "year" : "month"}</small>
             </p>
+            {billingInterval === "yearly" && Number(plan.yearly_price) > 0 && (
+              <p className={styles.yearlyPriceNote}>
+                Billed yearly · {new Intl.NumberFormat(undefined, { style: "currency", currency: plan.currency }).format(Number(plan.yearly_price) / 12)} per month
+              </p>
+            )}
+            {billingInterval === "yearly" && savingsFor(plan) > 0 && (
+              <span className={styles.yearlySavings}>Save {savingsFor(plan)}%</span>
+            )}
+            {billingInterval === "yearly" && Number(plan.monthly_price) > 0 && !Number(plan.yearly_price) && (
+              <p className={styles.yearlyPriceNote}>Yearly billing isn’t available for this package.</p>
+            )}
             <ul>
               <li>
                 <Check size={15} aria-hidden="true" /> {plan.persona_limit}{" "}
                 {plan.persona_limit === 1 ? "persona" : "personas"}
               </li>
               <li>
-                <Check size={15} aria-hidden="true" /> Saved resumes in your
-                account
+                <Check size={15} aria-hidden="true" /> {plan.ai_resume_limit} AI-created {plan.ai_resume_limit === 1 ? "resume" : "resumes"} per billing period
               </li>
               <li>
-                <Check size={15} aria-hidden="true" /> One-month subscription
+                <Check size={15} aria-hidden="true" /> Edit saved resumes anytime
+              </li>
+              <li>
+                <Check size={15} aria-hidden="true" /> Saved resumes in your account
+              </li>
+              <li>
+                <Check size={15} aria-hidden="true" /> {billingInterval === "yearly" ? "One-year access" : "One-month access"}
               </li>
             </ul>
             <Link href="/auth/register" className={styles.primary}>
               Choose {plan.name}
             </Link>
-            <span className={styles.noCharge}>No payment collected yet</span>
+            <span className={styles.noCharge}>Paid packages use secure Safepay checkout</span>
           </article>
         ))
       )}
-    </div>
+      </div>
+    </>
   );
+}
+
+function displayPrice(plan: Package, interval: "monthly" | "yearly") {
+  if (interval === "yearly" && Number(plan.monthly_price) > 0 && Number(plan.yearly_price) > 0) {
+    return Number(plan.yearly_price);
+  }
+  return Number(plan.monthly_price);
+}
+
+function savingsFor(plan: Package) {
+  const monthlyTotal = Number(plan.monthly_price) * 12;
+  const yearly = Number(plan.yearly_price);
+  return monthlyTotal > 0 && yearly > 0
+    ? Math.round((1 - yearly / monthlyTotal) * 100)
+    : 0;
 }

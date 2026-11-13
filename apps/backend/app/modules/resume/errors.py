@@ -137,6 +137,14 @@ def resume_persistence_error() -> ResumeApplicationError:
     )
 
 
+def resume_ai_limit_error() -> ResumeApplicationError:
+    return ResumeApplicationError(
+        status_code=409,
+        code="ai_resume_limit_reached",
+        message="AI resume limit reached for this package. You can continue editing your existing resumes.",
+    )
+
+
 def raise_resume_error(error: ResumeApplicationError) -> None:
     raise HTTPException(
         status_code=error.status_code,

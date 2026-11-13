@@ -43,6 +43,15 @@ async function forwardToBackend(
 
   const hasRequestBody = request.method !== "GET" && request.method !== "HEAD";
   const requestBody = hasRequestBody ? await request.arrayBuffer() : undefined;
+  const upstreamController = new AbortController();
+  let upstreamTimedOut = false;
+  const timeout = setTimeout(() => {
+    upstreamTimedOut = true;
+    upstreamController.abort();
+  }, 12000);
+  const abortUpstream = () => upstreamController.abort(request.signal.reason);
+  if (request.signal.aborted) abortUpstream();
+  else request.signal.addEventListener("abort", abortUpstream, { once: true });
 
   try {
     const upstreamResponse = await fetch(upstreamUrl, {
@@ -51,7 +60,7 @@ async function forwardToBackend(
       body: requestBody?.byteLength ? requestBody : undefined,
       cache: "no-store",
       redirect: "manual",
-      signal: request.signal,
+      signal: upstreamController.signal,
     });
 
     const responseHeaders = new Headers();
@@ -80,18 +89,26 @@ async function forwardToBackend(
       headers: responseHeaders,
     });
   } catch (error) {
+    if (request.signal.aborted) {
+      return new Response(null, { status: 499 });
+    }
     if (process.env.NODE_ENV === "development") {
       console.error("Backend API proxy request failed", error);
     }
     return Response.json(
       {
         detail: {
-          code: "backend_unavailable",
-          message: "The service is temporarily unavailable. Please try again.",
+          code: upstreamTimedOut ? "backend_timeout" : "backend_unavailable",
+          message: upstreamTimedOut
+            ? "The service took too long to respond. Please try again."
+            : "The service is temporarily unavailable. Please try again.",
         },
       },
-      { status: 502 },
+      { status: upstreamTimedOut ? 504 : 502 },
     );
+  } finally {
+    clearTimeout(timeout);
+    request.signal.removeEventListener("abort", abortUpstream);
   }
 }
 

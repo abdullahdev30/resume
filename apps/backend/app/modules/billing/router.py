@@ -14,6 +14,7 @@ from app.modules.billing.dependencies import (
 from app.modules.billing.service import (
     database,
     subscribe,
+    subscription_history_for,
     subscription_for,
 )
 
@@ -27,8 +28,9 @@ class PackageInput(BaseModel):
     name: str = Field(min_length=1, max_length=100, pattern=r"\S")
     description: str = Field(default="", max_length=1000)
     persona_limit: int = Field(ge=1, le=10000, strict=True)
+    ai_resume_limit: int = Field(default=3, ge=0, le=10000, strict=True)
     monthly_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
-    yearly_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    yearly_discount_percent: Decimal = Field(default=0, ge=0, le=100, max_digits=5, decimal_places=2)
     currency: str = Field(default="USD", pattern=r"^[A-Z]{3}$")
 
 
@@ -58,12 +60,18 @@ def packages(user=ACCOUNT):
         return cursor.fetchall()
 
 
+@router.get("/billing/history")
+def billing_history(user=ACCOUNT):
+    return subscription_history_for(user.id)
+
+
 @router.get("/public/packages")
 def public_packages():
     """Public catalog only; no account or subscription information."""
     with database() as cursor:
         cursor.execute(
-            """SELECT id, name, description, persona_limit, monthly_price, yearly_price, currency
+            """SELECT id, name, description, persona_limit, ai_resume_limit, monthly_price,
+            yearly_price, yearly_discount_percent, currency
             FROM subscription_packages WHERE available
             ORDER BY monthly_price, persona_limit, name"""
         )
@@ -96,7 +104,9 @@ def users(limit: int = 50, offset: int = 0, user=ADMIN):
             s.package_name, s.expires_at,
             CASE WHEN s.user_id IS NULL THEN 'unsubscribed' WHEN s.expires_at <= NOW() THEN 'expired' ELSE 'active' END AS subscription_status,
             COALESCE((SELECT jsonb_agg(jsonb_build_object('id',p.id,'name',p.name) ORDER BY p.created_at)
-                FROM personas p WHERE p.user_id=u.id),'[]'::jsonb) AS personas
+                FROM personas p WHERE p.user_id=u.id),'[]'::jsonb) AS personas,
+            COALESCE((SELECT count(*) FROM resumes r WHERE r.user_id=u.id
+                AND (r.is_ai_generated IS TRUE OR r.resume_type='ai')),0) AS ai_resume_count
             FROM auth.users u LEFT JOIN account_access a ON a.user_id=u.id
             LEFT JOIN user_subscriptions s ON s.user_id=u.id ORDER BY u.created_at DESC, u.id LIMIT %s OFFSET %s""",
             (limit, offset),
@@ -153,22 +163,28 @@ def role(user_id: UUID, payload: RoleInput, user=SUPER_ADMIN):
 
 @router.post("/admin/packages")
 def create_package(payload: PackageInput, user=SUPER_ADMIN):
+    yearly_price = (payload.monthly_price * 12 * (100 - payload.yearly_discount_percent) / 100).quantize(Decimal("0.01"))
     with database() as cursor:
         cursor.execute(
-            """INSERT INTO subscription_packages(name, description, persona_limit, monthly_price, yearly_price, currency)
-            VALUES (%s,%s,%s,%s,%s,%s) RETURNING *""",
-            (payload.name, payload.description, payload.persona_limit, payload.monthly_price, payload.yearly_price, payload.currency),
+            """INSERT INTO subscription_packages(name, description, persona_limit, ai_resume_limit,
+            monthly_price, yearly_price, yearly_discount_percent, currency)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+            (payload.name, payload.description, payload.persona_limit, payload.ai_resume_limit,
+             payload.monthly_price, yearly_price, payload.yearly_discount_percent, payload.currency),
         )
         return cursor.fetchone()
 
 
 @router.put("/admin/packages/{package_id}")
 def edit_package(package_id: UUID, payload: PackageInput, user=SUPER_ADMIN):
+    yearly_price = (payload.monthly_price * 12 * (100 - payload.yearly_discount_percent) / 100).quantize(Decimal("0.01"))
     with database() as cursor:
         cursor.execute(
             """UPDATE subscription_packages SET name=%s, description=%s, persona_limit=%s,
-            monthly_price=%s, yearly_price=%s, currency=%s WHERE id=%s AND available RETURNING *""",
-            (payload.name, payload.description, payload.persona_limit, payload.monthly_price, payload.yearly_price, payload.currency, package_id),
+            ai_resume_limit=%s, monthly_price=%s, yearly_price=%s, yearly_discount_percent=%s,
+            currency=%s WHERE id=%s AND available RETURNING *""",
+            (payload.name, payload.description, payload.persona_limit, payload.ai_resume_limit,
+             payload.monthly_price, yearly_price, payload.yearly_discount_percent, payload.currency, package_id),
         )
         row = cursor.fetchone()
         if not row:

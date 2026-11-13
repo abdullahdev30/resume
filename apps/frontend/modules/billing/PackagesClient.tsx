@@ -25,8 +25,8 @@ export function PackagesClient() {
     setError("");
     try {
       const [plans, current] = await Promise.all([
-        apiClient<Package[]>("/billing/packages", { queryCache: false }),
-        apiClient<Membership>("/billing/me", { queryCache: false }),
+        apiClient<Package[]>("/billing/packages", { queryCache: false, retry: false }),
+        apiClient<Membership>("/billing/me", { queryCache: false, retry: false }),
       ]);
       setPackages(plans);
       setMembership(current);
@@ -67,7 +67,7 @@ export function PackagesClient() {
   }
 
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} ${styles.pricingPage}`}>
       <Link href="/settings?tab=package" className={styles.action}>
         Back to settings
       </Link>
@@ -103,6 +103,7 @@ export function PackagesClient() {
                 <div className={styles.membershipDetails}>
                   <span>{membership.subscription.package_name} · {membership.subscription.billing_interval}</span>
                   <span>{membership.persona_count} / {membership.subscription.persona_limit} personas</span>
+                  <span>{membership.ai_resume_count} / {membership.subscription.ai_resume_limit} AI resumes created this period</span>
                   <span>{membership.status === "expired" ? "Expired" : "Access through"} {new Date(membership.subscription.expires_at).toLocaleDateString()}</span>
                   <span>{membership.subscription.renewal_enabled ? "Automatic renewal on" : "Manual renewal"}</span>
                 </div>
@@ -150,14 +151,21 @@ export function PackagesClient() {
                 : false;
               const tooSmall =
                 (membership?.persona_count ?? 0) > plan.persona_limit;
-              const price = priceFor(plan, plan.monthly_price === 0 ? "monthly" : billingInterval);
+              const price = priceFor(plan, Number(plan.monthly_price) === 0 ? "monthly" : billingInterval);
               const savings = plan.yearly_price == null || Number(plan.yearly_price) <= 0 ? 0 : Math.round((1 - Number(plan.yearly_price) / (Number(plan.monthly_price) * 12)) * 100);
               const intervalUnavailable = billingInterval === "yearly" && Number(plan.monthly_price) > 0 && (plan.yearly_price == null || Number(plan.yearly_price) <= 0);
               return (
                 <article className={`${styles.card} ${styles.pricingCard} ${current ? styles.currentCard : ""}`} key={plan.id}>
                   {current && <span className={styles.currentLabel}>{currentExpiresSoon ? "Renewal window open" : "Current plan"}</span>}
-                  <div className={styles.planHeading}><h3>{plan.name}</h3><span>{plan.persona_limit} personas</span></div>
+                  <div className={styles.planHeading}><h3>{plan.name}</h3></div>
                   <p className={styles.planDescription}>{plan.description || "Access to the resume workspace and saved personas."}</p>
+                  <p className={styles.planIntro}>Includes</p>
+                  <ul className={styles.featureList}>
+                    <li><span aria-hidden="true">{"\u2713"}</span><strong>{plan.persona_limit}</strong> {plan.persona_limit === 1 ? "persona" : "personas"}</li>
+                    <li><span aria-hidden="true">{"\u2713"}</span><strong>{plan.ai_resume_limit}</strong> AI-created {plan.ai_resume_limit === 1 ? "resume" : "resumes"} per billing period</li>
+                    <li><span aria-hidden="true">{"\u2713"}</span>Edit and refine saved resumes anytime</li>
+                    <li><span aria-hidden="true">{"\u2713"}</span>Saved resumes in your account</li>
+                  </ul>
                   <p className={styles.price}>
                     {new Intl.NumberFormat(undefined, {
                       style: "currency",
@@ -165,7 +173,7 @@ export function PackagesClient() {
                     }).format(price ?? Number(plan.monthly_price))}
                     <span className={styles.muted}> / {price === 0 ? "month" : billingInterval === "yearly" ? "year" : "month"}</span>
                   </p>
-                  {billingInterval === "yearly" && price !== null && price > 0 && <p className={styles.yearlyNote}>Billed yearly · equivalent to {(price / 12).toFixed(2)} / month</p>}
+                  {billingInterval === "yearly" && price !== null && price > 0 && <p className={styles.yearlyNote}>Billed yearly · equivalent to {new Intl.NumberFormat(undefined, { style: "currency", currency: plan.currency }).format(price / 12)} / month</p>}
                   {billingInterval === "yearly" && savings > 0 && <p className={styles.savings}>Save {savings}% compared with monthly billing</p>}
                   {intervalUnavailable && <p className={styles.unavailable}>Yearly pricing is not configured for this package.</p>}
                   <button

@@ -39,7 +39,8 @@ from app.modules.resume.schemas import (
 )
 from app.modules.resume.service import ResumeService
 
-from app.modules.billing.dependencies import require_subscription
+from app.modules.billing.dependencies import account_access, require_subscription
+from app.modules.billing.service import subscription_for
 
 router = APIRouter(
     dependencies=[Depends(require_subscription)], prefix="/resumes", tags=["Resumes"]
@@ -109,6 +110,18 @@ async def create_ai_resume(
     current_user: UserResponse = CURRENT_REGISTERED_USER_DEPENDENCY,
     resume_service: ResumeService = RESUME_SERVICE_DEPENDENCY,
 ) -> ResumeAIEditProposal:
+    access = account_access(request, current_user)
+    if access["role"] == "user":
+        allowance = subscription_for(current_user.id)
+        subscription = allowance["subscription"]
+        if subscription and allowance["ai_resume_count"] >= subscription["ai_resume_limit"]:
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "ai_resume_limit_reached",
+                    "message": "AI resume limit reached for this package. You can continue editing your existing resumes.",
+                },
+            )
     try:
         return await resume_service.create_ai_resume(current_user.id, payload)
     except ResumeApplicationError as exc:

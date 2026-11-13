@@ -44,4 +44,7 @@ def get_connection():
 
     import psycopg
 
-    return psycopg.connect(settings.database_url)
+    # Fail quickly when the configured database is unreachable. Without a
+    # connect timeout, local requests can wait for the operating system's much
+    # longer TCP timeout and be abandoned by the browser/Next.js first.
+    return psycopg.connect(settings.database_url, connect_timeout=5)

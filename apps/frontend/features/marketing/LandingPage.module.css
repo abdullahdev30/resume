@@ -182,6 +182,30 @@
   gap: 18px;
   align-items: stretch;
 }
+.landingBillingControls {
+  display: flex;
+  width: fit-content;
+  gap: 4px;
+  margin: -12px auto 24px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+.landingBillingControls button {
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+.landingBillingControls button.billingIntervalActive {
+  background: var(--primary);
+  color: var(--on-primary);
+}
 .plan {
   padding: 28px;
   border: 1px solid var(--border);
@@ -222,6 +246,21 @@
   font-size: 12px;
   font-family: var(--font-body);
   color: var(--text-muted);
+}
+.yearlyPriceNote {
+  margin: -16px 0 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.yearlySavings {
+  align-self: flex-start;
+  margin: 0 0 8px;
+  padding: 5px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--status-success-bg);
+  color: var(--status-success-text);
+  font-size: 11px;
+  font-weight: 650;
 }
 .plan ul {
   list-style: none;

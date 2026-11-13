@@ -69,6 +69,12 @@ export function CurrentSubscription() {
                   </dd>
                 </div>
                 <div>
+                  <dt className="text-xs text-[var(--text-muted)]">AI resumes created this period</dt>
+                  <dd className="mt-1 text-sm font-semibold">
+                    {membership.ai_resume_count} of {subscription.ai_resume_limit}
+                  </dd>
+                </div>
+                <div>
                   <dt className="text-xs text-[var(--text-muted)]">
                     {membership.status === "expired"
                       ? "Expired on"

@@ -19,6 +19,7 @@ export const getSessionUser = cache(async (): Promise<User | null> => {
         cookie: cookieHeader,
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!isSuccessfulHttpStatus(response.status)) {

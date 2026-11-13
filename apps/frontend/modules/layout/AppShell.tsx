@@ -2,7 +2,6 @@
 
 import {
   FileText,
-  ArrowUpRight,
   Home,
   LayoutTemplate,
   LogOut,
@@ -29,7 +28,6 @@ import { Tooltip } from "@/components/ui/Tooltip";
 import { getQueryClient, apiQueryKey } from "@/lib/query-client";
 import { useApiQuery } from "@/lib/use-api-query";
 import type { Membership } from "@/modules/billing/types";
-import type { Package } from "@/modules/billing/types";
 import { apiClient } from "@/lib/api-client";
 import { authApi } from "../auth/api";
 import type { User } from "../auth/types";
@@ -71,16 +69,8 @@ export function AppShell({
   const membership = useApiQuery<Membership>("/billing/me", {
     enabled: Boolean(user),
   });
-  const packages = useApiQuery<Package[]>("/billing/packages", {
-    enabled: Boolean(user),
-  });
   const accountRole = membership.data?.role || "user";
-  const maximumPackage = packages.data?.reduce<Package | undefined>(
-    (highest, item) => !highest || Number(item.monthly_price) > Number(highest.monthly_price) || (Number(item.monthly_price) === Number(highest.monthly_price) && item.persona_limit > highest.persona_limit) ? item : highest,
-    undefined,
-  );
   const currentPackage = membership.data?.subscription;
-  const canUpgrade = accountRole === "user" && (!currentPackage || currentPackage.package_id !== maximumPackage?.id);
   const { t } = useLanguage();
   const pathname = usePathname();
   const router = useRouter();
@@ -225,26 +215,7 @@ export function AppShell({
 
         <div className="app-navbar-actions">
           <ThemeToggle />
-          {user ? (
-            <Link
-              href="/settings"
-              className="profile-chip"
-              aria-label="Open profile settings"
-            >
-              <Avatar
-                src={avatarUrl}
-                alt={displayName}
-                fallback={displayName.slice(0, 1)}
-                size={34}
-              />
-              <span className="profile-chip-copy">
-                <span className="profile-chip-name">{displayName}</span>
-                <span className="profile-chip-email">
-                  {user.email || "Account"}
-                </span>
-              </span>
-            </Link>
-          ) : (
+          {!user && (
             <div className="flex items-center gap-2">
               <Link
                 href="/auth/login"
@@ -357,12 +328,24 @@ export function AppShell({
 
           {user && (
             <div className="sidebar-footer">
-              {accountRole === "user" && <div className="mb-3 rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
-                <span className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Current package</span>
-                <span className="mt-1 block truncate font-semibold">{currentPackage?.package_name || "No active package"}</span>
-                {currentPackage && <span className="mt-1 block text-xs text-[var(--text-muted)]">{membership.data?.persona_count} / {currentPackage.persona_limit} personas</span>}
-                {canUpgrade && <Link href="/packages" className="mt-2 inline-flex items-center gap-1 font-semibold text-[var(--primary)]">{currentPackage ? "Upgrade package" : "Choose a package"}<ArrowUpRight size={14} aria-hidden="true" /></Link>}
-              </div>}
+              <Link
+                href="/settings?tab=profile"
+                className="sidebar-account"
+                aria-label={`Open profile settings for ${displayName}`}
+                title={sidebarCollapsed ? `${displayName} · ${currentPackage?.package_name || "Free"}` : undefined}
+              >
+                <Avatar
+                  src={avatarUrl}
+                  alt={displayName}
+                  fallback={getInitials(displayName)}
+                  size={40}
+                  className="sidebar-account-avatar"
+                />
+                <span className="sidebar-account-copy">
+                  <span className="sidebar-account-name">{displayName}</span>
+                  <span className="sidebar-account-package">{currentPackage?.package_name || (accountRole === "user" ? "Free" : accountRole.replaceAll("_", " "))}</span>
+                </span>
+              </Link>
               <Tooltip label="Log out">
                 <button
                   type="button"
@@ -408,4 +391,16 @@ export function AppShell({
       </ConfirmDialog>
     </div>
   );
+}
+
+function getInitials(name: string) {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const initials = parts.length > 1 ? [parts[0], parts[parts.length - 1]] : parts;
+  return initials
+    .map((part) => part?.[0] || "")
+    .join("")
+    .toUpperCase();
 }

@@ -18,6 +18,7 @@ import { useApiQuery } from "@/lib/use-api-query";
 import type { AccountProfile, User } from "@/modules/auth/types";
 import styles from "./SettingsClient.module.css";
 import { CurrentSubscription } from "@/modules/billing/CurrentSubscription";
+import { SubscriptionHistory } from "@/modules/billing/SubscriptionHistory";
 import { LanguageSelect } from "@/components/ui/LanguageSelect";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { getResumeLanguagePreference, setResumeLanguagePreference } from "@/lib/resume-language-preference";
@@ -188,6 +189,7 @@ export default function SettingsClient({ user }: { user: User }) {
           hidden={tab !== "package"}
         >
           <CurrentSubscription />
+          <SubscriptionHistory />
         </div>
         <div
           className={styles.panel}

@@ -23,6 +23,7 @@ from app.modules.resume.errors import (
     resume_ai_invalid_output_error,
     resume_ai_not_configured_error,
     resume_ai_rate_limit_error,
+    resume_ai_limit_error,
     resume_ai_timeout_error,
     resume_file_too_large_error,
     resume_not_editable_error,
@@ -341,6 +342,9 @@ class ResumeService:
             )
         except Exception as exc:
             logger.exception("Failed to persist editable resume for user '%s'", user_id)
+            db_error = getattr(exc, "orig", exc)
+            if getattr(db_error, "sqlstate", None) == "P0001" and "AI resume limit reached" in str(db_error):
+                raise resume_ai_limit_error() from exc
             raise resume_persistence_error() from exc
         pdf_values = None
         try:
