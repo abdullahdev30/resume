@@ -13,8 +13,10 @@ TRUSTED_FRONTEND_ORIGINS = (
 class Settings(BaseSettings):
     app_name: str = "Company API"
     app_env: str = "development"
-    stripe_secret_key: str | None = None
-    stripe_webhook_secret: str | None = None
+    safepay_public_key: str | None = None
+    safepay_secret_key: str | None = None
+    safepay_webhook_secret: str | None = None
+    safepay_host: str = "https://sandbox.api.getsafepay.com"
 
     frontend_url: str = "http://localhost:3000"
     backend_url: str = "http://localhost:8000"

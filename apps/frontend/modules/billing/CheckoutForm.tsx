@@ -2,171 +2,93 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { apiClient } from "@/lib/api-client";
-import type { Membership } from "./types";
 import styles from "./billing.module.css";
 
-type CheckoutSdk = {
-  createForm(options: { layout: "expanded" }): {
-    mount(target: string): void;
-    destroy(): void;
-    on(event: "confirm", handler: (event: unknown) => Promise<void>): void;
-  };
-  loadActions(): Promise<
-    | {
-        type: "success";
-        actions: {
-          confirm(options: {
-            formConfirmEvent: unknown;
-          }): Promise<{ type: string; error?: { message?: string } }>;
-        };
-      }
-    | { type: "error"; error: { message: string } }
-  >;
-};
-
-const appearance = {
-  theme: "flat",
-  labels: "auto",
-  inputs: "spaced",
-  variables: {
-    borderRadius: "4px",
-    colorBackground: "#ffffff",
-    colorDanger: "#df1b41",
-    colorPrimary: "#0570de",
-    colorSuccess: "#00c853",
-    colorText: "#30313d",
-    fontFamily: "default",
-    fontSizeBase: "16px",
-    spacingUnit: "4px",
-  },
-};
-
-export function CheckoutForm({ packageId }: { packageId: string }) {
-  const [attempt, setAttempt] = useState(0);
+export function CheckoutForm({ packageId, billingInterval }: { packageId: string; billingInterval: "monthly" | "yearly" }) {
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [complete, setComplete] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [cancelledCheckout, setCancelledCheckout] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [idempotencyKey, setIdempotencyKey] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    let form: ReturnType<CheckoutSdk["createForm"]> | undefined;
-    setError("");
-    setLoading(true);
     async function start() {
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get("orderId");
+      if (params.get("payment") === "return" && orderId) {
+        try {
+          const status = await getPaymentStatus(orderId);
+          if (!cancelled && status.status === "paid") setComplete(true);
+          else if (!cancelled) setError("Payment is being verified. This page will update when Safepay confirms it.");
+        } catch {
+          if (!cancelled) setError("Unable to check payment status. Please retry.");
+        }
+        return;
+      }
+      if (params.get("payment") === "cancelled") {
+        setCancelledCheckout(true);
+        setError("Checkout was cancelled. You can return to packages and try again.");
+        return;
+      }
+      if (!packageId) { setError("Choose a package before opening checkout."); return; }
+      if (!idempotencyKey) { setIdempotencyKey(crypto.randomUUID()); return; }
+      setLoading(true);
+      setError("");
       try {
-        const key = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-        if (!key || key === "pk_test_...")
-          throw new Error("Stripe publishable key is not configured.");
-        const stripeWindow = window as unknown as {
-          Stripe?: (key: string) => {
-            initCheckoutFormSdk(options: {
-              clientSecret: string;
-              appearance: typeof appearance;
-            }): CheckoutSdk;
-          };
-        };
-        for (let i = 0; !stripeWindow.Stripe && i < 100 && !cancelled; i++) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-        if (cancelled) return;
-        if (!stripeWindow.Stripe)
-          throw new Error("Stripe could not load. Please retry.");
-        if (!packageId) throw new Error("Choose a package before opening checkout.");
-        const { client_secret } = await apiClient<{ client_secret: string }>(
-          "/billing/create-checkout-session",
-          { method: "POST", body: { package_id: packageId }, retry: false },
-        );
-        if (cancelled) return;
-        if (!client_secret)
-          throw new Error("Checkout did not return a client secret.");
-        const checkout = stripeWindow
-          .Stripe(key)
-          .initCheckoutFormSdk({ clientSecret: client_secret, appearance });
-        form = checkout.createForm({ layout: "expanded" });
-        const result = await checkout.loadActions();
-        if (cancelled) return;
-        if (result.type !== "success") throw new Error(result.error.message);
-        form.on("confirm", async (event) => {
-          setError("");
-          try {
-            const confirmation = await result.actions.confirm({
-              formConfirmEvent: event,
-            });
-            if (cancelled) return;
-            if (confirmation.type === "error")
-              throw new Error(
-                confirmation.error?.message || "Payment failed. Please retry.",
-              );
-            setSubmitted(true);
-          } catch (err) {
-            if (!cancelled)
-              setError(
-                err instanceof Error
-                  ? err.message
-                  : "Payment confirmation failed.",
-              );
-          }
+        const response = await fetch("/api/payment/create", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ package_id: packageId, billing_interval: billingInterval, idempotency_key: idempotencyKey }),
         });
-        form.mount("#checkout-form");
-        setLoading(false);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail || "Unable to start checkout.");
+        if (!payload.checkout_url) throw new Error("Safepay did not return a checkout URL.");
+        window.location.assign(payload.checkout_url);
       } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Unable to load checkout.",
-          );
-          setLoading(false);
-        }
+        if (!cancelled) setError(err instanceof Error ? err.message : "Unable to load checkout.");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
     void start();
-    return () => {
-      cancelled = true;
-      form?.destroy();
-    };
-  }, [attempt, packageId]);
+    return () => { cancelled = true; };
+  }, [attempt, packageId, billingInterval, idempotencyKey]);
 
   useEffect(() => {
-    if (!submitted || complete) return;
-    let attempts = 0;
+    if (!error.startsWith("Payment is being verified")) return;
+    const orderId = new URLSearchParams(window.location.search).get("orderId");
+    if (!orderId) return;
+    let count = 0;
     const timer = window.setInterval(() => {
-      attempts += 1;
-      void apiClient<Membership>("/billing/me", { queryCache: false, retry: false })
-        .then((membership) => {
-          if (membership.subscription?.package_id === packageId && membership.status === "active") {
-            setComplete(true);
-            window.clearInterval(timer);
-          }
-        })
-        .catch(() => undefined);
-      if (attempts >= 30) window.clearInterval(timer);
+      count++;
+      void getPaymentStatus(orderId).then((status) => {
+        if (status.status === "paid") { setComplete(true); setError(""); window.clearInterval(timer); }
+        if (status.status === "failed") { setError("Payment was not successful. You can try again from packages."); window.clearInterval(timer); }
+      }).catch(() => undefined);
+      if (count >= 30) window.clearInterval(timer);
     }, 2000);
     return () => window.clearInterval(timer);
-  }, [submitted, complete, packageId]);
+  }, [error]);
 
   return (
     <main className={styles.page}>
       <Link href="/packages">Back to packages</Link>
-      <h1>Checkout</h1>
-      {loading && <p role="status">Loading secure checkout...</p>}
-      {error && (
-        <p role="alert">
-          {error}{" "}
-          <button onClick={() => setAttempt((value) => value + 1)}>
-            Retry
-          </button>
-        </p>
-      )}
-      {complete && (
-        <p role="status">
-          Payment verified. Your package is active.
-        </p>
-      )}
-      {submitted && !complete && (
-        <p role="status">Payment submitted. Waiting for Stripe to verify payment and activate your package.</p>
-      )}
-      <div id="checkout-form" />
+      <h1>Secure checkout</h1>
+      {loading && <p role="status">Redirecting to Safepay...</p>}
+      {error && <p role="alert">{error} {!cancelledCheckout && <button onClick={() => { setIdempotencyKey(crypto.randomUUID()); setAttempt((value) => value + 1); }}>Retry</button>}</p>}
+      {complete && <p role="status">Payment verified. Your package is active.</p>}
     </main>
   );
+}
+
+async function getPaymentStatus(orderId: string): Promise<{ status: string; package_id: string }> {
+  const response = await fetch(`/api/payment/status?order_id=${encodeURIComponent(orderId)}`, {
+    credentials: "include", cache: "no-store",
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.detail || "Unable to check payment status.");
+  return result;
 }

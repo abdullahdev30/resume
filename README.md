@@ -2,13 +2,21 @@
 
 One Next.js/React/TypeScript frontend and one FastAPI backend support account-based resume workflows:
 
-- **Packages:** Register and verify an account, then select a package at `/packages`. Package selection activates immediately without collecting payment. The public template gallery and free editor remain available without an account; account creation and editing require an active subscription.
+- **Packages:** Register and verify an account, then select a package at `/packages`. Free packages activate immediately. Paid packages use Safepay hosted checkout and activate only after a signed webhook is verified. The public template gallery and free editor remain available without an account; account creation and editing require an active subscription.
 - **Account template:** `/resumes/create/template`. Select a template, then copy a persona or enter information manually. Review in the shared editor and Save.
 - **Account AI:** `/resumes/create/ai`. Select a persona and give instructions. Review the proposed content/design in the same editor before saving it.
 
 The complete creation, storage, design, API, PDF and migration explanation is in [working](working).
 
 ## Administration and packages
+
+### Safepay sandbox
+
+Set `SAFEPAY_PUBLIC_KEY`, `SAFEPAY_SECRET_KEY`, `SAFEPAY_WEBHOOK_SECRET`, `SAFEPAY_HOST=https://sandbox.api.getsafepay.com`, `NEXT_PUBLIC_APP_URL=http://localhost:3000`, and `BACKEND_API_BASE=http://localhost:8000/api/v1` in `apps/frontend/.env.local` for local Next.js checkout. The Next.js process reads its own environment file, not `apps/backend/.env`; restart Next.js after changing it. FastAPI also reads the Safepay settings from `apps/backend/.env`. Do not expose secret values as `NEXT_PUBLIC_*`. The merchant secret authenticates API calls; the separate webhook shared secret is configured in the Safepay dashboard under Developers > Endpoints.
+
+Package administrators can configure an optional yearly price. Paid monthly and yearly selections create separate one-time Safepay checkouts; verified payments grant one or twelve months respectively. Renewals are manual and automatic billing remains off. The packages screen shows the renewal date and prompts active users to renew near expiry. This avoids implying recurring billing until Safepay plan enrollment and recurring payment authorization are enabled and confirmed for the merchant account.
+
+Register `https://<your-public-frontend-host>/api/webhooks/safepay` as the Safepay webhook endpoint. Local webhook testing requires an HTTPS tunnel forwarding to the Next.js app on port 3000. Sandbox card examples and flow details are in the [Safepay API reference](https://apidocs.getsafepay.com/). Use `4111 1111 1111 1111` with a future expiry and any CVV for the documented frictionless success case. Sandbox payment and webhook delivery must be exercised before treating this integration as production ready.
 
 Backend startup applies migration `015_subscriptions.sql`. It adds server-controlled account roles/status, package definitions, subscription snapshots, and a PostgreSQL trigger that enforces persona quotas under concurrent creation. Existing accounts and personas are retained; users without subscriptions must select a package before making changes. Expired users may still read or delete existing work. Deactivation blocks authenticated application API access, including existing sessions.
 

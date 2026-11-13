@@ -12,8 +12,8 @@ const emptyForm = {
   description: "",
   persona_limit: 1,
   monthly_price: "0.00",
+  yearly_price: "",
   currency: "USD",
-  stripe_price_id: "",
 };
 
 export function AdminClient() {
@@ -228,7 +228,7 @@ export function AdminClient() {
                         ? `/admin/packages/${editing}`
                         : "/admin/packages",
                       editing ? "PUT" : "POST",
-                      form,
+                      { ...form, yearly_price: form.yearly_price === "" ? null : Number(form.yearly_price) },
                     );
                   }}
                 >
@@ -285,6 +285,17 @@ export function AdminClient() {
                     />
                   </label>
                   <label>
+                    Yearly price (optional)
+                    <input
+                      type="number"
+                      min={0}
+                      max={9999999999.99}
+                      step="0.01"
+                      value={form.yearly_price}
+                      onChange={(e) => setForm({ ...form, yearly_price: e.target.value })}
+                    />
+                  </label>
+                  <label>
                     Currency code
                     <input
                       required
@@ -297,15 +308,6 @@ export function AdminClient() {
                           currency: e.target.value.toUpperCase(),
                         })
                       }
-                    />
-                  </label>
-                  <label>
-                    Stripe Price ID (required for paid packages)
-                    <input
-                      value={form.stripe_price_id}
-                      placeholder="price_..."
-                      pattern="price_[A-Za-z0-9]+"
-                      onChange={(e) => setForm({ ...form, stripe_price_id: e.target.value })}
                     />
                   </label>
                   <div>
@@ -348,8 +350,8 @@ export function AdminClient() {
                             description: plan.description,
                             persona_limit: plan.persona_limit,
                             monthly_price: String(plan.monthly_price),
+                            yearly_price: plan.yearly_price == null ? "" : String(plan.yearly_price),
                             currency: plan.currency,
-                            stripe_price_id: plan.stripe_price_id || "",
                           });
                         }}
                       >

@@ -1,6 +1,7 @@
 import "server-only";
 
 const configuredBackendApiUrl =
+  process.env.BACKEND_API_BASE ||
   process.env.BACKEND_API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:8000/api/v1";

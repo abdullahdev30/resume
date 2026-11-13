@@ -18,6 +18,7 @@ export function PackagesClient() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Package | null>(null);
   const [message, setMessage] = useState("");
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
 
   async function load() {
     setLoading(true);
@@ -41,8 +42,11 @@ export function PackagesClient() {
 
   async function subscribe() {
     if (!selected || busy) return;
-    if (Number(selected.monthly_price) > 0) {
-      router.push(`/packages/checkout?packageId=${encodeURIComponent(selected.id)}`);
+    const selectedPrice = priceFor(selected, billingInterval);
+    if (selectedPrice === null) return;
+    if (selectedPrice > 0) {
+      setBusy(true);
+      router.push(`/packages/checkout?packageId=${encodeURIComponent(selected.id)}&interval=${billingInterval}`);
       return;
     }
     setBusy(true);
@@ -70,10 +74,10 @@ export function PackagesClient() {
       <PageHeader
         eyebrow="Your workspace"
         title="Choose your package"
-        description="Select the number of personas you need. Subscriptions last one calendar month and do not renew automatically."
+        description="Choose a package and billing period. Paid plans renew manually after a verified Safepay payment."
       />
       <p className={styles.muted}>
-        Paid packages are purchased securely through Stripe. Package access starts after the payment is verified and lasts one month without automatic renewal.
+        Safepay securely hosts checkout. Plans do not renew automatically; renew before the end date to keep access.
       </p>
       {error && (
         <div className={styles.error} role="alert">
@@ -90,19 +94,23 @@ export function PackagesClient() {
       ) : (
         <>
           {membership && (
-            <div className={styles.notice}>
-              <strong>Subscription: {membership.status}</strong>
+            <div className={`${styles.notice} ${styles.membership}`}>
+              <div>
+                <span className={styles.eyebrow}>Your subscription</span>
+                <strong className={styles.membershipStatus}>{membership.status}</strong>
+              </div>
               {membership.subscription && (
-                <p>
-                  {membership.subscription.package_name} ·{" "}
-                  {membership.persona_count} /{" "}
-                  {membership.subscription.persona_limit} personas ·{" "}
-                  {membership.status === "expired" ? "Expired" : "Expires"}{" "}
-                  {new Date(
-                    membership.subscription.expires_at,
-                  ).toLocaleString()}
-                </p>
+                <div className={styles.membershipDetails}>
+                  <span>{membership.subscription.package_name} · {membership.subscription.billing_interval}</span>
+                  <span>{membership.persona_count} / {membership.subscription.persona_limit} personas</span>
+                  <span>{membership.status === "expired" ? "Expired" : "Access through"} {new Date(membership.subscription.expires_at).toLocaleDateString()}</span>
+                  <span>{membership.subscription.renewal_enabled ? "Automatic renewal on" : "Manual renewal"}</span>
+                </div>
               )}
+              {membership.subscription && membership.status === "active" &&
+                new Date(membership.subscription.expires_at).getTime() - Date.now() <= 7 * 24 * 60 * 60 * 1000 && (
+                  <p className={styles.expiryNotice}>Your access ends soon. Renew manually to avoid an interruption.</p>
+                )}
               {membership.status === "active" && (
                 <Link className={styles.action} href="/persona">
                   Continue to personas
@@ -121,43 +129,60 @@ export function PackagesClient() {
               No packages are available yet. Please contact an administrator.
             </div>
           )}
-          <div className={styles.grid}>
+          <div className={styles.pricingHeader}>
+            <div>
+              <h2 className={styles.sectionTitle}>Packages</h2>
+              <p className={styles.muted}>Choose the capacity that fits your workflow.</p>
+            </div>
+            <div className={styles.intervalToggle} role="group" aria-label="Billing interval">
+              <button type="button" aria-pressed={billingInterval === "monthly"} className={billingInterval === "monthly" ? styles.intervalActive : ""} onClick={() => setBillingInterval("monthly")}>Monthly</button>
+              <button type="button" aria-pressed={billingInterval === "yearly"} className={billingInterval === "yearly" ? styles.intervalActive : ""} onClick={() => setBillingInterval("yearly")}>Yearly</button>
+            </div>
+          </div>
+          <div className={`${styles.grid} ${styles.pricingGrid}`}>
             {packages.map((plan) => {
               const current =
                 membership?.status === "active" &&
-                membership.subscription?.package_id === plan.id;
+                membership.subscription?.package_id === plan.id &&
+                membership.subscription?.billing_interval === (Number(plan.monthly_price) === 0 ? "monthly" : billingInterval);
+              const currentExpiresSoon = current && membership?.subscription?.expires_at
+                ? new Date(membership.subscription.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000
+                : false;
               const tooSmall =
                 (membership?.persona_count ?? 0) > plan.persona_limit;
+              const price = priceFor(plan, plan.monthly_price === 0 ? "monthly" : billingInterval);
+              const savings = plan.yearly_price == null || Number(plan.yearly_price) <= 0 ? 0 : Math.round((1 - Number(plan.yearly_price) / (Number(plan.monthly_price) * 12)) * 100);
+              const intervalUnavailable = billingInterval === "yearly" && Number(plan.monthly_price) > 0 && (plan.yearly_price == null || Number(plan.yearly_price) <= 0);
               return (
-                <article className={styles.card} key={plan.id}>
-                  <h2>{plan.name}</h2>
-                  <p>{plan.description}</p>
+                <article className={`${styles.card} ${styles.pricingCard} ${current ? styles.currentCard : ""}`} key={plan.id}>
+                  {current && <span className={styles.currentLabel}>{currentExpiresSoon ? "Renewal window open" : "Current plan"}</span>}
+                  <div className={styles.planHeading}><h3>{plan.name}</h3><span>{plan.persona_limit} personas</span></div>
+                  <p className={styles.planDescription}>{plan.description || "Access to the resume workspace and saved personas."}</p>
                   <p className={styles.price}>
                     {new Intl.NumberFormat(undefined, {
                       style: "currency",
                       currency: plan.currency,
-                    }).format(Number(plan.monthly_price))}
-                    <span className={styles.muted}> / month</span>
+                    }).format(price ?? Number(plan.monthly_price))}
+                    <span className={styles.muted}> / {price === 0 ? "month" : billingInterval === "yearly" ? "year" : "month"}</span>
                   </p>
-                  <p>Up to {plan.persona_limit} personas</p>
+                  {billingInterval === "yearly" && price !== null && price > 0 && <p className={styles.yearlyNote}>Billed yearly · equivalent to {(price / 12).toFixed(2)} / month</p>}
+                  {billingInterval === "yearly" && savings > 0 && <p className={styles.savings}>Save {savings}% compared with monthly billing</p>}
+                  {intervalUnavailable && <p className={styles.unavailable}>Yearly pricing is not configured for this package.</p>}
                   <button
-                    className={styles.primary}
-                    disabled={busy || current || tooSmall || (Number(plan.monthly_price) > 0 && !plan.stripe_price_id)}
+                    className={`${styles.primary} ${styles.subscribeButton}`}
+                    disabled={busy || (current && !currentExpiresSoon) || tooSmall || intervalUnavailable}
                     onClick={() => {
                       setSelected(plan);
                       setMessage("");
                     }}
                   >
                     {current
-                      ? "Current package"
+                      ? currentExpiresSoon ? "Renew package" : "Current package"
                       : membership?.status === "expired" &&
                           membership.subscription?.package_id === plan.id
                         ? "Renew package"
                         : "Select package"}
                   </button>
-                  {Number(plan.monthly_price) > 0 && !plan.stripe_price_id && (
-                    <p className={styles.muted}>Payment setup is not complete for this package yet.</p>
-                  )}
                   {tooSmall && (
                     <p className={styles.muted}>
                       You have {membership?.persona_count} personas. Remove some
@@ -185,8 +210,8 @@ export function PackagesClient() {
             )}
             <h2>Subscribe to {selected.name}?</h2>
             <p>
-              {Number(selected.monthly_price) > 0
-                ? "You will continue to Stripe to pay securely. Your package changes after the payment is verified."
+              {Number(priceFor(selected, billingInterval) ?? 0) > 0
+                ? "You will continue to Safepay to pay securely. Your package changes after the payment is verified."
                 : "This activates the free package for one month and replaces your current package."}
             </p>
             <button
@@ -196,7 +221,7 @@ export function PackagesClient() {
             >
               {busy
                 ? "Opening checkout..."
-                : Number(selected.monthly_price) > 0
+                : Number(priceFor(selected, billingInterval) ?? 0) > 0
                   ? "Continue to payment"
                   : "Activate free package"}
             </button>
@@ -208,4 +233,11 @@ export function PackagesClient() {
       )}
     </main>
   );
+}
+
+function priceFor(plan: Package, interval: "monthly" | "yearly"): number | null {
+  if (interval === "yearly" && Number(plan.monthly_price) > 0) {
+    return plan.yearly_price == null || Number(plan.yearly_price) <= 0 ? null : Number(plan.yearly_price);
+  }
+  return Number(plan.monthly_price);
 }

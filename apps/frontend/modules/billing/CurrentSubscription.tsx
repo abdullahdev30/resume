@@ -50,14 +50,14 @@ export function CurrentSubscription() {
               >
                 <div>
                   <dt className="text-xs text-[var(--text-muted)]">
-                    Monthly price
+                    {subscription.billing_interval === "yearly" ? "Yearly price" : "Monthly price"}
                   </dt>
                   <dd className="mt-1 text-sm font-semibold">
                     {new Intl.NumberFormat(undefined, {
                       style: "currency",
                       currency: subscription.currency,
                     }).format(Number(subscription.monthly_price))}{" "}
-                    / month
+                    / {subscription.billing_interval || "monthly"}
                   </dd>
                 </div>
                 <div>
@@ -81,7 +81,7 @@ export function CurrentSubscription() {
                 <div>
                   <dt className="text-xs text-[var(--text-muted)]">Renewal</dt>
                   <dd className="mt-1 text-sm font-semibold">
-                    Does not renew automatically
+                    {subscription.renewal_enabled ? "Automatic renewal is on" : "Manual renewal — no automatic charge"}
                   </dd>
                 </div>
               </dl>

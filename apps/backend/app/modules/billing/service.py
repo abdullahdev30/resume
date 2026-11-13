@@ -85,12 +85,15 @@ def subscribe(user_id, package_id):
                 )
         cursor.execute(
             """INSERT INTO user_subscriptions
-            (user_id, package_id, package_name, persona_limit, monthly_price, currency, starts_at, expires_at)
-            VALUES (%s,%s,%s,%s,%s,%s,NOW(),NOW() + INTERVAL '1 month')
+            (user_id, package_id, package_name, persona_limit, monthly_price, currency, starts_at, expires_at,
+             billing_interval,current_period_start,next_billing_at,renewal_enabled)
+            VALUES (%s,%s,%s,%s,%s,%s,NOW(),NOW() + INTERVAL '1 month','monthly',NOW(),NOW() + INTERVAL '1 month',FALSE)
             ON CONFLICT (user_id) DO UPDATE SET package_id=EXCLUDED.package_id,
             package_name=EXCLUDED.package_name, persona_limit=EXCLUDED.persona_limit,
             monthly_price=EXCLUDED.monthly_price, currency=EXCLUDED.currency,
-            starts_at=EXCLUDED.starts_at, expires_at=EXCLUDED.expires_at RETURNING *""",
+            starts_at=EXCLUDED.starts_at, expires_at=EXCLUDED.expires_at,
+            billing_interval='monthly',current_period_start=EXCLUDED.current_period_start,
+            next_billing_at=EXCLUDED.next_billing_at,renewal_enabled=FALSE,cancellation_at=NULL RETURNING *""",
             (
                 user_id,
                 package["id"],
@@ -103,112 +106,64 @@ def subscribe(user_id, package_id):
         return cursor.fetchone()
 
 
-def fulfill_checkout_event(
-    *,
-    event_id,
-    event_type,
-    session_id=None,
-    payment_status=None,
-    amount_total=None,
-    currency=None,
-    payment_intent=None,
-    payment_intent_id=None,
-    fully_refunded=False,
-):
-    """Fulfill paid package orders exactly once from verified Stripe webhooks."""
-    payment_intent_id = payment_intent_id or payment_intent
-    if hasattr(payment_intent_id, "id"):
-        payment_intent_id = payment_intent_id.id
+def fulfill_safepay_payment(*, event_id, event_type, tracker_token, amount, currency, order_id=None):
+    """Apply a signed Safepay payment event once, after validating its order terms."""
+    if not event_id or not tracker_token:
+        raise HTTPException(400, "Webhook is missing its event or tracker identifier.")
     with database() as cursor:
         cursor.execute(
-            """INSERT INTO stripe_webhook_events(stripe_event_id, event_type)
-            VALUES (%s,%s) ON CONFLICT DO NOTHING RETURNING stripe_event_id""",
+            "INSERT INTO payment_webhook_events(event_id,event_type) VALUES (%s,%s) ON CONFLICT DO NOTHING RETURNING event_id",
             (event_id, event_type),
         )
         if not cursor.fetchone():
             return {"status": "duplicate"}
-
-        if session_id:
-            cursor.execute(
-                """SELECT * FROM stripe_checkout_orders
-                WHERE stripe_session_id=%s FOR UPDATE""",
-                (session_id,),
-            )
-            order = cursor.fetchone()
-            if not order:
-                raise HTTPException(404, "Checkout order is not registered yet.")
-            if event_type == "checkout.session.async_payment_failed":
-                cursor.execute(
-                    "UPDATE stripe_checkout_orders SET status='failed' WHERE stripe_session_id=%s AND status='pending'",
-                    (session_id,),
-                )
-                return {"status": "failed"}
-            if payment_status != "paid":
-                return {"status": "pending"}
-            if (
-                amount_total != order["amount_total"]
-                or (currency or "").lower() != order["currency"].lower()
-            ):
-                logger.error("Stripe checkout amount/currency mismatch for session %s", session_id)
-                cursor.execute(
-                    "UPDATE stripe_checkout_orders SET status='failed' WHERE stripe_session_id=%s",
-                    (session_id,),
-                )
-                return {"status": "mismatch"}
-            if order["status"] == "paid":
-                return {"status": "fulfilled"}
-
-            cursor.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                (str(order["user_id"]),),
-            )
-            cursor.execute(
-                """INSERT INTO user_subscriptions
-                (user_id, package_id, package_name, persona_limit, monthly_price,
-                 currency, starts_at, expires_at, source_checkout_session)
-                VALUES (%s,%s,%s,%s,%s,%s,NOW(),NOW() + INTERVAL '1 month',%s)
-                ON CONFLICT (user_id) DO UPDATE SET
-                    package_id=EXCLUDED.package_id,
-                    package_name=EXCLUDED.package_name,
-                    persona_limit=EXCLUDED.persona_limit,
-                    monthly_price=EXCLUDED.monthly_price,
-                    currency=EXCLUDED.currency,
-                    starts_at=EXCLUDED.starts_at,
-                    expires_at=EXCLUDED.expires_at,
-                    source_checkout_session=EXCLUDED.source_checkout_session""",
-                (
-                    order["user_id"], order["package_id"], order["package_name"],
-                    order["persona_limit"], order["monthly_price"], order["currency"],
-                    session_id,
-                ),
-            )
-            cursor.execute(
-                """UPDATE stripe_checkout_orders SET status='paid', payment_intent_id=%s,
-                fulfilled_at=NOW() WHERE stripe_session_id=%s""",
-                (payment_intent_id, session_id),
-            )
-            return {"status": "fulfilled"}
-
-        if payment_intent_id:
-            cursor.execute(
-                """SELECT * FROM stripe_checkout_orders
-                WHERE payment_intent_id=%s FOR UPDATE""",
-                (payment_intent_id,),
-            )
-            order = cursor.fetchone()
-            if not order:
-                raise HTTPException(404, "Stripe payment is not associated with an order.")
-            if event_type == "charge.refunded" and not fully_refunded:
-                return {"status": "partial_refund"}
-            cursor.execute(
-                "UPDATE stripe_checkout_orders SET status='failed' WHERE stripe_session_id=%s",
-                (order["stripe_session_id"],),
-            )
-            cursor.execute(
-                """UPDATE user_subscriptions SET expires_at=NOW()
-                WHERE user_id=%s AND source_checkout_session=%s""",
-                (order["user_id"], order["stripe_session_id"]),
-            )
-            logger.warning("Suspended package access after Stripe risk event %s", event_type)
-            return {"status": "suspended"}
-        return {"status": "ignored"}
+        cursor.execute("SELECT * FROM payment_orders WHERE tracker_token=%s FOR UPDATE", (tracker_token,))
+        order = cursor.fetchone()
+        if not order:
+            raise HTTPException(404, "Safepay tracker is not associated with an order.")
+        if order_id and str(order["id"]) != str(order_id):
+            raise HTTPException(400, "Safepay order metadata does not match its tracker.")
+        if amount != order["amount_total"] or (currency or "").lower() != order["currency"].lower():
+            logger.error("Safepay amount/currency mismatch for order %s", order["id"])
+            raise HTTPException(400, "Safepay payment amount or currency does not match its order.")
+        if event_type == "payment.failed":
+            cursor.execute("UPDATE payment_orders SET status='failed',updated_at=NOW() WHERE id=%s AND status='pending'", (order["id"],))
+            return {"status": "failed"}
+        if order["status"] == "paid":
+            return {"status": "paid"}
+        cursor.execute(
+            """INSERT INTO user_subscriptions
+            (user_id,package_id,package_name,persona_limit,monthly_price,currency,starts_at,expires_at,
+             source_payment_order,billing_interval,current_period_start,next_billing_at,renewal_enabled)
+            VALUES (%s,%s,%s,%s,%s,%s,NOW(),NOW()+CASE WHEN %s='yearly' THEN INTERVAL '12 months' ELSE INTERVAL '1 month' END,
+             %s,%s,NOW(),NOW()+CASE WHEN %s='yearly' THEN INTERVAL '12 months' ELSE INTERVAL '1 month' END,FALSE)
+            ON CONFLICT(user_id) DO UPDATE SET package_id=EXCLUDED.package_id,
+            package_name=EXCLUDED.package_name,persona_limit=EXCLUDED.persona_limit,
+            monthly_price=EXCLUDED.monthly_price,currency=EXCLUDED.currency,
+            starts_at=CASE WHEN user_subscriptions.package_id=EXCLUDED.package_id
+                AND user_subscriptions.billing_interval=EXCLUDED.billing_interval
+                AND user_subscriptions.expires_at>NOW()
+                THEN user_subscriptions.expires_at ELSE NOW() END,
+            current_period_start=CASE WHEN user_subscriptions.package_id=EXCLUDED.package_id
+                AND user_subscriptions.billing_interval=EXCLUDED.billing_interval
+                AND user_subscriptions.expires_at>NOW()
+                THEN user_subscriptions.expires_at ELSE NOW() END,
+            expires_at=(CASE WHEN user_subscriptions.package_id=EXCLUDED.package_id
+                AND user_subscriptions.billing_interval=EXCLUDED.billing_interval
+                AND user_subscriptions.expires_at>NOW()
+                THEN user_subscriptions.expires_at ELSE NOW() END)
+                + CASE WHEN EXCLUDED.billing_interval='yearly' THEN INTERVAL '12 months' ELSE INTERVAL '1 month' END,
+            next_billing_at=(CASE WHEN user_subscriptions.package_id=EXCLUDED.package_id
+                AND user_subscriptions.billing_interval=EXCLUDED.billing_interval
+                AND user_subscriptions.expires_at>NOW()
+                THEN user_subscriptions.expires_at ELSE NOW() END)
+                + CASE WHEN EXCLUDED.billing_interval='yearly' THEN INTERVAL '12 months' ELSE INTERVAL '1 month' END,
+            source_payment_order=EXCLUDED.source_payment_order,
+            billing_interval=EXCLUDED.billing_interval,
+            renewal_enabled=FALSE,cancellation_at=NULL""",
+            (order["user_id"],order["package_id"],order["package_name"],order["persona_limit"],
+             order["plan_price"],order["currency"],order["billing_interval"],order["id"],
+             order["billing_interval"],order["billing_interval"]),
+        )
+        cursor.execute("UPDATE payment_orders SET status='paid',updated_at=NOW() WHERE id=%s", (order["id"],))
+        return {"status": "paid"}

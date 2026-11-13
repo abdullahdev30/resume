@@ -4,8 +4,8 @@ export interface Package {
   description: string;
   persona_limit: number;
   monthly_price: string | number;
+  yearly_price?: string | number | null;
   currency: string;
-  stripe_price_id?: string | null;
 }
 
 export interface Membership {
@@ -18,6 +18,9 @@ export interface Membership {
         package_id: string;
         package_name: string;
         expires_at: string;
+        billing_interval: "monthly" | "yearly";
+        renewal_enabled: boolean;
+        next_billing_at: string;
       })
     | null;
 }

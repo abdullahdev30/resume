@@ -196,57 +196,6 @@ def test_paid_packages_cannot_be_activated_without_checkout(monkeypatch):
     assert error.value.status_code == 402
 
 
-def test_verified_checkout_event_fulfills_once(monkeypatch):
-    order = {
-        "stripe_session_id": "cs_test_1",
-        "user_id": str(uuid4()),
-        "package_id": str(uuid4()),
-        "package_name": "Professional",
-        "persona_limit": 5,
-        "monthly_price": Decimal("9.99"),
-        "amount_total": 999,
-        "currency": "usd",
-        "status": "pending",
-    }
-    cursor = fake_database(
-        monkeypatch,
-        service,
-        [{"stripe_event_id": "evt_1"}, order],
-    )
-    result = service.fulfill_checkout_event(
-        event_id="evt_1",
-        event_type="checkout.session.completed",
-        session_id="cs_test_1",
-        payment_status="paid",
-        amount_total=999,
-        currency="usd",
-        payment_intent="pi_1",
-    )
-    assert result == {"status": "fulfilled"}
-    assert any("INSERT INTO user_subscriptions" in query for query, _ in cursor.queries)
-    assert any("fulfilled_at=NOW()" in query for query, _ in cursor.queries)
-
-
-def test_checkout_event_does_not_fulfill_unpaid_session(monkeypatch):
-    order = {
-        "stripe_session_id": "cs_test_1",
-        "amount_total": 999,
-        "currency": "usd",
-        "status": "pending",
-    }
-    cursor = fake_database(monkeypatch, service, [{"stripe_event_id": "evt_2"}, order])
-    result = service.fulfill_checkout_event(
-        event_id="evt_2",
-        event_type="checkout.session.completed",
-        session_id="cs_test_1",
-        payment_status="unpaid",
-        amount_total=999,
-        currency="usd",
-    )
-    assert result == {"status": "pending"}
-    assert not any("INSERT INTO user_subscriptions" in query for query, _ in cursor.queries)
-
-
 def test_super_admin_cannot_be_deactivated(client, monkeypatch):
     monkeypatch.setattr(
         service, "access_for", lambda _: {"role": "super_admin", "active": True}

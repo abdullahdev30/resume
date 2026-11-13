@@ -15,15 +15,16 @@
     "test:pdf": "playwright test --config playwright.pdf.config.ts"
   },
   "dependencies": {
+    "@fontsource/lora": "^5.2.0",
+    "@fontsource/roboto": "^5.2.0",
     "@tanstack/react-query": "^5.104.5",
+    "axios": "^1.21.1",
     "libphonenumber-js": "^1.13.14",
     "lucide-react": "^1.47.0",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "zustand": "^5.0.8",
-    "@fontsource/roboto": "^5.2.0",
-    "@fontsource/lora": "^5.2.0"
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",

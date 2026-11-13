@@ -3,7 +3,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from app.modules.billing.dependencies import (
     account_access,
@@ -28,13 +28,8 @@ class PackageInput(BaseModel):
     description: str = Field(default="", max_length=1000)
     persona_limit: int = Field(ge=1, le=10000, strict=True)
     monthly_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    yearly_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     currency: str = Field(default="USD", pattern=r"^[A-Z]{3}$")
-    stripe_price_id: str | None = Field(default=None, pattern=r"^price_[A-Za-z0-9]+$")
-
-    @field_validator("stripe_price_id", mode="before")
-    @classmethod
-    def empty_price_id_is_none(cls, value):
-        return None if value == "" else value
 
 
 class SubscribeInput(BaseModel):
@@ -68,7 +63,7 @@ def public_packages():
     """Public catalog only; no account or subscription information."""
     with database() as cursor:
         cursor.execute(
-            """SELECT id, name, description, persona_limit, monthly_price, currency
+            """SELECT id, name, description, persona_limit, monthly_price, yearly_price, currency
             FROM subscription_packages WHERE available
             ORDER BY monthly_price, persona_limit, name"""
         )
@@ -86,7 +81,7 @@ def select_package(payload: SubscribeInput, user=ACCOUNT):
     if not package:
         raise HTTPException(404, "This package is no longer available.")
     if package["monthly_price"] > 0:
-        raise HTTPException(402, "Paid packages must be activated through Stripe checkout.")
+        raise HTTPException(402, "Paid packages must be activated through verified Safepay payment.")
     return subscribe(user.id, payload.package_id)
 
 
@@ -160,9 +155,9 @@ def role(user_id: UUID, payload: RoleInput, user=SUPER_ADMIN):
 def create_package(payload: PackageInput, user=SUPER_ADMIN):
     with database() as cursor:
         cursor.execute(
-            """INSERT INTO subscription_packages(name, description, persona_limit, monthly_price, currency, stripe_price_id)
+            """INSERT INTO subscription_packages(name, description, persona_limit, monthly_price, yearly_price, currency)
             VALUES (%s,%s,%s,%s,%s,%s) RETURNING *""",
-            tuple(payload.model_dump().values()),
+            (payload.name, payload.description, payload.persona_limit, payload.monthly_price, payload.yearly_price, payload.currency),
         )
         return cursor.fetchone()
 
@@ -172,8 +167,8 @@ def edit_package(package_id: UUID, payload: PackageInput, user=SUPER_ADMIN):
     with database() as cursor:
         cursor.execute(
             """UPDATE subscription_packages SET name=%s, description=%s, persona_limit=%s,
-            monthly_price=%s, currency=%s, stripe_price_id=%s WHERE id=%s AND available RETURNING *""",
-            (*payload.model_dump().values(), package_id),
+            monthly_price=%s, yearly_price=%s, currency=%s WHERE id=%s AND available RETURNING *""",
+            (payload.name, payload.description, payload.persona_limit, payload.monthly_price, payload.yearly_price, payload.currency, package_id),
         )
         row = cursor.fetchone()
         if not row:
